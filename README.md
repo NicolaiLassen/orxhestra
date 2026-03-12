@@ -75,12 +75,12 @@ pip install langchain-adk
 uv add langchain-adk
 ```
 
-You also need a LangChain LLM provider:
+Install with an LLM provider:
 
 ```bash
-pip install langchain-openai       # ChatOpenAI
-pip install langchain-anthropic    # ChatAnthropic
-pip install langchain-google-genai # ChatGoogleGenerativeAI
+pip install langchain-adk[openai]      # ChatOpenAI
+pip install langchain-adk[anthropic]   # ChatAnthropic
+pip install langchain-adk[google]      # ChatGoogleGenerativeAI
 ```
 
 **Python >= 3.10 required.**
@@ -764,11 +764,43 @@ async for event in loop.run(draft_text, ctx=ctx):
 
 ## Agent-to-Agent (A2A) Server
 
-Expose any agent as an HTTP endpoint with Server-Sent Events:
+Expose any agent as a spec-compliant [A2A protocol](https://a2a-protocol.org/) endpoint (v0.3.0).
+
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant S as A2AServer
+    participant A as BaseAgent
+
+    Note over S: GET /.well-known/agent-card.json
+    C->>S: Agent Card discovery
+    S-->>C: AgentCard (name, skills, capabilities)
+
+    Note over S: POST / (JSON-RPC 2.0)
+    C->>S: message/send {message: {role, parts}}
+    S->>A: run_with_callbacks(text, ctx)
+    A-->>S: SDK Events
+    S-->>C: Task {status: completed, artifacts, history}
+
+    C->>S: message/stream {message: {role, parts}}
+    S->>A: run_with_callbacks(text, ctx)
+    loop SSE stream
+        A-->>S: SDK Event
+        S-->>C: data: {jsonrpc: "2.0", result: TaskStatusUpdateEvent}
+        S-->>C: data: {jsonrpc: "2.0", result: TaskArtifactUpdateEvent}
+    end
+    S-->>C: data: {jsonrpc: "2.0", result: {status: completed, final: true}}
+
+    C->>S: tasks/get {id: "task-uuid"}
+    S-->>C: Task
+
+    C->>S: tasks/cancel {id: "task-uuid"}
+    S-->>C: Task {status: canceled}
+```
 
 ```python
 from langchain_adk import LlmAgent, InMemorySessionService
-from langchain_adk.a2a import A2AServer
+from langchain_adk.a2a import A2AServer, AgentSkill
 
 agent = LlmAgent(name="MyAgent", llm=llm, tools=[...])
 
@@ -776,13 +808,69 @@ server = A2AServer(
     agent=agent,
     session_service=InMemorySessionService(),
     app_name="my-agent-service",
+    skills=[
+        AgentSkill(
+            id="qa", name="Q&A",
+            description="Answers general questions.",
+            tags=["general"],
+        ),
+    ],
 )
 
 app = server.as_fastapi_app()
 # uvicorn my_module:app --host 0.0.0.0 --port 8000
 ```
 
-Clients send `POST /run` with a JSON body and receive an SSE stream of agent events. Combine with `AgentTool` or `make_transfer_tool` to wire agents across services.
+**Endpoints:**
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET` | `/.well-known/agent-card.json` | Agent Card discovery |
+| `POST` | `/` | JSON-RPC 2.0 dispatch |
+
+**JSON-RPC methods:**
+
+| Method | Description |
+|---|---|
+| `message/send` | Send message, receive completed Task |
+| `message/stream` | Send message, receive SSE stream |
+| `tasks/get` | Retrieve task by ID |
+| `tasks/cancel` | Cancel a running task |
+
+**Example requests:**
+
+```bash
+# Discover agent
+curl http://localhost:8000/.well-known/agent-card.json
+
+# Send message (blocking)
+curl -X POST http://localhost:8000/ \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0", "id": "1",
+    "method": "message/send",
+    "params": {
+      "message": {
+        "role": "user",
+        "parts": [{"kind": "text", "text": "What is 2+2?"}]
+      }
+    }
+  }'
+
+# Stream response (SSE)
+curl -N -X POST http://localhost:8000/ \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0", "id": "2",
+    "method": "message/stream",
+    "params": {
+      "message": {
+        "role": "user",
+        "parts": [{"kind": "text", "text": "Tell me a story"}]
+      }
+    }
+  }'
+```
 
 ---
 

@@ -27,6 +27,8 @@ testpaths = ["tests"]
 dev-dependencies = [
     "pytest>=9.0.2",
     "pytest-asyncio>=1.3.0",
+    "build>=1.4.0",
+    "twine>=6.2.0",
 ]
 
 [dependency-groups]

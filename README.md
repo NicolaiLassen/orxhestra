@@ -81,6 +81,7 @@ Install with an LLM provider:
 pip install langchain-adk[openai]      # ChatOpenAI
 pip install langchain-adk[anthropic]   # ChatAnthropic
 pip install langchain-adk[google]      # ChatGoogleGenerativeAI
+pip install langchain-adk[mcp]         # MCP integration (fastMCP)
 ```
 
 **Python >= 3.10 required.**

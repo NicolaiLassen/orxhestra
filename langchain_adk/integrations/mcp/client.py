@@ -1,12 +1,12 @@
 """MCP client - thin wrapper around FastMCP.
 
+Supports both HTTP URLs and in-memory FastMCP server objects.
 Uses a fresh session per call. Suitable for request-scoped usage.
-For long-lived connections, extend with a shared client lifecycle.
 """
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Union
 
 
 class MCPClient:
@@ -14,45 +14,35 @@ class MCPClient:
 
     Parameters
     ----------
-    url : str
-        The HTTP URL of the MCP server
-        (e.g. "http://localhost:8001/mcp").
+    transport : str or FastMCP server
+        Either an HTTP URL (e.g. "http://localhost:8001/mcp")
+        or a FastMCP server object for in-memory usage.
     """
 
-    def __init__(self, url: str) -> None:
-        self._url = url
+    def __init__(self, transport: Union[str, Any]) -> None:
+        self._transport = transport
+
+    @property
+    def url(self) -> str | None:
+        """Return the URL if transport is a string, else None."""
+        return self._transport if isinstance(self._transport, str) else None
+
+    def _make_client(self) -> Any:
+        from fastmcp import Client
+
+        if isinstance(self._transport, str):
+            from fastmcp.client.transports import StreamableHttpTransport
+            return Client(StreamableHttpTransport(self._transport))
+        else:
+            # In-memory: pass server object directly
+            return Client(self._transport)
 
     async def list_tools(self) -> list[Any]:
-        """Return the list of tools exposed by the MCP server.
-
-        Returns
-        -------
-        list[Any]
-            The tool definitions returned by the MCP server.
-        """
-        from fastmcp import Client
-        from fastmcp.client.transports import StreamableHttpTransport
-
-        async with Client(StreamableHttpTransport(self._url)) as client:
+        """Return the list of tools exposed by the MCP server."""
+        async with self._make_client() as client:
             return await client.list_tools()
 
     async def call_tool(self, name: str, arguments: dict[str, Any]) -> Any:
-        """Invoke a tool by name with the given arguments.
-
-        Parameters
-        ----------
-        name : str
-            The MCP tool name.
-        arguments : dict[str, Any]
-            Key-value arguments for the tool.
-
-        Returns
-        -------
-        Any
-            Raw result from the MCP server (list of content items).
-        """
-        from fastmcp import Client
-        from fastmcp.client.transports import StreamableHttpTransport
-
-        async with Client(StreamableHttpTransport(self._url)) as client:
+        """Invoke a tool by name with the given arguments."""
+        async with self._make_client() as client:
             return await client.call_tool(name, arguments)

@@ -129,10 +129,14 @@ class MCPToolAdapter:
             async def _arun(self, **kwargs: Any) -> Any:
                 """Call the MCP tool and return its text content."""
                 result = await client.call_tool(tool_name, kwargs)
-                # MCP returns a list of content items; extract text
-                if isinstance(result, list):
+                # Extract text from MCP result
+                content = result
+                # CallToolResult has a .content list
+                if hasattr(result, "content"):
+                    content = result.content
+                if isinstance(content, list):
                     parts = []
-                    for item in result:
+                    for item in content:
                         if hasattr(item, "text"):
                             parts.append(item.text)
                         elif isinstance(item, dict) and "text" in item:

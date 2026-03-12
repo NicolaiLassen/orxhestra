@@ -1,6 +1,6 @@
 [project]
 name = "langchain-adk"
-version = "0.2.1"
+version = "0.2.2"
 description = "A LangChain-powered Agent Development Toolkit"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -12,13 +12,13 @@ dependencies = [
     "langchain>=1.2.11",
     "pydantic>=2.12.5",
     "fastapi>=0.115.0",
-    "fastmcp>=2.0.0",
 ]
 
 [project.optional-dependencies]
 openai = ["langchain-openai>=1.1.11"]
 anthropic = ["langchain-anthropic>=0.3.0"]
 google = ["langchain-google-genai>=2.1.0"]
+mcp = ["fastmcp>=2.0.0"]
 
 [project.urls]
 Homepage = "https://github.com/NicolaiLassen/langchain-adk"

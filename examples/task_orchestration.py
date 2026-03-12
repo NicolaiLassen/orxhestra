@@ -13,7 +13,7 @@ import asyncio
 from langchain_adk.agents.llm_agent import LlmAgent
 from langchain_adk.context.invocation_context import InvocationContext
 from langchain_adk.events.event import FinalAnswerEvent, ToolCallEvent
-from langchain_adk.orchestration.manage_tasks_tool import ManageTasksTool
+from langchain_adk.planners.task_planner import ManageTasksTool
 from langchain_adk.prompts.catalog import build_system_prompt
 from langchain_adk.prompts.context import PromptContext
 
@@ -68,8 +68,8 @@ async def main() -> None:
             print(f"\n[DONE]\n{event.answer}")
 
     # Show final task board state
-    from orchestration.task_board import list_task_items
-    from orchestration.constants import StateKey
+    from langchain_adk.planners.task_board import list_task_items
+    from langchain_adk.planners.constants import StateKey
     board = ctx.state.get(StateKey.TASK_BOARD)
     if board:
         print(f"\nTask board: {list_task_items(board)}")

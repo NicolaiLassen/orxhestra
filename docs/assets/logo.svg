@@ -1,0 +1,17 @@
+<svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Orbital Paths -->
+  <circle cx="50" cy="50" r="18" stroke="#4F46E5" stroke-width="2" opacity="0.6"/>
+  <circle cx="50" cy="50" r="34" stroke="#4F46E5" stroke-width="1.5" opacity="0.4"/>
+  <circle cx="50" cy="50" r="48" stroke="#4F46E5" stroke-width="1" opacity="0.2"/>
+
+  <!-- Central Core -->
+  <circle cx="50" cy="50" r="10" fill="#3B82F6"/>
+  <circle cx="50" cy="50" r="4" fill="#60A5FA"/>
+
+  <!-- Component Nodes (Snapped to Orbits) -->
+  <circle cx="62.73" cy="37.27" r="5" fill="#60A5FA"/>
+  <circle cx="25.96" cy="74.04" r="4.5" fill="#3B82F6"/>
+  <circle cx="91.57" cy="74.00" r="6" fill="#4F46E5"/>
+  <circle cx="70.29" cy="93.50" r="2.5" fill="#60A5FA"/>
+  <circle cx="13.23" cy="19.14" r="3" fill="#3B82F6"/>
+</svg>

@@ -1,0 +1,71 @@
+# MCP Integration
+
+Install with MCP support:
+
+```bash
+pip install langchain-adk[mcp]
+```
+
+Connect to any MCP-compatible tool server and use its tools inside any agent.
+
+```mermaid
+sequenceDiagram
+    participant A as LlmAgent
+    participant W as WrappedMCPTool
+    participant C as MCPClient
+    participant S as MCP Server
+
+    Note over C,S: Setup (once)
+    C->>S: list_tools()
+    S-->>C: [Tool definitions]
+    C->>W: MCPToolAdapter wraps each tool
+
+    Note over A,W: Runtime (per LLM tool call)
+    A->>W: ainvoke({city: "Copenhagen"})
+    W->>C: call_tool("get_weather", {city: "Copenhagen"})
+    C->>S: Tool execution request
+    S-->>C: CallToolResult [TextContent]
+    C-->>W: result
+    W-->>A: "Sunny, 22°C"
+```
+
+## Usage
+
+```python
+from langchain_adk.integrations.mcp import MCPClient, MCPToolAdapter
+
+# Connect to an MCP server (HTTP or in-memory)
+client = MCPClient("http://localhost:8001/mcp")
+
+# Wrap MCP tools as LangChain tools
+adapter = MCPToolAdapter(client)
+mcp_tools = await adapter.load_tools()
+
+agent = LlmAgent(
+    name="MCPAgent",
+    llm=llm,
+    tools=mcp_tools,
+    instructions="Use the available tools to answer questions.",
+)
+```
+
+## Testing with in-memory server
+
+For testing, pass a fastMCP server object directly (no HTTP needed):
+
+```python
+from fastmcp import FastMCP
+
+server = FastMCP("TestServer")
+
+@server.tool
+def add(a: int, b: int) -> int:
+    """Add two numbers."""
+    return a + b
+
+client = MCPClient(server)  # in-memory, no network
+adapter = MCPToolAdapter(client)
+tools = await adapter.load_tools()
+```
+
+`MCPToolAdapter.load_tools()` fetches the tool list from the MCP server and wraps each as a LangChain `BaseTool`.

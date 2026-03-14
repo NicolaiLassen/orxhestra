@@ -1,0 +1,29 @@
+# Prompts
+
+The prompt catalog builds structured system prompts from a `PromptContext`:
+
+```python
+from langchain_adk import PromptContext, build_system_prompt
+
+prompt = build_system_prompt(PromptContext(
+    agent_name="WriterAgent",
+    goal="Write polished articles from research notes.",
+    instructions="Use markdown. Structure with headings. Be thorough.",
+    skills=[
+        {"name": "AP Style", "content": "Follow AP style guide for all prose."}
+    ],
+    agents=[
+        {"name": "ResearchAgent", "description": "Retrieves research on any topic."}
+    ],
+    workflow_instructions=(
+        "1. Call ResearchAgent to gather background information.\n"
+        "2. Outline the article structure.\n"
+        "3. Write the full article.\n"
+        "4. Review and refine."
+    ),
+))
+
+agent = LlmAgent(name="WriterAgent", llm=llm, instructions=prompt)
+```
+
+Sections are only included when non-empty — no boilerplate padding.

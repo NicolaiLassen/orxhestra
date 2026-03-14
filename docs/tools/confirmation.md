@@ -1,0 +1,23 @@
+# Tool Confirmation
+
+Gate dangerous tool executions with `ToolContext.request_confirmation()`:
+
+```python
+from langchain_adk.tools import ToolContext
+
+async def confirm_dangerous(ctx, tool_name: str, tool_args: dict) -> None:
+    if tool_name in ("delete_file", "drop_table"):
+        tool_ctx = ToolContext(ctx)
+        tool_ctx.request_confirmation()
+```
+
+When `request_confirmation()` is called from a `before_tool_callback`, the tool execution is paused and a confirmation request event is yielded. The caller must approve or reject before execution continues.
+
+```python
+agent = LlmAgent(
+    name="SafeAgent",
+    llm=llm,
+    tools=[delete_file, drop_table, search],
+    before_tool_callback=confirm_dangerous,
+)
+```

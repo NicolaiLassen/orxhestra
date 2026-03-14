@@ -1,0 +1,47 @@
+# Quick Start
+
+Create an agent with a tool, wire it through the Runner, and stream events.
+
+```python
+import asyncio
+from langchain_anthropic import ChatAnthropic
+from langchain_core.tools import tool
+
+from langchain_adk import LlmAgent, Runner, InMemorySessionService
+from langchain_adk.events.event import FinalAnswerEvent
+
+@tool
+def get_weather(city: str) -> str:
+    """Get the current weather for a city."""
+    return f"The weather in {city} is sunny and 22 degrees."
+
+agent = LlmAgent(
+    name="WeatherAgent",
+    llm=ChatAnthropic(model="claude-3-5-haiku-latest"),
+    tools=[get_weather],
+    instructions="You are a helpful weather assistant.",
+)
+
+runner = Runner(
+    agent=agent,
+    app_name="demo",
+    session_service=InMemorySessionService(),
+)
+
+async def main():
+    async for event in runner.run_async(
+        user_id="user-1",
+        session_id="session-1",
+        new_message="What's the weather in Copenhagen and Berlin?",
+    ):
+        if isinstance(event, FinalAnswerEvent):
+            print(event.answer)
+
+asyncio.run(main())
+```
+
+!!! tip "Run it"
+    ```bash
+    export ANTHROPIC_API_KEY=sk-ant-...
+    uv run python examples/basic_agent.py
+    ```

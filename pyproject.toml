@@ -45,6 +45,8 @@ dev-dependencies = [
     "twine>=6.2.0",
     "langchain-openai>=1.1.11",
     "langfuse>=4.0.0",
+    "mkdocs-material>=9.7.5",
+    "mkdocs-mermaid2-plugin>=1.2.3",
 ]
 
 [dependency-groups]

@@ -1,0 +1,24 @@
+# Examples
+
+The `examples/` directory contains runnable demos for every major feature. Each example includes a `NotImplementedError` placeholder — replace it with your LLM of choice.
+
+| Example | What it demonstrates |
+|---|---|
+| `basic_agent.py` | Minimal agent with a single tool |
+| `streaming_agent.py` | SSE streaming with partial events |
+| `multi_agent.py` | SequentialAgent pipeline (researcher → writer) |
+| `parallel_agent.py` | ParallelAgent running 3 research agents concurrently |
+| `loop_agent.py` | LoopAgent with writer/reviewer iterative refinement |
+| `transfer_agent.py` | Agent handoff via `make_transfer_tool` (triage → specialists) |
+| `planner_agent.py` | PlanReActPlanner with structured chain-of-thought |
+| `memory_agent.py` | Persistent memory with `InMemoryMemoryStore` |
+| `structured_output.py` | Typed Pydantic output via `output_schema` |
+| `human_in_the_loop.py` | Interactive `ask_human` tool for user input |
+| `task_orchestration.py` | TaskPlanner with managed task board |
+| `mcp_agent.py` | MCP tool server integration |
+| `a2a_server.py` | A2A protocol server endpoint |
+
+```bash
+# Run any example (after replacing the NotImplementedError with your LLM)
+uv run python examples/basic_agent.py
+```

@@ -1,0 +1,98 @@
+# Tools
+
+```mermaid
+flowchart LR
+    classDef agent fill:#dbeafe,stroke:#3b82f6,color:#1e3a8a
+    classDef tool fill:#f3e8ff,stroke:#a855f7,color:#581c87
+    classDef effect fill:#fff7ed,stroke:#f97316,color:#7c2d12
+    classDef external fill:#f0fdf4,stroke:#22c55e,color:#14532d
+
+    A([LlmAgent]):::agent
+
+    A --> FT[function_tool]:::tool
+    A --> AT[AgentTool]:::tool
+    A --> TT[make_transfer_tool]:::tool
+    A --> EL[exit_loop_tool]:::tool
+    A --> LR[LongRunningFunctionTool]:::tool
+    A --> MCP[MCPToolAdapter]:::tool
+
+    FT -->|wraps| Fn["async def fn()"]:::external
+    AT -->|invokes| SA([sub-agent]):::agent
+    SA -->|derive context\nbranch isolation| IC["InvocationContext\n.derive()"]:::effect
+    TT -->|sets| EA1["EventActions\n.transfer_to_agent"]:::effect
+    EL -->|sets| EA2["EventActions\n.escalate = True"]:::effect
+    MCP -->|fetches from| MS[("MCP Server")]:::external
+```
+
+## Function tools
+
+Wrap any async function as a LangChain `BaseTool`:
+
+```python
+from langchain_adk import function_tool
+
+async def search_web(query: str) -> str:
+    """Search the web and return results."""
+    ...
+
+tool = function_tool(search_web)
+# or: function_tool(search_web, name="web_search", description="...")
+```
+
+Or use LangChain's `@tool` decorator directly — both work with `LlmAgent`.
+
+## AgentTool — sub-agents as tools
+
+Wrap a `BaseAgent` so it can be called as a tool by a parent agent:
+
+```python
+from langchain_adk import AgentTool
+
+research_tool = AgentTool(research_agent)
+# The parent agent can call "ResearchAgent" as a tool.
+# The tool derives a child context with branch isolation automatically.
+```
+
+## Transfer tool — explicit agent handoff
+
+```python
+from langchain_adk import make_transfer_tool
+
+transfer = make_transfer_tool([billing_agent, support_agent, tech_agent])
+# The LLM can call "transfer_to_agent" with the target agent name.
+# EventActions.transfer_to_agent is set; the parent routes accordingly.
+```
+
+## Exit loop tool
+
+Signal a `LoopAgent` to stop iterating:
+
+```python
+from langchain_adk import exit_loop_tool
+
+loop_agent = LoopAgent(
+    name="RefineLoop",
+    agents=[refine_agent],
+    # refine_agent has exit_loop_tool in its tools list
+)
+```
+
+## ToolContext
+
+Inside a tool's `_arun()`, use `ToolContext` to read/write agent state:
+
+```python
+from langchain_adk import ToolContext
+
+class MyStatefulTool(BaseTool):
+    _ctx: ToolContext | None = None
+
+    def inject_context(self, ctx: InvocationContext) -> None:
+        self._ctx = ToolContext(ctx)
+
+    async def _arun(self, query: str) -> str:
+        self._ctx.state["last_query"] = query
+        return "done"
+```
+
+`LlmAgent` automatically calls `inject_context()` on any tool that exposes it before each tool execution.

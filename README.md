@@ -1,8 +1,22 @@
-# langchain-adk
+<p align="center">
+  <img src="docs/assets/logo.svg" width="120" alt="langchain-adk logo">
+</p>
+
+<h1 align="center">langchain-adk</h1>
+
+<p align="center">
+  <strong>A LangChain-powered Agent Development Kit</strong><br>
+  Async event-streaming agents, composable hierarchies, session management, planners, skills, MCP and A2A integration.
+</p>
+
+<p align="center">
+  <a href="https://pypi.org/project/langchain-adk/"><img src="https://img.shields.io/pypi/v/langchain-adk" alt="PyPI"></a>
+  <a href="https://pypi.org/project/langchain-adk/"><img src="https://img.shields.io/pypi/pyversions/langchain-adk" alt="Python"></a>
+  <a href="https://github.com/NicolaiLassen/langchain-adk/blob/main/LICENSE"><img src="https://img.shields.io/github/license/NicolaiLassen/langchain-adk" alt="License"></a>
+  <a href="https://nicolailassen.github.io/langchain-adk/"><img src="https://img.shields.io/badge/docs-mkdocs-blue" alt="Docs"></a>
+</p>
 
 > **Beta** — This project is under heavy development and may be subject to breaking changes between minor versions. Pin your dependency version if you need stability.
-
-A LangChain-powered Agent Development Toolkit — async event-streaming agents, composable hierarchies, session management, planners, skills, MCP and A2A integration.
 
 ---
 

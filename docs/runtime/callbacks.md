@@ -1,0 +1,43 @@
+# Callbacks
+
+Attach hooks at the agent, model, and tool level:
+
+```python
+from langchain_adk import InvocationContext, LlmAgent
+from langchain_adk.models.llm_request import LlmRequest
+from langchain_adk.models.llm_response import LlmResponse
+
+async def log_llm_call(ctx: InvocationContext, request: LlmRequest) -> None:
+    print(f"[{ctx.agent_name}] LLM call with {len(request.messages)} messages")
+
+async def track_usage(ctx: InvocationContext, response: LlmResponse) -> None:
+    print(f"Tokens: {response.input_tokens} in / {response.output_tokens} out")
+
+async def handle_llm_error(
+    ctx: InvocationContext, request: LlmRequest, error: Exception
+) -> LlmResponse | None:
+    """Called when an LLM call fails. Return a LlmResponse to recover, or None to propagate."""
+    print(f"LLM error: {error}")
+    return None  # yields ErrorEvent
+
+async def log_tool(ctx: InvocationContext, name: str, args: dict) -> None:
+    print(f"[TOOL] {name}({args})")
+
+agent = LlmAgent(
+    name="TrackedAgent",
+    llm=llm,
+    before_model_callback=log_llm_call,
+    after_model_callback=track_usage,
+    on_model_error_callback=handle_llm_error,
+    before_tool_callback=log_tool,
+)
+```
+
+## Agent-level hooks
+
+```python
+async def on_start(ctx: InvocationContext) -> None:
+    print(f"Agent {ctx.agent_name} starting")
+
+agent.before_agent_callback = on_start
+```

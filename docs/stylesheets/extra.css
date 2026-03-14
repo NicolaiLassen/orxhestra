@@ -1,0 +1,85 @@
+/* Custom styles for langchain-adk docs */
+
+:root {
+    --md-primary-fg-color: #3b82f6;
+    --md-accent-fg-color: #3b82f6;
+}
+
+[data-md-color-scheme="slate"] {
+    --md-default-bg-color: #0f1117;
+    --md-default-fg-color--light: #71717a;
+}
+
+/* Hero on home page */
+.md-main .hero-section {
+    padding: 60px 0 40px;
+    text-align: center;
+}
+
+.hero-section h1 {
+    font-size: 3rem;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    line-height: 1.1;
+    margin-bottom: 16px;
+}
+
+.hero-section .gradient {
+    background: linear-gradient(135deg, #3b82f6, #a855f7);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+/* Feature grid */
+.feature-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 16px;
+    margin: 32px 0;
+}
+
+.feature-card {
+    padding: 24px;
+    border: 1px solid var(--md-default-fg-color--lightest);
+    border-radius: 12px;
+    background: var(--md-code-bg-color);
+}
+
+.feature-card h3 {
+    margin-top: 8px;
+}
+
+/* Install command styling */
+.install-command {
+    display: inline-block;
+    padding: 12px 24px;
+    background: var(--md-code-bg-color);
+    border: 1px solid var(--md-default-fg-color--lightest);
+    border-radius: 8px;
+    font-family: var(--md-code-font-family);
+    font-size: 0.9rem;
+    margin-top: 24px;
+}
+
+/* Badge */
+.badge {
+    display: inline-block;
+    padding: 4px 12px;
+    border-radius: 100px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 8px;
+}
+
+.badge-llm {
+    background: rgba(59, 130, 246, 0.15);
+    color: #3b82f6;
+}
+
+.badge-composite {
+    background: rgba(34, 197, 94, 0.15);
+    color: #22c55e;
+}

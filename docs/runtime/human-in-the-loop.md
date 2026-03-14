@@ -1,0 +1,28 @@
+# Human-in-the-Loop
+
+Create an `ask_human` tool that lets the agent ask the user questions interactively:
+
+```python
+from langchain_core.tools import tool
+
+@tool
+def ask_human(question: str) -> str:
+    """Ask the human user a question and return their response."""
+    print(f"\n  Agent asks: {question}")
+    return input("  Your answer: ").strip()
+
+agent = LlmAgent(
+    name="Assistant",
+    llm=llm,
+    tools=[ask_human, book_meeting, send_email],
+    instructions=(
+        "When you don't have enough information to complete a task, "
+        "use the ask_human tool to ask the user for the missing details."
+    ),
+)
+```
+
+The agent will call `ask_human` whenever it needs clarification, then use the response to proceed.
+
+!!! example "Full example"
+    See `examples/human_in_the_loop.py` for a complete runnable demo.

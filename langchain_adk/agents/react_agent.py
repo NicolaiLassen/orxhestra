@@ -12,12 +12,12 @@ chain-of-thought before each action.
 
 from __future__ import annotations
 
-from typing import AsyncIterator, Literal
+from typing import AsyncIterator, Optional
 
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage
 from langchain_core.tools import BaseTool
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from langchain_adk.agents.base_agent import BaseAgent
 from langchain_adk.context.invocation_context import InvocationContext
@@ -39,8 +39,11 @@ from langchain_adk.models.part import Content
 # ---------------------------------------------------------------------------
 
 
-class ReasonAndAct(BaseModel):
-    """One reasoning step - think then act.
+class ReActStep(BaseModel):
+    """A single ReAct step — either reason+act or final answer.
+
+    When ``action`` is set, the agent wants to call a tool.
+    When ``answer`` is set, the loop terminates.
 
     Attributes
     ----------
@@ -48,33 +51,23 @@ class ReasonAndAct(BaseModel):
         Running notes accumulated across loop iterations.
     thought : str
         The agent's current reasoning about the problem.
-    action : str
-        The name of the tool to call.
-    action_input : str
+    action : str, optional
+        The name of the tool to call (None when giving final answer).
+    action_input : str, optional
         The input to pass to the tool.
+    answer : str, optional
+        The final answer (None when calling a tool).
     """
 
-    type: Literal["reason_and_act"] = "reason_and_act"
-    scratchpad: str
-    thought: str
-    action: str
-    action_input: str
+    scratchpad: str = Field(description="Running notes and observations accumulated across steps")
+    thought: str = Field(description="Current reasoning about the problem")
+    action: Optional[str] = Field(default=None, description="Tool name to call, or null if giving final answer")
+    action_input: Optional[str] = Field(default=None, description="Input for the tool, or null if giving final answer")
+    answer: Optional[str] = Field(default=None, description="Final answer text, or null if calling a tool")
 
-
-class FinalAnswer(BaseModel):
-    """Terminal step - loop ends.
-
-    Attributes
-    ----------
-    scratchpad : str
-        Running notes accumulated across the full loop.
-    answer : str
-        The final answer to return to the user.
-    """
-
-    type: Literal["final_answer"] = "final_answer"
-    scratchpad: str
-    answer: str
+    @property
+    def is_final(self) -> bool:
+        return self.answer is not None
 
 
 # ---------------------------------------------------------------------------
@@ -84,9 +77,11 @@ class FinalAnswer(BaseModel):
 _SYSTEM_PROMPT = """\
 You are a reasoning agent. You solve problems step by step using the ReAct pattern.
 
-On each step you MUST output one of:
-1. A ReasonAndAct - think about the problem, then call a tool.
-2. A FinalAnswer  - when you have enough information to answer.
+On each step you MUST output a JSON object with:
+- "scratchpad": your running notes across steps
+- "thought": your current reasoning
+- Either "action" + "action_input" to call a tool, OR "answer" to give a final answer.
+- Set action/action_input to null when giving a final answer, and answer to null when calling a tool.
 
 Available tools:
 {tool_descriptions}
@@ -129,7 +124,7 @@ class ReActAgent(BaseAgent):
         self._tools = {t.name: t for t in (tools or [])}
         self.max_iterations = max_iterations
         self._llm = llm.with_structured_output(
-            schema=ReasonAndAct | FinalAnswer,
+            schema=ReActStep,
             include_raw=False,
         )
 
@@ -171,7 +166,7 @@ class ReActAgent(BaseAgent):
 
         for _ in range(self.max_iterations):
             try:
-                output: ReasonAndAct | FinalAnswer = await self._llm.ainvoke(messages)
+                step: ReActStep = await self._llm.ainvoke(messages)
             except Exception as exc:
                 yield ErrorEvent(
                     session_id=ctx.session_id,
@@ -181,46 +176,46 @@ class ReActAgent(BaseAgent):
                 )
                 return
 
-            if isinstance(output, FinalAnswer):
+            if step.is_final:
                 yield FinalAnswerEvent(
                     session_id=ctx.session_id,
                     agent_name=self.name,
-                    content=Content.from_text(output.answer),
-                    scratchpad=output.scratchpad,
+                    content=Content.from_text(step.answer),
+                    scratchpad=step.scratchpad,
                 )
                 return
 
-            # --- ReasonAndAct branch ---
+            # --- Reason and Act branch ---
             yield ThoughtEvent(
                 session_id=ctx.session_id,
                 agent_name=self.name,
-                content=Content.from_text(output.thought),
-                scratchpad=output.scratchpad,
+                content=Content.from_text(step.thought),
+                scratchpad=step.scratchpad,
             )
             yield ActionEvent(
                 session_id=ctx.session_id,
                 agent_name=self.name,
-                action=output.action,
-                action_input=output.action_input,
+                action=step.action,
+                action_input=step.action_input,
             )
 
-            tool = self._tools.get(output.action)
+            tool = self._tools.get(step.action)
             if tool is None:
-                observation = f"Error: tool '{output.action}' not found."
+                observation = f"Error: tool '{step.action}' not found."
             else:
                 yield ToolCallEvent(
                     session_id=ctx.session_id,
                     agent_name=self.name,
-                    tool_name=output.action,
-                    tool_input=output.action_input,
+                    tool_name=step.action,
+                    tool_input=step.action_input,
                 )
                 try:
-                    result = await tool.ainvoke(output.action_input)
+                    result = await tool.ainvoke(step.action_input)
                     observation = str(result)
                     yield ToolResultEvent(
                         session_id=ctx.session_id,
                         agent_name=self.name,
-                        tool_name=output.action,
+                        tool_name=step.action,
                         content=Content.from_text(str(result)),
                     )
                 except Exception as exc:
@@ -228,7 +223,7 @@ class ReActAgent(BaseAgent):
                     yield ToolResultEvent(
                         session_id=ctx.session_id,
                         agent_name=self.name,
-                        tool_name=output.action,
+                        tool_name=step.action,
                         error=str(exc),
                     )
 
@@ -236,10 +231,10 @@ class ReActAgent(BaseAgent):
                 session_id=ctx.session_id,
                 agent_name=self.name,
                 content=Content.from_text(observation),
-                tool_name=output.action,
+                tool_name=step.action,
             )
 
-            messages.append(AIMessage(content=str(output.model_dump())))
+            messages.append(AIMessage(content=str(step.model_dump())))
             messages.append(HumanMessage(content=f"Observation: {observation}"))
 
         yield ErrorEvent(

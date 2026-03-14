@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import asyncio
 from functools import reduce
-from typing import Any, AsyncIterator, Awaitable, Callable, Optional, Union
+from typing import TYPE_CHECKING, Any, AsyncIterator, Awaitable, Callable, Optional, Union
 
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import (
@@ -32,7 +32,6 @@ from langchain_core.messages import (
 from langchain_core.tools import BaseTool
 
 from langchain_adk.agents.base_agent import BaseAgent
-from langchain_adk.agents.run_config import RunConfig, StreamingMode
 from langchain_adk.context.invocation_context import InvocationContext
 from langchain_adk.events.event import (
     ErrorEvent,
@@ -45,6 +44,9 @@ from langchain_adk.events.event_actions import EventActions
 from langchain_adk.models.llm_request import LlmRequest
 from langchain_adk.models.llm_response import LlmResponse
 from langchain_adk.models.part import Content, DataPart, TextPart
+
+if TYPE_CHECKING:
+    from langchain_adk.planners.base_planner import BasePlanner
 
 # Type alias for instruction providers - either a static string or a callable
 # that receives the current InvocationContext and returns a string.
@@ -125,7 +127,7 @@ class LlmAgent(BaseAgent):
         *,
         instructions: InstructionProvider = _DEFAULT_INSTRUCTIONS,
         description: str = "",
-        planner: Any = None,  # Optional[BasePlanner] - Any to avoid import cycle
+        planner: BasePlanner | None = None,
         output_schema: type | None = None,
         max_iterations: int = 10,
         before_model_callback: Optional[Callable[[InvocationContext, LlmRequest], Awaitable[None]]] = None,
@@ -288,7 +290,7 @@ class LlmAgent(BaseAgent):
         self,
         llm: BaseChatModel,
         messages: list[BaseMessage],
-        run_config: Optional[RunConfig],
+        streaming: bool,
         session_id: str,
         lc_config: dict[str, Any] | None = None,
     ) -> tuple[AIMessage, list[FinalAnswerEvent]]:
@@ -304,8 +306,8 @@ class LlmAgent(BaseAgent):
             The bound LLM instance.
         messages : list[BaseMessage]
             The current message history.
-        run_config : RunConfig, optional
-            Controls whether to use streaming.
+        streaming : bool
+            Whether SSE streaming is enabled.
         session_id : str
             Session ID for constructing partial events.
         lc_config : dict, optional
@@ -317,10 +319,6 @@ class LlmAgent(BaseAgent):
         tuple[AIMessage, list[FinalAnswerEvent]]
             The final AIMessage and any partial streaming events to yield.
         """
-        streaming = (
-            run_config is not None
-            and run_config.streaming_mode == StreamingMode.SSE
-        )
         rc = lc_config or {}
 
         if not streaming:
@@ -390,7 +388,7 @@ class LlmAgent(BaseAgent):
         Event
             ToolCallEvent, ToolResultEvent, FinalAnswerEvent, or ErrorEvent.
         """
-        run_config: Optional[RunConfig] = ctx.run_config  # type: ignore[assignment]
+        streaming = self.is_streaming(ctx)
         lc_config = ctx.langchain_run_config
         system_prompt = await self._resolve_instructions(ctx)
         messages: list[BaseMessage] = []
@@ -413,7 +411,7 @@ class LlmAgent(BaseAgent):
 
             try:
                 raw_response, partial_events = await self._call_llm(
-                    llm, messages, run_config, ctx.session_id, lc_config,
+                    llm, messages, streaming, ctx.session_id, lc_config,
                 )
             except Exception as exc:
                 if self.on_model_error_callback:

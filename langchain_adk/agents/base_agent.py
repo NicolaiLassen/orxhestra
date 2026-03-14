@@ -14,6 +14,12 @@ from langchain_adk.context.invocation_context import InvocationContext
 from langchain_adk.events.event import Event, EventType
 from langchain_adk.events.event_actions import EventActions
 
+# Avoid circular import — RunConfig/StreamingMode used only at runtime
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from langchain_adk.agents.run_config import RunConfig
+
 
 class BaseAgent(ABC):
     """Abstract base class for all agents.
@@ -53,6 +59,17 @@ class BaseAgent(ABC):
         self.after_agent_callback: Optional[
             Callable[[InvocationContext], Awaitable[None]]
         ] = None
+
+    def is_streaming(self, ctx: InvocationContext) -> bool:
+        """Check if SSE streaming is enabled for this run.
+
+        When True, agents should emit partial events (``partial=True``)
+        with token-level deltas. When False, only complete events.
+        """
+        from langchain_adk.agents.run_config import StreamingMode
+
+        rc = ctx.run_config
+        return rc is not None and rc.streaming_mode == StreamingMode.SSE
 
     @abstractmethod
     async def run(

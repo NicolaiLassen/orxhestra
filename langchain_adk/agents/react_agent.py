@@ -1,13 +1,7 @@
-"""ReActAgent - structured output Reason+Act loop.
+"""ReActAgent - structured Reason+Act loop.
 
-A specialized variant of LlmAgent where the model explicitly outputs its
-reasoning at each step. Uses LangChain's with_structured_output() to
-force the LLM to produce either:
-  - ReasonAndAct  - a thought + tool to call
-  - FinalAnswer   - the loop terminates
-
-This is the "thinking" agent for tasks that benefit from explicit
-chain-of-thought before each action.
+Uses with_structured_output() to get a typed ReActStep per iteration.
+SSE streaming = token-level partial ThoughtEvents. No streaming = complete events only.
 """
 
 from __future__ import annotations
@@ -34,30 +28,8 @@ from langchain_adk.events.event import (
 from langchain_adk.models.part import Content
 
 
-# ---------------------------------------------------------------------------
-# Structured output models
-# ---------------------------------------------------------------------------
-
-
 class ReActStep(BaseModel):
-    """A single ReAct step — either reason+act or final answer.
-
-    When ``action`` is set, the agent wants to call a tool.
-    When ``answer`` is set, the loop terminates.
-
-    Attributes
-    ----------
-    scratchpad : str
-        Running notes accumulated across loop iterations.
-    thought : str
-        The agent's current reasoning about the problem.
-    action : str, optional
-        The name of the tool to call (None when giving final answer).
-    action_input : str, optional
-        The input to pass to the tool.
-    answer : str, optional
-        The final answer (None when calling a tool).
-    """
+    """A single ReAct step — either reason+act or final answer."""
 
     scratchpad: str = Field(description="Running notes and observations accumulated across steps")
     thought: str = Field(description="Current reasoning about the problem")
@@ -70,26 +42,28 @@ class ReActStep(BaseModel):
         return self.answer is not None
 
 
-# ---------------------------------------------------------------------------
-# System prompt
-# ---------------------------------------------------------------------------
-
 _SYSTEM_PROMPT = """\
 You are a reasoning agent. You solve problems step by step using the ReAct pattern.
 
-On each step you MUST output a JSON object with:
+IMPORTANT: Output exactly ONE JSON object per response. Do NOT output multiple JSON objects.
+
+Your JSON object MUST have these fields:
 - "scratchpad": your running notes across steps
-- "thought": your current reasoning
-- Either "action" + "action_input" to call a tool, OR "answer" to give a final answer.
-- Set action/action_input to null when giving a final answer, and answer to null when calling a tool.
+- "thought": your current reasoning about what to do next
+- "action": the tool name to call (set to null if giving a final answer)
+- "action_input": the input for the tool (set to null if giving a final answer)
+- "answer": your final answer text (set to null if calling a tool)
+
+You will be called multiple times. Each call, output ONE step only.
 
 Available tools:
 {tool_descriptions}
 
 Rules:
+- Output exactly ONE JSON object. Never output multiple steps.
 - Always think before acting.
 - Use your scratchpad to accumulate observations and notes across steps.
-- Only produce a FinalAnswer when you are confident in the result.
+- Only set "answer" when you are confident in the result.
 - Never call a tool that is not listed above.
 """
 
@@ -97,9 +71,10 @@ Rules:
 class ReActAgent(BaseAgent):
     """Agent that uses explicit structured reasoning before each action.
 
-    Uses LangChain with_structured_output() to enforce ReasonAndAct |
-    FinalAnswer at every step. Ideal for tasks requiring transparent
-    step-by-step reasoning.
+    Uses LangChain ``with_structured_output()`` to enforce a typed
+    ``ReActStep`` at every iteration. SSE streaming emits token-level
+    partial ``ThoughtEvent`` objects; without streaming only complete
+    events are yielded.
 
     Attributes
     ----------
@@ -108,7 +83,7 @@ class ReActAgent(BaseAgent):
     tools : list[BaseTool]
         Tools available to the agent.
     max_iterations : int
-        Maximum ReAct loop iterations.
+        Maximum ReAct loop iterations before yielding an error.
     """
 
     def __init__(
@@ -123,13 +98,16 @@ class ReActAgent(BaseAgent):
         super().__init__(name=name, description=description)
         self._tools = {t.name: t for t in (tools or [])}
         self.max_iterations = max_iterations
-        self._llm = llm.with_structured_output(
-            schema=ReActStep,
-            include_raw=False,
-        )
+        try:
+            self._llm = llm.with_structured_output(
+                schema=ReActStep, include_raw=False, method="json_mode",
+            )
+        except (NotImplementedError, TypeError, ValueError):
+            self._llm = llm.with_structured_output(
+                schema=ReActStep, include_raw=False,
+            )
 
     def _system_message(self) -> SystemMessage:
-        """Build the system message with available tool descriptions."""
         tool_descriptions = "\n".join(
             f"  - {name}: {tool.description}"
             for name, tool in self._tools.items()
@@ -138,35 +116,64 @@ class ReActAgent(BaseAgent):
             content=_SYSTEM_PROMPT.format(tool_descriptions=tool_descriptions)
         )
 
+    async def _get_step(
+        self,
+        messages: list[BaseMessage],
+        ctx: InvocationContext,
+    ) -> AsyncIterator[ThoughtEvent | ReActStep]:
+        """Get a ReActStep from the LLM. Yields partial ThoughtEvents if SSE streaming.
+
+        Always yields the final ReActStep as the last item.
+        """
+        streaming = self.is_streaming(ctx)
+
+        if not streaming:
+            yield await self._llm.ainvoke(messages)
+            return
+
+        # SSE: stream partial thoughts as the JSON builds up
+        last_thought = ""
+        final_step: Optional[ReActStep] = None
+
+        async for partial in self._llm.astream(messages):
+            if not isinstance(partial, ReActStep):
+                continue
+            final_step = partial
+            current_thought = partial.thought or ""
+            if current_thought != last_thought:
+                last_thought = current_thought
+                yield ThoughtEvent(
+                    session_id=ctx.session_id,
+                    agent_name=self.name,
+                    content=Content.from_text(current_thought),
+                    scratchpad=partial.scratchpad or "",
+                    partial=True,
+                )
+
+        if final_step is None:
+            raise RuntimeError("Streaming produced no output")
+        yield final_step
+
     async def run(
         self,
         input: str,
         *,
         ctx: InvocationContext,
     ) -> AsyncIterator[Event]:
-        """Run the ReAct loop with structured reasoning output.
-
-        Parameters
-        ----------
-        input : str
-            The user message or task.
-        ctx : InvocationContext
-            The invocation context.
-
-        Yields
-        ------
-        Event
-            ThoughtEvent, ActionEvent, ToolCallEvent, ToolResultEvent,
-            ObservationEvent, FinalAnswerEvent, or ErrorEvent.
-        """
         messages: list[BaseMessage] = [
             self._system_message(),
             HumanMessage(content=input),
         ]
 
         for _ in range(self.max_iterations):
+            # Get step — may yield partial ThoughtEvents before the final ReActStep
+            step: Optional[ReActStep] = None
             try:
-                step: ReActStep = await self._llm.ainvoke(messages)
+                async for item in self._get_step(messages, ctx):
+                    if isinstance(item, ThoughtEvent):
+                        yield item  # partial thought
+                    else:
+                        step = item  # final ReActStep
             except Exception as exc:
                 yield ErrorEvent(
                     session_id=ctx.session_id,
@@ -175,6 +182,15 @@ class ReActAgent(BaseAgent):
                     exception_type=type(exc).__name__,
                 )
                 return
+
+            # Complete thought (partial=False)
+            yield ThoughtEvent(
+                session_id=ctx.session_id,
+                agent_name=self.name,
+                content=Content.from_text(step.thought),
+                scratchpad=step.scratchpad,
+                partial=False,
+            )
 
             if step.is_final:
                 yield FinalAnswerEvent(
@@ -185,13 +201,7 @@ class ReActAgent(BaseAgent):
                 )
                 return
 
-            # --- Reason and Act branch ---
-            yield ThoughtEvent(
-                session_id=ctx.session_id,
-                agent_name=self.name,
-                content=Content.from_text(step.thought),
-                scratchpad=step.scratchpad,
-            )
+            # Tool call
             yield ActionEvent(
                 session_id=ctx.session_id,
                 agent_name=self.name,

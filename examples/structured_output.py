@@ -92,14 +92,14 @@ async def main() -> None:
             elif isinstance(event, ToolResultEvent):
                 print(f"  [DATA] {(event.text or '')[:60]}...")
             elif isinstance(event, FinalAnswerEvent):
-                analysis = event.data
-                if isinstance(analysis, CompanyAnalysis):
-                    print(f"\n  Company:        {analysis.name}")
-                    print(f"  Industry:       {analysis.industry}")
-                    print(f"  Strengths:      {', '.join(analysis.strengths)}")
-                    print(f"  Risks:          {', '.join(analysis.risks)}")
-                    print(f"  Recommendation: {analysis.recommendation}")
-                    print(f"  Confidence:     {analysis.confidence:.0%}")
+                data = event.data  # dict from DataPart
+                if data:
+                    print(f"\n  Company:        {data['name']}")
+                    print(f"  Industry:       {data['industry']}")
+                    print(f"  Strengths:      {', '.join(data['strengths'])}")
+                    print(f"  Risks:          {', '.join(data['risks'])}")
+                    print(f"  Recommendation: {data['recommendation']}")
+                    print(f"  Confidence:     {data['confidence']:.0%}")
                 else:
                     print(f"\n  [RAW OUTPUT] {event.text}")
 

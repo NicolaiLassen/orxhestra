@@ -125,6 +125,7 @@
 .md-typeset .md-button:not(.md-button--primary):hover {
     border-color: #89b4fa;
     color: #89b4fa;
+    background-color: rgba(137, 180, 250, 0.1);
 }
 
 [data-md-color-scheme="default"] .md-typeset .md-button--primary {

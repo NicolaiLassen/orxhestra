@@ -1,7 +1,7 @@
 """Task board - pure functions for managing structured agent tasks.
 
 The task board is a plain dict stored in
-``InvocationContext.state[StateKey.TASK_BOARD]``. Agents read and write
+``Context.state[StateKey.TASK_BOARD]``. Agents read and write
 it via the manage_tasks tool exposed by ``TaskPlanner``.
 
 Schema::

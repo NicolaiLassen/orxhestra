@@ -16,7 +16,7 @@ import asyncio
 
 from fastmcp import FastMCP
 
-from langchain_adk import LlmAgent, InvocationContext
+from langchain_adk import LlmAgent
 from langchain_adk.events.event import Event, EventType
 from langchain_adk.integrations.mcp import MCPClient, MCPToolAdapter
 
@@ -60,16 +60,10 @@ async def main() -> None:
         instructions="You are a weather assistant. Use the available tools.",
     )
 
-    ctx = InvocationContext(
-        session_id="mcp-demo",
-        agent_name=agent.name,
-    )
-
     print(f"\nRunning agent: {agent.name}\n{'=' * 40}")
 
     async for event in agent.astream(
         "What's the weather in Copenhagen and give me a 5-day forecast?",
-        ctx=ctx,
     ):
         if event.has_tool_calls:
             print(f"[TOOL CALL] {event.tool_name}({event.tool_input})")

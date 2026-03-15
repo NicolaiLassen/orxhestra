@@ -3,7 +3,7 @@
 All agents inherit from `BaseAgent` and implement a single method:
 
 ```python
-async def astream(self, input: str, *, ctx: InvocationContext) -> AsyncIterator[Event]:
+async def astream(self, input: str, *, ctx: Context) -> AsyncIterator[Event]:
     ...
 ```
 

@@ -29,7 +29,7 @@
   - [Agents](#agents)
   - [Events](#events)
   - [Runner & Sessions](#runner--sessions)
-  - [InvocationContext](#invocationcontext)
+  - [Context](#invocationcontext)
 - [Tools](#tools)
   - [Long-Running Tools](#long-running-tools)
   - [Tool Confirmation](#tool-confirmation)
@@ -66,7 +66,7 @@
 - **Manual tool-call loop**: `LlmAgent` drives its own ReAct loop using `llm.bind_tools()` — no LangGraph, no hidden graphs.
 - **Planners**: inject per-turn planning instructions and post-process responses before the agent acts.
 - **Sessions**: pluggable `BaseSessionService` persists every event and state delta automatically via the `Runner`.
-- **First-class streaming**: `RunConfig(streaming_mode=StreamingMode.SSE)` switches the LLM call to `astream()` and yields `partial=True` events for real-time UIs.
+- **First-class streaming**: `AgentConfig(streaming_mode=StreamingMode.SSE)` switches the LLM call to `astream()` and yields `partial=True` events for real-time UIs.
 
 ```mermaid
 flowchart LR
@@ -163,7 +163,7 @@ asyncio.run(main())
 All agents inherit from `BaseAgent` and implement a single method:
 
 ```python
-async def astream(self, input: str, *, ctx: InvocationContext) -> AsyncIterator[Event]:
+async def astream(self, input: str, *, ctx: Context) -> AsyncIterator[Event]:
     ...
 ```
 
@@ -343,7 +343,7 @@ event.llm_response.model_version
 `Runner` is the main entry point for session-managed execution. It wires an agent, a session service, and the invocation context together.
 
 ```python
-from langchain_adk import Runner, InMemorySessionService, RunConfig, StreamingMode
+from langchain_adk import Runner, InMemorySessionService, AgentConfig, StreamingMode
 
 runner = Runner(
     agent=agent,
@@ -364,7 +364,7 @@ async for event in runner.run_async(
     user_id="user-1",
     session_id="session-abc",
     new_message="Hello!",
-    run_config=RunConfig(streaming_mode=StreamingMode.SSE),
+    config=AgentConfig(streaming_mode=StreamingMode.SSE),
 ):
     if event.type == EventType.AGENT_MESSAGE and event.partial:
         print(event.text, end="", flush=True)
@@ -373,7 +373,7 @@ async for event in runner.run_async(
 `Runner` automatically:
 1. Fetches or creates the session
 2. Persists the user's message as a `USER_MESSAGE` event
-3. Builds an `InvocationContext` with the session reference
+3. Builds an `Context` with the session reference
 4. Persists every agent event to the session via `append_event()`
 5. Applies `EventActions.state_delta` to the session state
 
@@ -398,14 +398,14 @@ Implement `BaseSessionService` to back sessions with any database.
 
 ---
 
-### InvocationContext
+### Context
 
-`InvocationContext` is the runtime state passed through every agent in the call tree. It carries the session binding, a mutable shared state dict, and run config.
+`Context` is the runtime state passed through every agent in the call tree. It carries the session binding, a mutable shared state dict, and run config.
 
 ```python
-from langchain_adk import InvocationContext
+from langchain_adk import Context
 
-ctx = InvocationContext(
+ctx = Context(
     session_id="session-1",
     user_id="user-1",
     app_name="my-app",
@@ -461,7 +461,7 @@ flowchart LR
 
     FT -->|wraps| Fn["async def fn()"]:::external
     AT -->|invokes| SA([sub-agent]):::agent
-    SA -->|derive context\nbranch isolation| IC["InvocationContext\n.derive()"]:::effect
+    SA -->|derive context\nbranch isolation| IC["Context\n.derive()"]:::effect
     TT -->|sets| EA1["EventActions\n.transfer_to_agent"]:::effect
     EL -->|sets| EA2["EventActions\n.escalate = True"]:::effect
     MCP -->|fetches from| MS[("MCP Server")]:::external
@@ -530,7 +530,7 @@ from langchain_adk import ToolContext
 class MyStatefulTool(BaseTool):
     _ctx: ToolContext | None = None
 
-    def inject_context(self, ctx: InvocationContext) -> None:
+    def inject_context(self, ctx: Context) -> None:
         self._ctx = ToolContext(ctx)
 
     async def _arun(self, query: str) -> str:
@@ -706,13 +706,13 @@ Sections are only included when non-empty — no boilerplate padding.
 Enable SSE streaming to get incremental text as the LLM generates it:
 
 ```python
-from langchain_adk import RunConfig, StreamingMode
+from langchain_adk import AgentConfig, StreamingMode
 
 async for event in runner.run_async(
     user_id="user-1",
     session_id="session-1",
     new_message="Write me a long essay about distributed systems.",
-    run_config=RunConfig(streaming_mode=StreamingMode.SSE),
+    config=AgentConfig(streaming_mode=StreamingMode.SSE),
 ):
     if event.is_final_response():
         print(f"\n[DONE] tokens: {event.llm_response.output_tokens}")
@@ -730,22 +730,22 @@ Partial events are suppressed automatically if the LLM decides to call a tool in
 Attach hooks at the agent, model, and tool level:
 
 ```python
-from langchain_adk import InvocationContext, LlmAgent
+from langchain_adk import Context, LlmAgent
 from langchain_adk.models.llm_request import LlmRequest
 from langchain_adk.models.llm_response import LlmResponse
 
-async def log_llm_call(ctx: InvocationContext, request: LlmRequest) -> None:
+async def log_llm_call(ctx: Context, request: LlmRequest) -> None:
     print(f"[{ctx.agent_name}] LLM call with {len(request.messages)} messages")
 
-async def track_usage(ctx: InvocationContext, response: LlmResponse) -> None:
+async def track_usage(ctx: Context, response: LlmResponse) -> None:
     print(f"Tokens: {response.input_tokens} in / {response.output_tokens} out")
 
-async def handle_llm_error(ctx: InvocationContext, request: LlmRequest, error: Exception) -> LlmResponse | None:
+async def handle_llm_error(ctx: Context, request: LlmRequest, error: Exception) -> LlmResponse | None:
     """Called when an LLM call fails. Return a LlmResponse to recover, or None to propagate the error."""
     print(f"LLM error: {error}")
     return None  # yields an Event with error metadata
 
-async def log_tool(ctx: InvocationContext, name: str, args: dict) -> None:
+async def log_tool(ctx: Context, name: str, args: dict) -> None:
     print(f"[TOOL] {name}({args})")
 
 agent = LlmAgent(
@@ -761,7 +761,7 @@ agent = LlmAgent(
 Agent-level hooks:
 
 ```python
-async def on_start(ctx: InvocationContext) -> None:
+async def on_start(ctx: Context) -> None:
     print(f"Agent {ctx.agent_name} starting")
 
 agent.before_agent_callback = on_start
@@ -769,13 +769,13 @@ agent.before_agent_callback = on_start
 
 ### Tracing (Langfuse, LangSmith, etc.)
 
-`RunConfig` mirrors LangChain's `RunnableConfig` fields — pass `callbacks`, `tags`, `metadata`, `run_name` directly. The entire agent run is wrapped in a single parent trace with all child operations nested automatically.
+`AgentConfig` mirrors LangChain's `RunnableConfig` fields — pass `callbacks`, `tags`, `metadata`, `run_name` directly. The entire agent run is wrapped in a single parent trace with all child operations nested automatically.
 
 ```python
 from langfuse.langchain import CallbackHandler
-from langchain_adk import RunConfig
+from langchain_adk import AgentConfig
 
-run_config = RunConfig(
+run_config = AgentConfig(
     callbacks=[CallbackHandler()],  # Langfuse, LangSmith, or any BaseCallbackHandler
     tags=["production", "user-facing"],
     metadata={"user_id": "u-123"},
@@ -787,15 +787,15 @@ async for event in runner.run_async(
     user_id="user-1",
     session_id="session-1",
     new_message="Hello!",
-    run_config=run_config,
+    config=run_config,
 ):
     ...
 
 # Or direct agent usage
-ctx = InvocationContext(
+ctx = Context(
     session_id="s1",
     agent_name="Agent",
-    run_config=run_config,
+    config=run_config,
 )
 async for event in agent._run_with_callbacks("Hello!", ctx=ctx):
     ...
@@ -809,7 +809,7 @@ export LANGFUSE_PUBLIC_KEY="pk-lf-..."
 export LANGFUSE_BASE_URL="https://cloud.langfuse.com"
 ```
 
-`RunConfig` supports all LangChain `RunnableConfig` keys as first-class fields: `callbacks`, `tags`, `metadata`, `run_name`, `max_concurrency`, `configurable`.
+`AgentConfig` supports all LangChain `RunnableConfig` keys as first-class fields: `callbacks`, `tags`, `metadata`, `run_name`, `max_concurrency`, `configurable`.
 
 **What gets traced:**
 - Each agent run as a single parent trace (named after the agent)
@@ -1230,7 +1230,7 @@ flowchart TD
     classDef event fill:#fce7f3,stroke:#ec4899,color:#831843
 
     Runner:::infra --> Session[(SessionService)]:::infra
-    Runner --> Ctx[InvocationContext\nsession · user · state · run_config]:::base
+    Runner --> Ctx[Context\nsession · user · state · run_config]:::base
     Ctx --> BaseAgent:::base
 
     BaseAgent --> LlmAgent:::llm
@@ -1267,7 +1267,7 @@ sequenceDiagram
     C->>R: run_async(user_id, session_id, message)
     R->>S: get_session() or create_session()
     S-->>R: Session
-    R->>R: build InvocationContext with session reference
+    R->>R: build Context with session reference
     R->>S: append_event(session, user_event)
     note over S: persists USER_MESSAGE event
 
@@ -1284,7 +1284,7 @@ sequenceDiagram
 **Key design decisions:**
 
 - No LangGraph — orchestration is plain Python `asyncio` and async generators.
-- `InvocationContext.state` is a shared mutable dict across the call tree. Use `EventActions.state_delta` to persist changes back to the session.
+- `Context.state` is a shared mutable dict across the call tree. Use `EventActions.state_delta` to persist changes back to the session.
 - `LlmRequest` / `LlmResponse` isolate LangChain types from the rest of the SDK. Swap the LLM provider without touching agent logic.
 - Planners are per-turn hooks, not static prompts. They receive the live context and request so they can make dynamic decisions each turn.
 

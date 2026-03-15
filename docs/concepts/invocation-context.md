@@ -1,11 +1,11 @@
-# InvocationContext
+# Context
 
-`InvocationContext` is the runtime state passed through every agent in the call tree. It carries the session binding, a mutable shared state dict, and run config.
+`Context` is the runtime state passed through every agent in the call tree. It carries the session binding, a mutable shared state dict, and run config.
 
 ```python
-from langchain_adk import InvocationContext
+from langchain_adk import Context
 
-ctx = InvocationContext(
+ctx = Context(
     session_id="session-1",
     user_id="user-1",
     app_name="my-app",

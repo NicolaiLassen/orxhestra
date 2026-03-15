@@ -12,7 +12,7 @@ import asyncio
 
 from langchain_core.tools import tool
 
-from langchain_adk import LlmAgent, InvocationContext, PlanReActPlanner
+from langchain_adk import LlmAgent, PlanReActPlanner
 from langchain_adk.events.event import Event, EventType
 
 
@@ -73,11 +73,6 @@ async def main() -> None:
         ),
     )
 
-    ctx = InvocationContext(
-        session_id="planner-demo",
-        agent_name=agent.name,
-    )
-
     query = (
         "Compare the Scandinavian countries (Denmark, Sweden, Norway, Finland). "
         "Get each country's population and GDP, then rank them by GDP per capita."
@@ -85,7 +80,7 @@ async def main() -> None:
 
     print(f"Query: {query}\n{'=' * 60}\n")
 
-    async for event in agent.astream(query, ctx=ctx):
+    async for event in agent.astream(query):
         if event.metadata.get("react_step") == "thought":
             print(f"[THOUGHT] {event.text[:200]}")
         elif event.has_tool_calls:

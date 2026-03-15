@@ -23,7 +23,7 @@ async def open_trace(
     name : str
         The agent name, used as the trace/span name.
     lc_config : dict
-        A LangChain ``RunnableConfig`` dict (from ``RunConfig.as_langchain_config()``).
+        A LangChain ``RunnableConfig`` dict (or ``AgentConfig``).
     input_text : str
         The user message, recorded as the chain input.
 

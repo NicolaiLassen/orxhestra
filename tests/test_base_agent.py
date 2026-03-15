@@ -1,11 +1,9 @@
-"""Tests for BaseAgent: ainvoke, astream, is_streaming, find_agent, callbacks."""
+"""Tests for BaseAgent: ainvoke, astream, find_agent, callbacks."""
 
 import pytest
-from typing import AsyncIterator
 
 from langchain_adk.agents.base_agent import BaseAgent
-from langchain_adk.agents.run_config import RunConfig, StreamingMode
-from langchain_adk.context.invocation_context import InvocationContext
+from langchain_adk.agents.context import Context
 from langchain_adk.events.event import Event, EventType
 from langchain_adk.models.part import Content
 
@@ -17,7 +15,8 @@ class StubAgent(BaseAgent):
         super().__init__(name=name, **kwargs)
         self._answer = answer
 
-    async def astream(self, input: str, *, ctx: InvocationContext) -> AsyncIterator[Event]:
+    async def astream(self, input, config=None, *, ctx=None):
+        ctx = self._ensure_ctx(config, ctx)
         yield Event(
             type=EventType.AGENT_MESSAGE,
             session_id=ctx.session_id,
@@ -29,20 +28,19 @@ class StubAgent(BaseAgent):
 class NoAnswerAgent(BaseAgent):
     """Agent that yields no final answer event."""
 
-    async def astream(self, input: str, *, ctx: InvocationContext) -> AsyncIterator[Event]:
-        yield Event(type=EventType.AGENT_START, session_id=ctx.session_id, agent_name=self.name)
-
-
-def _ctx(**kwargs) -> InvocationContext:
-    defaults = {"session_id": "test", "agent_name": "stub"}
-    defaults.update(kwargs)
-    return InvocationContext(**defaults)
+    async def astream(self, input, config=None, *, ctx=None):
+        ctx = self._ensure_ctx(config, ctx)
+        yield Event(
+            type=EventType.AGENT_START,
+            session_id=ctx.session_id,
+            agent_name=self.name,
+        )
 
 
 @pytest.mark.asyncio
 async def test_ainvoke_returns_final_answer():
     agent = StubAgent(answer="42")
-    result = await agent.ainvoke("question", ctx=_ctx())
+    result = await agent.ainvoke("question")
     assert isinstance(result, Event)
     assert result.text == "42"
     assert result.is_final_response()
@@ -52,36 +50,16 @@ async def test_ainvoke_returns_final_answer():
 async def test_ainvoke_raises_on_no_answer():
     agent = NoAnswerAgent(name="empty")
     with pytest.raises(RuntimeError, match="no final answer"):
-        await agent.ainvoke("question", ctx=_ctx(agent_name="empty"))
+        await agent.ainvoke("question")
 
 
 @pytest.mark.asyncio
 async def test_astream_yields_all_events():
     agent = StubAgent(answer="streamed")
-    events = [e async for e in agent.astream("q", ctx=_ctx())]
-    assert len(events) == 1
-    assert events[0].is_final_response()
-    assert events[0].text == "streamed"
-
-
-def test_is_streaming_false_by_default():
-    agent = StubAgent()
-    ctx = _ctx()
-    assert agent.is_streaming(ctx) is False
-
-
-def test_is_streaming_true_with_sse():
-    agent = StubAgent()
-    ctx = _ctx()
-    ctx.run_config = RunConfig(streaming_mode=StreamingMode.SSE)
-    assert agent.is_streaming(ctx) is True
-
-
-def test_is_streaming_false_with_none_mode():
-    agent = StubAgent()
-    ctx = _ctx()
-    ctx.run_config = RunConfig(streaming_mode=StreamingMode.NONE)
-    assert agent.is_streaming(ctx) is False
+    events = [e async for e in agent.astream("q")]
+    finals = [e for e in events if e.is_final_response()]
+    assert len(finals) == 1
+    assert finals[0].text == "streamed"
 
 
 def test_find_agent_self():
@@ -123,7 +101,19 @@ def test_root_agent():
 
 
 @pytest.mark.asyncio
+async def test_astream_with_ctx():
+    """Test that providing an explicit ctx works."""
+    agent = StubAgent(answer="with-ctx")
+    ctx = Context(session_id="test", agent_name="stub")
+    events = [e async for e in agent.astream("q", ctx=ctx)]
+    finals = [e for e in events if e.is_final_response()]
+    assert len(finals) == 1
+    assert finals[0].text == "with-ctx"
+
+
+@pytest.mark.asyncio
 async def test_before_after_callbacks():
+    """Callbacks are called via run_async (queue-based wrapper)."""
     agent = StubAgent(answer="cb")
     calls = []
 
@@ -136,10 +126,20 @@ async def test_before_after_callbacks():
     agent.before_agent_callback = before
     agent.after_agent_callback = after
 
-    events = [e async for e in agent._run_with_callbacks("q", ctx=_ctx())]
+    # Callbacks are triggered by run_async, not astream directly
+    ctx = Context(session_id="test", agent_name="stub")
+    import asyncio
+    task = asyncio.create_task(agent.run_async("q", ctx=ctx))
+    events = []
+    while True:
+        event = await ctx.events.get()
+        if event is None:
+            break
+        events.append(event)
+    await task
+
     assert "before" in calls
     assert "after" in calls
-    # Should have AGENT_START, AGENT_MESSAGE, AGENT_END
     types = [e.type for e in events]
     assert EventType.AGENT_START in types
     assert EventType.AGENT_END in types

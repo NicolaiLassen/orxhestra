@@ -17,7 +17,7 @@ import asyncio
 
 from langchain_core.tools import tool
 
-from langchain_adk import LlmAgent, InvocationContext
+from langchain_adk import LlmAgent
 from langchain_adk.events.event import Event, EventType
 
 
@@ -44,14 +44,9 @@ async def main() -> None:
         instructions="You are a helpful weather assistant. Use the get_weather tool.",
     )
 
-    ctx = InvocationContext(
-        session_id="demo-session",
-        agent_name=agent.name,
-    )
-
     print(f"Running agent: {agent.name}\n{'='*40}")
 
-    async for event in agent.astream("What's the weather in Copenhagen?", ctx=ctx):
+    async for event in agent.astream("What's the weather in Copenhagen?"):
         if event.has_tool_calls:
             print(f"[TOOL CALL] {event.tool_name}({event.tool_input})")
         elif event.type == EventType.TOOL_RESPONSE:

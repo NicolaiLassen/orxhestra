@@ -11,7 +11,7 @@ flowchart TD
     classDef event fill:#fce7f3,stroke:#ec4899,color:#831843
 
     Runner:::infra --> Session[(SessionService)]:::infra
-    Runner --> Ctx[InvocationContext\nsession · user · state · run_config]:::base
+    Runner --> Ctx[Context\nsession · user · state · run_config]:::base
     Ctx --> BaseAgent:::base
 
     BaseAgent --> LlmAgent:::llm
@@ -50,7 +50,7 @@ sequenceDiagram
     C->>R: run_async(user_id, session_id, message)
     R->>S: get_session() or create_session()
     S-->>R: Session
-    R->>R: build InvocationContext with session reference
+    R->>R: build Context with session reference
     R->>S: append_event(session, user_event)
     note over S: persists USER_MESSAGE event
 
@@ -67,7 +67,7 @@ sequenceDiagram
 ## Key design decisions
 
 - **No LangGraph** — orchestration is plain Python `asyncio` and async generators.
-- **`InvocationContext.state`** is a shared mutable dict across the call tree. Use `EventActions.state_delta` to persist changes back to the session.
+- **`Context.state`** is a shared mutable dict across the call tree. Use `EventActions.state_delta` to persist changes back to the session.
 - **`LlmRequest` / `LlmResponse`** isolate LangChain types from the rest of the SDK. Swap the LLM provider without touching agent logic.
 - **Planners are per-turn hooks**, not static prompts. They receive the live context and request so they can make dynamic decisions each turn.
 

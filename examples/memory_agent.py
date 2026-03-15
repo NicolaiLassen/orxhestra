@@ -2,7 +2,6 @@
 
 Demonstrates:
   - InMemoryMemoryStore for storing and recalling facts
-  - Session management with InMemorySessionService
   - Agent remembers information from previous conversations
 """
 
@@ -10,7 +9,7 @@ from __future__ import annotations
 
 import asyncio
 
-from langchain_adk import LlmAgent, InvocationContext, InMemorySessionService
+from langchain_adk import LlmAgent
 from langchain_adk.events.event import Event, EventType
 from langchain_adk.memory.in_memory_store import InMemoryMemoryStore
 from langchain_adk.memory.memory import Memory
@@ -25,9 +24,8 @@ async def main() -> None:
         "and comment out this raise."
     )
 
-    # --- Set up memory and sessions ---
+    # --- Set up memory ---
     memory_store = InMemoryMemoryStore()
-    session_service = InMemorySessionService()
 
     # Pre-populate some memories (simulating past conversations)
     key = ("my-app", "user-42")
@@ -62,34 +60,14 @@ async def main() -> None:
         ),
     )
 
-    # --- Session 1: Ask a question that uses memory ---
-    session = await session_service.create_session(
-        app_name="my-app",
-        user_id="user-42",
-    )
-
-    ctx = InvocationContext(
-        session_id=session.id,
-        user_id="user-42",
-        app_name="my-app",
-        agent_name=agent.name,
-    )
-
-    print("Session 1: Asking a personalized question")
+    print("Asking a personalized question (with memory context)")
     print("=" * 50)
 
     async for event in agent.astream(
         "What programming language should I use for my new service?",
-        ctx=ctx,
     ):
         if event.is_final_response():
             print(f"\n[ANSWER] {event.text}")
-
-    # Save session to memory for future recall
-    session.events = []  # In a real app, events accumulate automatically
-    await memory_store.add_session_to_memory(session)
-
-    print(f"\n\nMemories stored: {len(memory_store._store[key])}")
 
 
 if __name__ == "__main__":

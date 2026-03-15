@@ -1,9 +1,9 @@
 """Streaming example - token-by-token output from an LlmAgent.
 
 Demonstrates:
-  - RunConfig with StreamingMode.SSE
   - Partial events (partial=True) for real-time text streaming
   - Complete events for tool calls / tool results
+  - All streaming is automatic — no special config needed
 """
 
 from __future__ import annotations
@@ -17,12 +17,7 @@ import sys
 
 from langchain_core.tools import tool
 
-from langchain_adk import (
-    LlmAgent,
-    RunConfig,
-    StreamingMode,
-    InvocationContext,
-)
+from langchain_adk import LlmAgent
 from langchain_adk.events.event import Event, EventType
 
 
@@ -48,19 +43,10 @@ async def main() -> None:
         instructions="You are a helpful weather assistant. Use the get_weather tool.",
     )
 
-    run_config = RunConfig(streaming_mode=StreamingMode.SSE)
-
-    ctx = InvocationContext(
-        session_id="streaming-demo",
-        agent_name=agent.name,
-        run_config=run_config,
-    )
-
     print(f"Running agent (streaming): {agent.name}\n{'=' * 50}")
 
     async for event in agent.astream(
         "What's the weather in Copenhagen and Berlin?",
-        ctx=ctx,
     ):
         if event.has_tool_calls:
             print(f"\n[TOOL CALL] {event.tool_name}({event.tool_input})")

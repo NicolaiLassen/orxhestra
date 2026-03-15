@@ -1,11 +1,11 @@
-"""Tests for InvocationContext."""
+"""Tests for Context."""
 
 import pytest
-from langchain_adk.context.invocation_context import InvocationContext
+from langchain_adk.agents.context import Context
 
 
 def test_context_defaults():
-    ctx = InvocationContext(session_id="s1", agent_name="root")
+    ctx = Context(session_id="s1", agent_name="root")
     assert ctx.session_id == "s1"
     assert ctx.agent_name == "root"
     assert ctx.branch == ""
@@ -15,7 +15,7 @@ def test_context_defaults():
 
 
 def test_context_derive_updates_agent_name():
-    ctx = InvocationContext(session_id="s1", agent_name="root")
+    ctx = Context(session_id="s1", agent_name="root")
     child = ctx.derive(agent_name="child")
     assert child.agent_name == "child"
     assert child.session_id == "s1"
@@ -23,7 +23,7 @@ def test_context_derive_updates_agent_name():
 
 
 def test_context_derive_builds_branch():
-    ctx = InvocationContext(session_id="s1", agent_name="root")
+    ctx = Context(session_id="s1", agent_name="root")
     child = ctx.derive(agent_name="child")
     assert child.branch == "child"
 
@@ -32,13 +32,13 @@ def test_context_derive_builds_branch():
 
 
 def test_context_derive_custom_branch_suffix():
-    ctx = InvocationContext(session_id="s1", agent_name="root")
+    ctx = Context(session_id="s1", agent_name="root")
     child = ctx.derive(agent_name="child", branch_suffix="parallel.child")
     assert child.branch == "parallel.child"
 
 
 def test_context_state_shared_reference():
-    ctx = InvocationContext(session_id="s1", agent_name="root")
+    ctx = Context(session_id="s1", agent_name="root")
     child = ctx.derive(agent_name="child")
 
     # Mutations on child's state are visible on parent (shared reference)
@@ -47,6 +47,6 @@ def test_context_state_shared_reference():
 
 
 def test_context_invocation_id_auto_generated():
-    ctx1 = InvocationContext(session_id="s1", agent_name="root")
-    ctx2 = InvocationContext(session_id="s1", agent_name="root")
+    ctx1 = Context(session_id="s1", agent_name="root")
+    ctx2 = Context(session_id="s1", agent_name="root")
     assert ctx1.invocation_id != ctx2.invocation_id

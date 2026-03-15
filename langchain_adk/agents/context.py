@@ -1,12 +1,13 @@
-"""Invocation context - propagated through agent call chains.
+"""Agent context - propagated through agent call chains.
 
 Carries runtime state for a single agent invocation: who is running,
 which session it belongs to, what ephemeral state has accumulated,
-and how the run is configured (streaming mode, call limits).
+and how the run is configured.
 """
 
 from __future__ import annotations
 
+import asyncio
 from typing import TYPE_CHECKING, Any
 from uuid import uuid4
 
@@ -16,7 +17,7 @@ if TYPE_CHECKING:
     from langchain_adk.sessions.session import Session
 
 
-class InvocationContext(BaseModel):
+class Context(BaseModel):
     """Runtime context propagated through an agent's execution tree.
 
     Each agent invocation receives a context. Child agents (sub-agents,
@@ -45,9 +46,9 @@ class InvocationContext(BaseModel):
     session : Session, optional
         The session this invocation belongs to. Provides access to
         conversation history (events) and persisted state for multi-turn.
-    run_config : RunConfig, optional
-        Per-run configuration (streaming mode, LLM call limits). Set by
-        the Runner before the first agent call.
+    run_config : dict[str, Any]
+        Per-run configuration (LangChain RunnableConfig / AgentConfig dict).
+        Set by the Runner or auto-created by astream/ainvoke.
     memory_service : Any, optional
         Optional memory service for long-term recall.
     """
@@ -62,19 +63,18 @@ class InvocationContext(BaseModel):
     branch: str = ""
     state: dict[str, Any] = Field(default_factory=dict)
     session: Any | None = None  # Session; Any to avoid circular import at runtime
-    run_config: Any | None = None  # RunConfig; Any to avoid circular import at runtime
+    run_config: dict[str, Any] = Field(default_factory=dict)  # RunnableConfig / AgentConfig
     memory_service: Any | None = None
     langchain_run_config: dict[str, Any] = Field(default_factory=dict)
-    # Shared list tools can append events to during execution.
-    # LlmAgent drains this after each round of tool calls and yields the events.
-    event_emitter: list[Any] = Field(default_factory=list)
+    # Per-agent event queue. Used internally by run_async() for orchestration.
+    events: asyncio.Queue[Any] = Field(default_factory=asyncio.Queue)
 
     def derive(
         self,
         *,
         agent_name: str,
         branch_suffix: str = "",
-    ) -> InvocationContext:
+    ) -> Context:
         """Create a child context for a sub-agent invocation.
 
         The child shares the same session, invocation ID, state reference,
@@ -91,8 +91,8 @@ class InvocationContext(BaseModel):
 
         Returns
         -------
-        InvocationContext
-            A new InvocationContext scoped to the child agent.
+        Context
+            A new Context scoped to the child agent.
         """
         suffix = branch_suffix or agent_name
         new_branch = f"{self.branch}.{suffix}" if self.branch else suffix
@@ -104,6 +104,6 @@ class InvocationContext(BaseModel):
                 "session": self.session,          # shared reference - intentional
                 "run_config": self.run_config,
                 "langchain_run_config": self.langchain_run_config,
-                "event_emitter": self.event_emitter,  # shared reference - intentional
+                # events NOT passed — child gets its own fresh queue
             }
         )

@@ -12,7 +12,7 @@ import asyncio
 
 from langchain_core.tools import tool
 
-from langchain_adk import LlmAgent, ParallelAgent, InvocationContext
+from langchain_adk import LlmAgent, ParallelAgent
 from langchain_adk.events.event import Event, EventType
 
 
@@ -85,15 +85,10 @@ async def main() -> None:
         agents=[wiki_agent, news_agent, arxiv_agent],
     )
 
-    ctx = InvocationContext(
-        session_id="parallel-demo",
-        agent_name=parallel.name,
-    )
-
     print(f"Running: {parallel.name}\n{'=' * 50}")
     print("(3 agents researching in parallel)\n")
 
-    async for event in parallel.astream("AI agents", ctx=ctx):
+    async for event in parallel.astream("AI agents"):
         if event.has_tool_calls:
             print(f"  [{event.agent_name}] TOOL CALL: {event.tool_name}({event.tool_input})")
         elif event.type == EventType.TOOL_RESPONSE:

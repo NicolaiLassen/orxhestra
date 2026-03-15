@@ -12,7 +12,7 @@ import asyncio
 
 from langchain_core.tools import tool
 
-from langchain_adk import LlmAgent, InvocationContext
+from langchain_adk import LlmAgent
 from langchain_adk.events.event import Event, EventType
 from langchain_adk.tools.transfer_tool import make_transfer_tool
 
@@ -89,11 +89,6 @@ async def main() -> None:
         ),
     )
 
-    ctx = InvocationContext(
-        session_id="transfer-demo",
-        agent_name=triage_agent.name,
-    )
-
     queries = [
         "Where is my order #12345?",
         "How do I reset my API key?",
@@ -104,7 +99,7 @@ async def main() -> None:
         print(f"\nCustomer: {query}")
         print("-" * 50)
 
-        async for event in triage_agent.astream(query, ctx=ctx):
+        async for event in triage_agent.astream(query):
             if event.has_tool_calls:
                 print(f"  [TOOL] {event.tool_name}({event.tool_input})")
             elif event.type == EventType.TOOL_RESPONSE:

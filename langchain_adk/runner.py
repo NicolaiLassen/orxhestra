@@ -3,8 +3,8 @@
 The Runner is the main entry point for running agents. It:
 
 1. Fetches or creates the session via the session service.
-2. Builds an ``InvocationContext`` from the session and run config.
-3. Delegates to ``agent._run_with_callbacks()``.
+2. Builds an ``Context`` from the session and run config.
+3. Iterates the agent's ``astream()`` method.
 4. Persists every event to the session via ``append_event()``.
 5. Yields the event stream back to the caller.
 
@@ -34,8 +34,9 @@ import logging
 from collections.abc import AsyncIterator
 from typing import TYPE_CHECKING
 
-from langchain_adk.agents.run_config import RunConfig
-from langchain_adk.context.invocation_context import InvocationContext
+from langchain_core.runnables import RunnableConfig
+
+from langchain_adk.agents.context import Context
 from langchain_adk.events.event import Event, EventType
 from langchain_adk.models.part import Content
 from langchain_adk.sessions.base_session_service import BaseSessionService
@@ -62,15 +63,6 @@ class Runner:
         Application identifier. Used to namespace sessions.
     session_service : BaseSessionService
         Where sessions are stored and retrieved.
-
-    Attributes
-    ----------
-    agent : BaseAgent
-        The root agent.
-    app_name : str
-        Application name passed to the session service.
-    session_service : BaseSessionService
-        The backing session store.
     """
 
     def __init__(
@@ -96,11 +88,11 @@ class Runner:
         Parameters
         ----------
         user_id : str
-            The user who owns this session.
+            The user identifier.
         session_id : str
             The session identifier.
         initial_state : dict, optional
-            Initial state for the session if it is newly created.
+            Initial state for a newly created session.
 
         Returns
         -------
@@ -127,38 +119,21 @@ class Runner:
         user_id: str,
         session_id: str,
         new_message: str,
-        run_config: RunConfig | None = None,
+        config: RunnableConfig | None = None,
     ) -> AsyncIterator[Event]:
         """Run the agent and yield its event stream.
 
-        Fetches or creates the session, builds an ``InvocationContext``,
-        delegates to the agent, and persists every event.
-
-        Parameters
-        ----------
-        user_id : str
-            The user sending the message.
-        session_id : str
-            The session to attach this run to.
-        new_message : str
-            The user's input message for this turn.
-        run_config : RunConfig, optional
-            Per-run configuration (streaming mode, call limits). Defaults
-            to ``RunConfig()`` with non-streaming mode.
-
-        Yields
-        ------
-        Event
-            Every event emitted by the agent and its sub-agents.
+        Launches the agent, drains events from the queue, persists each
+        event, and yields to the caller.
         """
-        resolved_config = run_config or RunConfig()
+        resolved_config = config or {}
 
         session = await self.get_or_create_session(
             user_id=user_id,
             session_id=session_id,
         )
 
-        ctx = InvocationContext(
+        ctx = Context(
             session_id=session.id,
             user_id=user_id,
             app_name=self.app_name,
@@ -184,6 +159,6 @@ class Runner:
             user_id,
         )
 
-        async for event in self.agent._run_with_callbacks(new_message, ctx=ctx):
+        async for event in self.agent.astream(new_message, ctx=ctx):
             await self.session_service.append_event(session, event)
             yield event

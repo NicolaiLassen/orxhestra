@@ -13,7 +13,7 @@ import asyncio
 from pydantic import BaseModel, Field
 from langchain_core.tools import tool
 
-from langchain_adk import LlmAgent, InvocationContext
+from langchain_adk import LlmAgent
 from langchain_adk.events.event import Event, EventType
 
 
@@ -74,18 +74,13 @@ async def main() -> None:
         ),
     )
 
-    ctx = InvocationContext(
-        session_id="structured-demo",
-        agent_name=agent.name,
-    )
-
     companies = ["Apple", "Tesla"]
 
     for company in companies:
         print(f"\nAnalyzing: {company}")
         print("=" * 50)
 
-        async for event in agent.astream(f"Analyze {company}", ctx=ctx):
+        async for event in agent.astream(f"Analyze {company}"):
             if event.has_tool_calls:
                 print(f"  [TOOL] {event.tool_name}({event.tool_input})")
             elif event.type == EventType.TOOL_RESPONSE:

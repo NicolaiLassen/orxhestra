@@ -11,8 +11,10 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterator, Callable
 
+from langchain_core.runnables import RunnableConfig
+
 from langchain_adk.agents.base_agent import BaseAgent
-from langchain_adk.context.invocation_context import InvocationContext
+from langchain_adk.agents.context import Context
 from langchain_adk.events.event import Event, EventType
 from langchain_adk.models.part import Content
 
@@ -59,23 +61,30 @@ class LoopAgent(BaseAgent):
     async def astream(
         self,
         input: str,
+        config: RunnableConfig | None = None,
         *,
-        ctx: InvocationContext,
+        ctx: Context | None = None,
     ) -> AsyncIterator[Event]:
         """Run sub-agents in a loop until a termination condition is met.
 
         Parameters
         ----------
         input : str
-            The user message or task passed to sub-agents each iteration.
-        ctx : InvocationContext
-            The invocation context for this run.
+            The user message or task description.
+        config : RunnableConfig, optional
+            LangChain-compatible config dict (tags, callbacks, etc.).
+        ctx : Context, optional
+            Invocation context. Auto-created if not provided.
 
         Yields
         ------
         Event
             All events from all sub-agents across all iterations.
+            The loop stops when a sub-agent escalates, ``max_iterations``
+            is reached, or ``should_continue`` returns False.
         """
+        ctx = self._ensure_ctx(config, ctx)
+
         if not self.sub_agents:
             return
 
@@ -98,13 +107,10 @@ class LoopAgent(BaseAgent):
                 return
 
             for sub_agent in self.sub_agents:
-                child_ctx = ctx.derive(agent_name=sub_agent.name)
-
-                async for event in sub_agent._run_with_callbacks(input, ctx=child_ctx):
+                async for event in sub_agent.astream(input, ctx=ctx):
                     yield event
                     last_event = event
 
-                    # Sub-agent signalled it's done - exit loop
                     if event.actions.escalate:
                         return
 

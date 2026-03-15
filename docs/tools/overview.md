@@ -18,7 +18,7 @@ flowchart LR
 
     FT -->|wraps| Fn["async def fn()"]:::external
     AT -->|invokes| SA([sub-agent]):::agent
-    SA -->|derive context\nbranch isolation| IC["InvocationContext\n.derive()"]:::effect
+    SA -->|derive context\nbranch isolation| IC["Context\n.derive()"]:::effect
     TT -->|sets| EA1["EventActions\n.transfer_to_agent"]:::effect
     EL -->|sets| EA2["EventActions\n.escalate = True"]:::effect
     MCP -->|fetches from| MS[("MCP Server")]:::external
@@ -87,7 +87,7 @@ from langchain_adk import ToolContext
 class MyStatefulTool(BaseTool):
     _ctx: ToolContext | None = None
 
-    def inject_context(self, ctx: InvocationContext) -> None:
+    def inject_context(self, ctx: Context) -> None:
         self._ctx = ToolContext(ctx)
 
     async def _arun(self, query: str) -> str:

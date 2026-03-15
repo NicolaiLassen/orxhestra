@@ -8,8 +8,10 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterator
 
+from langchain_core.runnables import RunnableConfig
+
 from langchain_adk.agents.base_agent import BaseAgent
-from langchain_adk.context.invocation_context import InvocationContext
+from langchain_adk.agents.context import Context
 from langchain_adk.events.event import Event
 
 
@@ -20,7 +22,7 @@ class SequentialAgent(BaseAgent):
     to the next. All events from all agents are yielded upstream.
 
     If a sub-agent emits an event with `actions.escalate = True`, the
-    pipeline stops early and yields no further events.
+    pipeline stops early.
 
     Attributes
     ----------
@@ -42,8 +44,9 @@ class SequentialAgent(BaseAgent):
     async def astream(
         self,
         input: str,
+        config: RunnableConfig | None = None,
         *,
-        ctx: InvocationContext,
+        ctx: Context | None = None,
     ) -> AsyncIterator[Event]:
         """Run sub-agents in sequence, chaining final answers as input.
 
@@ -51,29 +54,30 @@ class SequentialAgent(BaseAgent):
         ----------
         input : str
             The initial user message or task description.
-        ctx : InvocationContext
-            The invocation context for this run.
+        config : RunnableConfig, optional
+            LangChain-compatible config dict (tags, callbacks, etc.).
+        ctx : Context, optional
+            Invocation context. Auto-created if not provided.
 
         Yields
         ------
         Event
-            All events from all sub-agents in order.
+            All events from all sub-agents in order. Each sub-agent
+            receives the previous agent's final answer text as input.
         """
+        ctx = self._ensure_ctx(config, ctx)
+
         if not self.sub_agents:
             return
 
         current_input = input
 
         for sub_agent in self.sub_agents:
-            child_ctx = ctx.derive(agent_name=sub_agent.name)
-
-            async for event in sub_agent._run_with_callbacks(current_input, ctx=child_ctx):
+            async for event in sub_agent.astream(current_input, ctx=ctx):
                 yield event
 
-                # Stop pipeline if sub-agent escalates
                 if event.actions.escalate:
                     return
 
-                # Chain final answer to next agent's input
                 if event.is_final_response():
                     current_input = event.text

@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import asyncio
 
-from langchain_adk import LlmAgent, LoopAgent, InvocationContext
+from langchain_adk import LlmAgent, LoopAgent
 from langchain_adk.events.event import Event, EventType
 
 
@@ -54,18 +54,12 @@ async def main() -> None:
         max_iterations=5,
     )
 
-    ctx = InvocationContext(
-        session_id="loop-demo",
-        agent_name=loop.name,
-    )
-
     print(f"Running: {loop.name}\n{'=' * 50}")
     print("Product: 'An AI-powered code editor'\n")
 
     iteration = 0
     async for event in loop.astream(
         "Write a tagline for: An AI-powered code editor that understands your codebase",
-        ctx=ctx,
     ):
         if event.is_final_response():
             agent = event.agent_name or "?"

@@ -50,7 +50,7 @@ Function tools, agent-as-tool, transfer handoffs, exit loop, long-running tools,
 
 <div class="feature-card" markdown>
 ### :mag: Full Observability
-First-class tracing via RunConfig callbacks. Works with Langfuse, LangSmith, or any LangChain callback handler.
+First-class tracing via AgentConfig callbacks. Works with Langfuse, LangSmith, or any LangChain callback handler.
 </div>
 
 </div>

@@ -15,7 +15,7 @@ from pydantic import BaseModel, Field
 
 if TYPE_CHECKING:
     from langchain_adk.agents.base_agent import BaseAgent
-    from langchain_adk.context.invocation_context import InvocationContext
+    from langchain_adk.agents.context import Context
 
 
 class AgentToolInput(BaseModel):
@@ -28,7 +28,7 @@ class AgentTool(BaseTool):
 
     When invoked, runs the wrapped agent with the given request and
     returns the final answer text as the tool result. The child
-    agent runs in an isolated branch of the parent context.
+    agent runs with its own event queue.
 
     Attributes
     ----------
@@ -37,8 +37,8 @@ class AgentTool(BaseTool):
     skip_summarization : bool
         If True, signals the parent to skip LLM summarization of this
         tool's result.
-    _ctx : InvocationContext, optional
-        The parent InvocationContext, injected at call time.
+    _ctx : Context, optional
+        The parent Context, injected at call time.
     """
 
     name: str
@@ -59,14 +59,8 @@ class AgentTool(BaseTool):
         object.__setattr__(self, "skip_summarization", skip_summarization)
         object.__setattr__(self, "_ctx", None)
 
-    def inject_context(self, ctx: InvocationContext) -> None:
-        """Inject the parent invocation context before tool execution.
-
-        Parameters
-        ----------
-        ctx : InvocationContext
-            The parent invocation context to inject.
-        """
+    def inject_context(self, ctx: Context) -> None:
+        """Inject the parent invocation context before tool execution."""
         object.__setattr__(self, "_ctx", ctx)
 
     def _run(self, request: str, **kwargs: Any) -> str:
@@ -84,22 +78,18 @@ class AgentTool(BaseTool):
         Parameters
         ----------
         request : str
-            The request or task string to pass to the wrapped agent.
+            The request or task to send to the wrapped agent.
         run_manager : AsyncCallbackManagerForToolRun, optional
-            LangChain callback manager (unused).
+            LangChain callback manager (injected by the framework).
 
         Returns
         -------
         str
-            The agent's final answer, or a fallback message if none produced.
-
-        Raises
-        ------
-        RuntimeError
-            If inject_context() was not called before invocation.
+            The wrapped agent's final answer text, or an error message
+            if no final answer was produced.
         """
-        agent = object.__getattribute__(self, "_agent")
-        ctx: InvocationContext | None = object.__getattribute__(self, "_ctx")
+        agent: BaseAgent = object.__getattribute__(self, "_agent")  # type: ignore[assignment]
+        ctx: Context | None = object.__getattribute__(self, "_ctx")
 
         if ctx is None:
             raise RuntimeError(
@@ -107,10 +97,8 @@ class AgentTool(BaseTool):
                 "Call inject_context(ctx) before invoking."
             )
 
-        child_ctx = ctx.derive(agent_name=agent.name)
-
         final_answer: str | None = None
-        async for event in agent.astream(request, ctx=child_ctx):
+        async for event in agent.astream(request, ctx=ctx):
             if event.is_final_response():
                 final_answer = event.text
 

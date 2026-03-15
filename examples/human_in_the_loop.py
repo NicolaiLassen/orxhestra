@@ -12,7 +12,7 @@ import asyncio
 
 from langchain_core.tools import tool
 
-from langchain_adk import LlmAgent, InvocationContext
+from langchain_adk import LlmAgent
 from langchain_adk.events.event import Event, EventType
 
 
@@ -65,11 +65,6 @@ async def main() -> None:
         ),
     )
 
-    ctx = InvocationContext(
-        session_id="hitl-demo",
-        agent_name=agent.name,
-    )
-
     print("Human-in-the-Loop Agent")
     print("The agent will ask you questions when it needs more info.\n")
 
@@ -77,7 +72,7 @@ async def main() -> None:
 
     print(f"User: {query}\n")
 
-    async for event in agent.astream(query, ctx=ctx):
+    async for event in agent.astream(query):
         if event.has_tool_calls:
             if event.tool_name != "ask_human":
                 print(f"\n[TOOL CALL] {event.tool_name}({event.tool_input})")

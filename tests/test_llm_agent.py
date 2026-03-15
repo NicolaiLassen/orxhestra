@@ -9,7 +9,7 @@ from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
 from langchain_core.outputs import ChatGeneration, ChatResult
 
 from langchain_adk.agents.llm_agent import LlmAgent
-from langchain_adk.context.invocation_context import InvocationContext
+from langchain_adk.agents.context import Context
 from langchain_adk.events.event import Event, EventType
 from langchain_adk.tools.exit_loop import EXIT_LOOP_SENTINEL
 from langchain_adk.tools.transfer_tool import TRANSFER_SENTINEL
@@ -38,10 +38,10 @@ class FakeChatModel(BaseChatModel):
         return self._generate(messages, stop, **kwargs)
 
 
-def _ctx(**kwargs) -> InvocationContext:
+def _ctx(**kwargs) -> Context:
     defaults = {"session_id": "test", "agent_name": "agent"}
     defaults.update(kwargs)
-    return InvocationContext(**defaults)
+    return Context(**defaults)
 
 
 def _llm(*texts: str) -> FakeChatModel:

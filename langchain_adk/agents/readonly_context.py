@@ -1,4 +1,4 @@
-"""ReadonlyContext and CallbackContext - scoped views over InvocationContext.
+"""ReadonlyContext and CallbackContext - scoped views over Context.
 
 Two context types are provided for different call sites:
 
@@ -11,7 +11,7 @@ CallbackContext
     A mutable context passed to before/after callbacks. Exposes a writable
     state dict and a local ``EventActions`` instance so callbacks can apply
     state deltas and signal side-effects without coupling to the full
-    InvocationContext.
+    Context.
 """
 
 from __future__ import annotations
@@ -22,11 +22,11 @@ from typing import TYPE_CHECKING, Any
 from langchain_adk.events.event_actions import EventActions
 
 if TYPE_CHECKING:
-    from langchain_adk.context.invocation_context import InvocationContext
+    from langchain_adk.agents.context import Context
 
 
 class ReadonlyContext:
-    """Read-only view over an InvocationContext.
+    """Read-only view over an Context.
 
     Passed to instruction providers (callable instructions) and planners
     so they can read session state and metadata without being able to
@@ -34,7 +34,7 @@ class ReadonlyContext:
 
     Parameters
     ----------
-    invocation_context : InvocationContext
+    invocation_context : Context
         The underlying invocation context.
 
     Attributes
@@ -53,7 +53,7 @@ class ReadonlyContext:
         Read-only view of the invocation state.
     """
 
-    def __init__(self, invocation_context: InvocationContext) -> None:
+    def __init__(self, invocation_context: Context) -> None:
         self._ctx = invocation_context
 
     @property
@@ -101,7 +101,7 @@ class CallbackContext(ReadonlyContext):
 
     Parameters
     ----------
-    invocation_context : InvocationContext
+    invocation_context : Context
         The underlying invocation context.
 
     Attributes
@@ -114,7 +114,7 @@ class CallbackContext(ReadonlyContext):
         state_delta, etc.
     """
 
-    def __init__(self, invocation_context: InvocationContext) -> None:
+    def __init__(self, invocation_context: Context) -> None:
         super().__init__(invocation_context)
         self.actions: EventActions = EventActions()
 

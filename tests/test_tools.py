@@ -5,11 +5,11 @@ from langchain_adk.tools.function_tool import function_tool
 from langchain_adk.tools.tool_registry import ToolRegistry
 from langchain_adk.tools.tool_context import ToolContext
 from langchain_adk.tools.exit_loop import exit_loop_tool, EXIT_LOOP_SENTINEL
-from langchain_adk.context.invocation_context import InvocationContext
+from langchain_adk.agents.context import Context
 
 
 def _make_ctx():
-    return InvocationContext(session_id="s1", agent_name="agent")
+    return Context(session_id="s1", agent_name="agent")
 
 
 def test_function_tool_name_from_function():

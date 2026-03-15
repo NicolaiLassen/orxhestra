@@ -1,12 +1,12 @@
 # Tracing (Langfuse, LangSmith, etc.)
 
-`RunConfig` mirrors LangChain's `RunnableConfig` fields — pass `callbacks`, `tags`, `metadata`, `run_name` directly. The entire agent run is wrapped in a single parent trace with all child operations nested automatically.
+`AgentConfig` mirrors LangChain's `RunnableConfig` fields — pass `callbacks`, `tags`, `metadata`, `run_name` directly. The entire agent run is wrapped in a single parent trace with all child operations nested automatically.
 
 ```python
 from langfuse.langchain import CallbackHandler
-from langchain_adk import RunConfig
+from langchain_adk import AgentConfig
 
-run_config = RunConfig(
+run_config = AgentConfig(
     callbacks=[CallbackHandler()],  # Langfuse, LangSmith, or any BaseCallbackHandler
     tags=["production", "user-facing"],
     metadata={"user_id": "u-123"},
@@ -17,7 +17,7 @@ async for event in runner.run_async(
     user_id="user-1",
     session_id="session-1",
     new_message="Hello!",
-    run_config=run_config,
+    config=run_config,
 ):
     ...
 ```

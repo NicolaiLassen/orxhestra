@@ -9,7 +9,7 @@ from langchain_core.outputs import ChatGeneration, ChatResult
 from langchain_core.tools import tool
 
 from langchain_adk.agents.react_agent import ReActAgent, ReActStep
-from langchain_adk.context.invocation_context import InvocationContext
+from langchain_adk.agents.context import Context
 from langchain_adk.events.event import Event, EventType
 
 
@@ -56,10 +56,10 @@ class FakeStructuredModel(BaseChatModel):
         return StructuredWrapper()
 
 
-def _ctx(**kwargs) -> InvocationContext:
+def _ctx(**kwargs) -> Context:
     defaults = {"session_id": "test", "agent_name": "react"}
     defaults.update(kwargs)
-    return InvocationContext(**defaults)
+    return Context(**defaults)
 
 
 @pytest.mark.asyncio

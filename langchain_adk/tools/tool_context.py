@@ -2,7 +2,7 @@
 
 Gives tools access to the invocation
 state and a local ``EventActions`` instance so they can signal escalation,
-agent transfer, and state mutations without importing InvocationContext
+agent transfer, and state mutations without importing Context
 directly.
 """
 
@@ -13,19 +13,19 @@ from typing import TYPE_CHECKING, Any
 from langchain_adk.events.event_actions import EventActions
 
 if TYPE_CHECKING:
-    from langchain_adk.context.invocation_context import InvocationContext
+    from langchain_adk.agents.context import Context
 
 
 class ToolContext:
     """Context object passed to tools during execution.
 
-    Wraps ``InvocationContext`` with a tool-scoped ``EventActions`` that the
+    Wraps ``Context`` with a tool-scoped ``EventActions`` that the
     agent inspects after the tool returns to apply side-effects (escalate,
     transfer, state updates).
 
     Parameters
     ----------
-    ctx : InvocationContext
+    ctx : Context
         The parent invocation context for this agent run.
 
     Attributes
@@ -46,7 +46,7 @@ class ToolContext:
         The ID of the current tool call. Set by the agent before execution.
     """
 
-    def __init__(self, ctx: InvocationContext) -> None:
+    def __init__(self, ctx: Context) -> None:
         self._ctx = ctx
         self.state: dict[str, Any] = ctx.state
         self.actions: EventActions = EventActions()

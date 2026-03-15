@@ -8,7 +8,7 @@ Core agents::
 Runner::
 
     from langchain_adk.runner import Runner
-    from langchain_adk.agents import RunConfig, StreamingMode
+    from langchain_adk.agents import AgentConfig
 
 Planners::
 
@@ -21,7 +21,7 @@ Events::
 
 Context::
 
-    from langchain_adk.context.invocation_context import InvocationContext
+    from langchain_adk.agents import Context
     from langchain_adk.agents import ReadonlyContext, CallbackContext
 
 Sessions::
@@ -35,17 +35,16 @@ Tools::
 """
 
 from langchain_adk.agents import (
+    AgentConfig,
     CallbackContext,
+    Context,
     LlmAgent,
     LoopAgent,
     ParallelAgent,
     ReActAgent,
     ReadonlyContext,
-    RunConfig,
     SequentialAgent,
-    StreamingMode,
 )
-from langchain_adk.context.invocation_context import InvocationContext
 from langchain_adk.events.event import Event, EventType
 from langchain_adk.events.event_actions import EventActions
 from langchain_adk.models.part import (
@@ -70,8 +69,7 @@ __all__ = [
     "LoopAgent",
     # Runner + config
     "Runner",
-    "RunConfig",
-    "StreamingMode",
+    "AgentConfig",
     # Planners
     "BasePlanner",
     "TaskPlanner",
@@ -88,7 +86,7 @@ __all__ = [
     "ToolCallPart",
     "ToolResponsePart",
     # Context
-    "InvocationContext",
+    "Context",
     "ReadonlyContext",
     "CallbackContext",
     # Sessions

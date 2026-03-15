@@ -51,7 +51,7 @@ from langchain_adk.a2a.types import (
     TextPart,
 )
 from langchain_adk.agents.base_agent import BaseAgent
-from langchain_adk.context.invocation_context import InvocationContext
+from langchain_adk.agents.context import Context
 from langchain_adk.sessions.base_session_service import BaseSessionService
 
 
@@ -143,7 +143,7 @@ class A2AServer:
             app_name=self.app_name,
             user_id="anonymous",
         )
-        ctx = InvocationContext(
+        ctx = Context(
             session_id=session.id,
             user_id="anonymous",
             app_name=self.app_name,
@@ -155,7 +155,7 @@ class A2AServer:
         self._update_task_status(task, TaskState.working)
 
         final_answer = ""
-        async for event in self.agent._run_with_callbacks(user_message, ctx=ctx):
+        async for event in self.agent.astream(user_message, ctx=ctx):
             if event.is_final_response():
                 final_answer = event.text
 
@@ -218,7 +218,7 @@ class A2AServer:
             app_name=self.app_name,
             user_id="anonymous",
         )
-        ctx = InvocationContext(
+        ctx = Context(
             session_id=session.id,
             user_id="anonymous",
             app_name=self.app_name,
@@ -240,7 +240,7 @@ class A2AServer:
 
         # Stream agent events, converting to A2A events
         async for a2a_event in events_to_a2a_stream(
-            self.agent._run_with_callbacks(user_text, ctx=ctx),
+            self.agent.astream(user_text, ctx=ctx),
             task_id=task.id,
             context_id=task.context_id,
         ):

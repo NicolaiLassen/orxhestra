@@ -17,7 +17,7 @@ from langfuse.langchain import CallbackHandler
 
 from langchain_adk import (
     LlmAgent,
-    RunConfig,
+    AgentConfig,
     Runner,
     InMemorySessionService,
 )
@@ -49,7 +49,7 @@ async def main() -> None:
     # Langfuse picks up LANGFUSE_HOST, LANGFUSE_PUBLIC_KEY, LANGFUSE_SECRET_KEY from env
     langfuse_handler = CallbackHandler()
 
-    run_config = RunConfig(
+    run_config = AgentConfig(
         callbacks=[langfuse_handler],
         tags=["example", "langfuse"],
         metadata={"env": "dev"},
@@ -67,7 +67,7 @@ async def main() -> None:
         user_id="user_1",
         session_id="session_1",
         new_message="What's the weather in Copenhagen and Berlin?",
-        run_config=run_config,
+        config=run_config,
     ):
         if event.has_tool_calls:
             print(f"[TOOL CALL] {event.tool_name}({event.tool_input})")

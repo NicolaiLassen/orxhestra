@@ -14,7 +14,7 @@ import asyncio
 
 from langchain_core.tools import tool
 
-from langchain_adk import LlmAgent, SequentialAgent, InvocationContext, InMemorySessionService
+from langchain_adk import LlmAgent, SequentialAgent
 from langchain_adk.events.event import Event, EventType
 from langchain_adk.prompts.catalog import build_system_prompt
 from langchain_adk.prompts.context import PromptContext
@@ -83,23 +83,9 @@ async def main() -> None:
         agents=[research_agent, writer_agent],
     )
 
-    # --- Sessions ---
-    session_service = InMemorySessionService()
-    session = await session_service.create_session(
-        app_name="demo",
-        user_id="user-1",
-    )
-
-    ctx = InvocationContext(
-        session_id=session.id,
-        user_id=session.user_id,
-        app_name="demo",
-        agent_name=pipeline.name,
-    )
-
     print(f"Pipeline: {pipeline.name}\n{'='*40}")
 
-    async for event in pipeline.astream("Write an article about LLM agents", ctx=ctx):
+    async for event in pipeline.astream("Write an article about LLM agents"):
         if event.has_tool_calls:
             print(f"[TOOL] {event.agent_name} → {event.tool_name}")
         elif event.is_final_response():

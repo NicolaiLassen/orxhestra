@@ -1,24 +1,28 @@
-"""Streaming example - token-by-token output from an LlmAgent.
+"""Streaming example — AgentTool sub-agents with event bubbling.
 
 Demonstrates:
-  - Partial events (partial=True) for real-time text streaming
-  - Complete events for tool calls / tool results
+  - LlmAgent with AgentTool-wrapped sub-agents
+  - Sub-agent events bubbling up with branch attribution
+  - Real-time streaming via ``ctx.event_callback``
   - All streaming is automatic — no special config needed
+
+Usage::
+
+    export OPENAI_API_KEY="sk-..."
+    python examples/streaming_agent.py
 """
 
 from __future__ import annotations
 
 import asyncio
+import os
 import sys
-
-# Swap in any LangChain-supported LLM:
-# from langchain_openai import ChatOpenAI
-# from langchain_anthropic import ChatAnthropic
 
 from langchain_core.tools import tool
 
 from langchain_adk import LlmAgent
-from langchain_adk.events.event import Event, EventType
+from langchain_adk.events.event import EventType
+from langchain_adk.tools.agent_tool import AgentTool
 
 
 @tool
@@ -27,38 +31,87 @@ def get_weather(city: str) -> str:
     return f"The weather in {city} is partly cloudy and 18°C."
 
 
+@tool
+def get_attractions(city: str) -> str:
+    """Get top attractions for a city."""
+    attractions = {
+        "copenhagen": "Tivoli Gardens, The Little Mermaid, Nyhavn",
+        "berlin": "Brandenburg Gate, Museum Island, East Side Gallery",
+    }
+    return attractions.get(city.lower(), f"Popular landmarks in {city}")
+
+
+def _print_event(event) -> None:
+    """Pretty-print a single streaming event."""
+    branch = f" branch={event.branch}" if event.branch else ""
+    agent = f" agent={event.agent_name}" if event.agent_name else ""
+
+    if event.has_tool_calls:
+        print(f"\n  [TOOL CALL]{branch}{agent} {event.tool_name}({event.tool_input})")
+    elif event.type == EventType.TOOL_RESPONSE:
+        print(f"  [TOOL RESULT]{branch}{agent} {event.text or event.error}")
+    elif event.partial and event.type == EventType.AGENT_MESSAGE:
+        # Stream tokens inline
+        sys.stdout.write(".")
+        sys.stdout.flush()
+    elif event.is_final_response():
+        text = event.text or ""
+        preview = text[:200] + "..." if len(text) > 200 else text
+        print(f"\n  [ANSWER]{branch}{agent}\n  {preview}")
+    else:
+        print(f"  [EVENT] {event.type}{branch}{agent}")
+
+
 async def main() -> None:
-    # --- Replace with a real LLM ---
-    # llm = ChatOpenAI(model="gpt-5.4")
-    # llm = ChatAnthropic(model="claude-3-5-haiku-latest")
-    raise NotImplementedError(
-        "Replace the llm= line below with a real LangChain chat model "
-        "and comment out this raise."
-    )
+    """Run a parent LlmAgent that delegates to two AgentTool sub-agents."""
+    from langchain_openai import ChatOpenAI
 
-    agent = LlmAgent(
-        name="StreamingWeatherAgent",
-        llm=llm,  # noqa: F821
+    api_key = os.environ.get("OPENAI_API_KEY")
+    if not api_key:
+        print("Set OPENAI_API_KEY to run this example.")
+        return
+
+    llm = ChatOpenAI(model="gpt-4o", api_key=api_key)
+
+    # Sub-agent 1: weather expert
+    weather_agent = LlmAgent(
+        name="WeatherAgent",
+        llm=llm,
         tools=[get_weather],
-        instructions="You are a helpful weather assistant. Use the get_weather tool.",
+        instructions="You are a weather assistant. Use the get_weather tool to answer.",
     )
 
-    print(f"Running agent (streaming): {agent.name}\n{'=' * 50}")
+    # Sub-agent 2: travel guide
+    travel_agent = LlmAgent(
+        name="TravelAgent",
+        llm=llm,
+        tools=[get_attractions],
+        instructions="You are a travel guide. Use the get_attractions tool to answer.",
+    )
 
-    async for event in agent.astream(
-        "What's the weather in Copenhagen and Berlin?",
-    ):
-        if event.has_tool_calls:
-            print(f"\n[TOOL CALL] {event.tool_name}({event.tool_input})")
-        elif event.type == EventType.TOOL_RESPONSE:
-            print(f"[TOOL RESULT] {event.text or event.error}")
-        elif event.partial and event.type == EventType.AGENT_MESSAGE:
-            # Stream tokens as they arrive
-            sys.stdout.write(".")
-            sys.stdout.flush()
-        elif event.is_final_response():
-            # Final complete answer
-            print(f"\n\n[ANSWER]\n{event.text}")
+    # Parent agent with AgentTool-wrapped sub-agents
+    planner = LlmAgent(
+        name="TripPlanner",
+        llm=llm,
+        tools=[
+            AgentTool(weather_agent),
+            AgentTool(travel_agent),
+        ],
+        instructions=(
+            "You are a trip planner. Use the WeatherAgent tool to get weather info "
+            "and the TravelAgent tool to get attraction info. "
+            "Combine the results into a helpful travel summary."
+        ),
+    )
+
+    print("=" * 60)
+    print("AgentTool streaming: LlmAgent with sub-agent tools")
+    print("=" * 60)
+
+    async for event in planner.astream("Tell me about Copenhagen"):
+        _print_event(event)
+
+    print()
 
 
 if __name__ == "__main__":

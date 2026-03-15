@@ -3,6 +3,10 @@
 Enables an LlmAgent to delegate work to a sub-agent by calling it as a
 tool. The parent agent sends a request string; the child agent runs and
 its final answer is returned as the tool result.
+
+Sub-agent events are pushed to the parent in real-time via
+``ctx.event_callback`` (if set), so they appear in the parent's event
+stream as the child is still running.
 """
 
 from __future__ import annotations
@@ -27,8 +31,9 @@ class AgentTool(BaseTool):
     """Wraps a BaseAgent as a LangChain tool.
 
     When invoked, runs the wrapped agent with the given request and
-    returns the final answer text as the tool result. The child
-    agent runs with its own event queue.
+    returns the final answer text as the tool result. Sub-agent events
+    are pushed via ``ctx.event_callback`` so the parent can yield them
+    in real-time.
 
     Attributes
     ----------
@@ -75,6 +80,9 @@ class AgentTool(BaseTool):
     ) -> str:
         """Run the wrapped agent asynchronously and return its final answer.
 
+        Sub-agent events are pushed to ``ctx.event_callback`` as they
+        arrive, so the parent stream sees them in real-time.
+
         Parameters
         ----------
         request : str
@@ -100,6 +108,9 @@ class AgentTool(BaseTool):
         child_ctx = ctx.derive(agent_name=agent.name)
         final_answer: str | None = None
         async for event in agent.astream(request, ctx=child_ctx):
+            # Push event to parent in real-time
+            if ctx.event_callback is not None:
+                ctx.event_callback(event)
             if event.is_final_response():
                 final_answer = event.text
 

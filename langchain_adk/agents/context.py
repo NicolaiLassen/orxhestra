@@ -7,13 +7,11 @@ and how the run is configured.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from collections.abc import Callable
+from typing import Any
 from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field
-
-if TYPE_CHECKING:
-    pass
 
 
 class Context(BaseModel):
@@ -67,6 +65,7 @@ class Context(BaseModel):
     session: Any | None = None  # Session; Any to avoid circular import at runtime
     run_config: dict[str, Any] = Field(default_factory=dict)  # RunnableConfig / AgentConfig
     memory_service: Any | None = None
+    event_callback: Callable[[Any], None] | None = None
 
     def derive(
         self,
@@ -102,5 +101,6 @@ class Context(BaseModel):
                 "state": self.state,              # shared reference - intentional
                 "session": self.session,          # shared reference - intentional
                 "run_config": self.run_config,
+                "event_callback": self.event_callback,
             }
         )

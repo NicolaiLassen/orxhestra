@@ -433,124 +433,80 @@ class LlmAgent(BaseAgent):
 
             # Execute all tool calls in parallel
             tool_messages: list[ToolMessage] = []
+            event_queue: asyncio.Queue[Event | None] = asyncio.Queue()
+
+            # Inject event_callback so tools (e.g. AgentTool) can push
+            # events in real-time while they run.
+            tool_ctx = ctx.model_copy(
+                update={"event_callback": event_queue.put_nowait}
+            )
+
+            def _tool_response(
+                t_id: str, t_name: str, *, result: str | None = None, error: str | None = None,
+            ) -> tuple[Event, ToolMessage]:
+                """Build a tool response event and ToolMessage pair."""
+                part = ToolResponsePart(tool_call_id=t_id, tool_name=t_name, result=result, error=error)
+                actions = EventActions()
+                content_str = result or error or ""
+                if result and result.startswith(TRANSFER_SENTINEL):
+                    actions = EventActions(
+                        transfer_to_agent=result.removeprefix(TRANSFER_SENTINEL).strip()
+                    )
+                elif result == EXIT_LOOP_SENTINEL:
+                    actions = EventActions(escalate=True)
+                return (
+                    self._emit_event(ctx, EventType.TOOL_RESPONSE, content=Content(parts=[part]), actions=actions),
+                    ToolMessage(content=content_str, tool_call_id=t_id, **({"status": "error"} if error else {})),
+                )
 
             async def _execute_tool(tool_call: dict) -> tuple[Event, ToolMessage]:
-                """Execute a single tool call and return the response event and message."""
-                t_name: str = tool_call["name"]
-                t_args: dict = tool_call["args"]
-                t_id: str = tool_call["id"]
+                """Execute a single tool call and return response event + message."""
+                t_name, t_args, t_id = tool_call["name"], tool_call["args"], tool_call["id"]
 
                 tool = self._tools.get(t_name)
                 if tool is None:
-                    error_msg = f"Tool '{t_name}' not found. Available: {list(self._tools)}"
-                    return (
-                        self._emit_event(
-                            ctx,
-                            EventType.TOOL_RESPONSE,
-                            content=Content(
-                                parts=[
-                                    ToolResponsePart(
-                                        tool_call_id=t_id,
-                                        tool_name=t_name,
-                                        error=error_msg,
-                                    )
-                                ]
-                            ),
-                        ),
-                        ToolMessage(content=error_msg, tool_call_id=t_id),
-                    )
+                    return _tool_response(t_id, t_name, error=f"Tool '{t_name}' not found. Available: {list(self._tools)}")
 
                 if hasattr(tool, "inject_context"):
-                    tool.inject_context(ctx)
+                    tool.inject_context(tool_ctx)
                 if self.before_tool_callback:
                     await self.before_tool_callback(ctx, t_name, t_args)
 
                 try:
-                    result = await tool.ainvoke(
-                        t_args, config=ctx.run_config
-                    )
-
+                    result = await tool.ainvoke(t_args, config=ctx.run_config)
                     if self.after_tool_callback:
                         await self.after_tool_callback(ctx, t_name, result)
-
-                    actions = EventActions()
-                    result_str = str(result)
-                    if result_str.startswith(TRANSFER_SENTINEL):
-                        actions = EventActions(
-                            transfer_to_agent=result_str.removeprefix(
-                                TRANSFER_SENTINEL
-                            ).strip()
-                        )
-                    elif result_str == EXIT_LOOP_SENTINEL:
-                        actions = EventActions(escalate=True)
-
-                    return (
-                        self._emit_event(
-                            ctx,
-                            EventType.TOOL_RESPONSE,
-                            content=Content(
-                                parts=[
-                                    ToolResponsePart(
-                                        tool_call_id=t_id,
-                                        tool_name=t_name,
-                                        result=result_str,
-                                    )
-                                ]
-                            ),
-                            actions=actions,
-                        ),
-                        ToolMessage(content=result_str, tool_call_id=t_id),
-                    )
-
+                    return _tool_response(t_id, t_name, result=str(result))
                 except Exception as exc:
-                    error_msg = str(exc)
                     if self.after_tool_callback:
                         await self.after_tool_callback(ctx, t_name, None)
-                    return (
-                        self._emit_event(
-                            ctx,
-                            EventType.TOOL_RESPONSE,
-                            content=Content(
-                                parts=[
-                                    ToolResponsePart(
-                                        tool_call_id=t_id,
-                                        tool_name=t_name,
-                                        error=error_msg,
-                                    )
-                                ]
-                            ),
-                        ),
-                        ToolMessage(
-                            content=f"Error: {error_msg}",
-                            tool_call_id=t_id,
-                            status="error",
-                        ),
-                    )
+                    return _tool_response(t_id, t_name, error=str(exc))
 
-            # Yield all tool call events
+            # Yield tool call events
             for tool_call in llm_response.tool_calls:
                 yield self._emit_event(
                     ctx,
                     EventType.AGENT_MESSAGE,
-                    content=Content(
-                        parts=[
-                            ToolCallPart(
-                                tool_call_id=tool_call["id"],
-                                tool_name=tool_call["name"],
-                                args=tool_call["args"],
-                            )
-                        ]
-                    ),
+                    content=Content(parts=[ToolCallPart(
+                        tool_call_id=tool_call["id"],
+                        tool_name=tool_call["name"],
+                        args=tool_call["args"],
+                    )]),
                     llm_response=llm_response,
                 )
 
-            # Execute all tools in parallel
-            results = await asyncio.gather(
-                *[_execute_tool(tc) for tc in llm_response.tool_calls]
-            )
+            # Run tools in background, yield pushed events in real-time
+            async def _run_all() -> list[tuple[Event, ToolMessage]]:
+                res = await asyncio.gather(*[_execute_tool(tc) for tc in llm_response.tool_calls])
+                event_queue.put_nowait(None)  # sentinel
+                return res
 
-            # Yield all tool response events
-            for response_event, tool_msg in results:
+            task = asyncio.ensure_future(_run_all())
+            while (item := await event_queue.get()) is not None:
+                yield item
+
+            # Yield tool response events
+            for response_event, tool_msg in await task:
                 yield response_event
                 tool_messages.append(tool_msg)
 

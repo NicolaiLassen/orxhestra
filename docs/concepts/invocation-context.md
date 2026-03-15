@@ -1,6 +1,6 @@
 # Context
 
-`Context` is the runtime state passed through every agent in the call tree. It carries the session binding, a mutable shared state dict, and run config.
+`Context` is the runtime state passed through every agent in the call tree. It carries the session binding, a mutable shared state dict, run config, and an optional event callback for real-time event pushing.
 
 ```python
 from langchain_adk import Context
@@ -15,15 +15,46 @@ ctx = Context(
 )
 ```
 
+## Fields
+
+| Field | Type | Description |
+|---|---|---|
+| `invocation_id` | `str` | Unique ID for this invocation (auto-generated) |
+| `session_id` | `str` | The session this invocation belongs to |
+| `user_id` | `str` | The user who initiated the session |
+| `app_name` | `str` | The application running the agent |
+| `agent_name` | `str` | The name of the currently executing agent |
+| `branch` | `str` | Dot-separated path for nested execution (e.g. `"root.child"`) |
+| `state` | `dict` | Mutable key-value store shared across the call tree |
+| `session` | `Session` | Session with conversation history and persisted state |
+| `run_config` | `dict` | LangChain `RunnableConfig` for callbacks/tracing |
+| `memory_service` | `Any` | Optional memory service for long-term recall |
+| `event_callback` | `Callable` | Optional callback for pushing events to the parent stream |
+
 ## Derived contexts
 
-Sub-agents receive a **derived** context with their own `agent_name` and `branch` for isolation, while sharing the same `state` reference:
+Sub-agents receive a **derived** context with their own `agent_name` and `branch` for isolation, while sharing the same `state` reference and `event_callback`:
 
 ```python
 child_ctx = ctx.derive(agent_name="ChildAgent", branch_suffix="child")
 # child_ctx.branch == "RootAgent.child"
 # child_ctx.state is ctx.state  <- shared reference
+# child_ctx.event_callback is ctx.event_callback  <- propagated
 ```
+
+All orchestrators (`SequentialAgent`, `ParallelAgent`, `LoopAgent`) and `AgentTool` call `derive()` automatically.
+
+## event_callback
+
+`event_callback` is an optional callable that tools can use to push events to the parent agent's event stream in real-time. `LlmAgent` sets this automatically before tool execution using an `asyncio.Queue`, so `AgentTool` (and any custom tool) can emit events while running:
+
+```python
+# Inside a custom tool's _arun():
+if ctx.event_callback is not None:
+    ctx.event_callback(my_event)  # pushed to parent stream immediately
+```
+
+The callback propagates through `derive()`, so nested sub-agents also push events up to the root.
 
 ## ReadonlyContext & CallbackContext
 

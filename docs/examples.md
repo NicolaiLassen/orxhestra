@@ -5,7 +5,7 @@ The `examples/` directory contains runnable demos for every major feature. Each 
 | Example | What it demonstrates |
 |---|---|
 | `basic_agent.py` | Minimal agent with a single tool |
-| `streaming_agent.py` | SSE streaming with partial events |
+| `streaming_agent.py` | AgentTool sub-agent streaming with real-time event bubbling |
 | `multi_agent.py` | SequentialAgent pipeline (researcher → writer) |
 | `parallel_agent.py` | ParallelAgent running 3 research agents concurrently |
 | `loop_agent.py` | LoopAgent with writer/reviewer iterative refinement |

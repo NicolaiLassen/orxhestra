@@ -11,7 +11,7 @@ flowchart TD
     classDef event fill:#fce7f3,stroke:#ec4899,color:#831843
 
     Runner:::infra --> Session[(SessionService)]:::infra
-    Runner --> Ctx[Context\nsession · user · state · run_config]:::base
+    Runner --> Ctx[Context\nsession · state · run_config · event_callback]:::base
     Ctx --> BaseAgent:::base
 
     BaseAgent --> LlmAgent:::llm
@@ -68,6 +68,7 @@ sequenceDiagram
 
 - **No LangGraph** — orchestration is plain Python `asyncio` and async generators.
 - **`Context.state`** is a shared mutable dict across the call tree. Use `EventActions.state_delta` to persist changes back to the session.
+- **`Context.event_callback`** enables real-time event streaming from tools. `LlmAgent` injects an `asyncio.Queue`-based callback before tool execution; `AgentTool` uses it to push sub-agent events as they arrive. Any custom tool can use the same mechanism.
 - **`LlmRequest` / `LlmResponse`** isolate LangChain types from the rest of the SDK. Swap the LLM provider without touching agent logic.
 - **Planners are per-turn hooks**, not static prompts. They receive the live context and request so they can make dynamic decisions each turn.
 

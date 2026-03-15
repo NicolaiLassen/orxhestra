@@ -46,11 +46,26 @@ Or use LangChain's `@tool` decorator directly — both work with `LlmAgent`.
 Wrap a `BaseAgent` so it can be called as a tool by a parent agent:
 
 ```python
-from langchain_adk import AgentTool
+from langchain_adk import LlmAgent
+from langchain_adk.tools.agent_tool import AgentTool
 
-research_tool = AgentTool(research_agent)
-# The parent agent can call "ResearchAgent" as a tool.
-# The tool derives a child context with branch isolation automatically.
+research_agent = LlmAgent(name="ResearchAgent", llm=llm, tools=[search_tool])
+
+parent = LlmAgent(
+    name="Coordinator",
+    llm=llm,
+    tools=[AgentTool(research_agent)],
+    instructions="Delegate research to ResearchAgent.",
+)
+```
+
+The tool derives a child context with branch isolation automatically. Sub-agent events stream through the parent in real-time via `ctx.event_callback` — each event carries a `branch` field (e.g. `"ResearchAgent"`) for attribution.
+
+Any custom tool can push events the same way:
+
+```python
+if ctx.event_callback is not None:
+    ctx.event_callback(my_event)
 ```
 
 ## Transfer tool — explicit agent handoff

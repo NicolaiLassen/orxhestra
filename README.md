@@ -421,7 +421,10 @@ Sub-agents receive a **derived** context with their own `agent_name` and `branch
 child_ctx = ctx.derive(agent_name="ChildAgent", branch_suffix="child")
 # child_ctx.branch == "RootAgent.child"
 # child_ctx.state is ctx.state  <- shared reference
+# child_ctx.event_callback is ctx.event_callback  <- propagated
 ```
+
+**`event_callback`** — an optional callable on Context that tools can use to push events to the parent stream in real-time. `LlmAgent` sets this automatically before tool execution using an `asyncio.Queue`, so `AgentTool` (and any custom tool) can emit events while running. The callback propagates through `derive()` so nested sub-agents also push events up.
 
 Read-only and callback views:
 
@@ -489,11 +492,28 @@ Or use LangChain's `@tool` decorator directly — both work with `LlmAgent`.
 Wrap a `BaseAgent` so it can be called as a tool by a parent agent:
 
 ```python
-from langchain_adk import AgentTool
+from langchain_adk import LlmAgent
+from langchain_adk.tools.agent_tool import AgentTool
 
-research_tool = AgentTool(research_agent)
-# The parent agent can call "ResearchAgent" as a tool.
-# The tool derives a child context with branch isolation automatically.
+research_agent = LlmAgent(name="ResearchAgent", llm=llm, tools=[search_tool])
+writer_agent = LlmAgent(name="WriterAgent", llm=llm, tools=[edit_tool])
+
+parent = LlmAgent(
+    name="Coordinator",
+    llm=llm,
+    tools=[AgentTool(research_agent), AgentTool(writer_agent)],
+    instructions="Delegate research to ResearchAgent and writing to WriterAgent.",
+)
+```
+
+**Real-time event streaming:** Sub-agent events bubble up through the parent's event stream in real-time via `ctx.event_callback`. Each event carries a `branch` field (e.g. `"ResearchAgent"`) so you know which sub-agent produced it:
+
+```python
+async for event in parent.astream("Write an article about AI"):
+    if event.branch:
+        print(f"  [{event.branch}] {event.type}: {event.text}")
+    elif event.is_final_response():
+        print(f"Final: {event.text}")
 ```
 
 ### Transfer tool — explicit agent handoff
@@ -703,7 +723,30 @@ Sections are only included when non-empty — no boilerplate padding.
 
 ### Streaming
 
-Enable SSE streaming to get incremental text as the LLM generates it:
+All agents stream by default — `astream()` yields `Event` objects as they occur:
+
+```python
+async for event in agent.astream("Write about distributed systems"):
+    if event.type == EventType.AGENT_MESSAGE and event.partial:
+        print(event.text, end="", flush=True)  # token-by-token
+    elif event.is_final_response():
+        print(f"\n[DONE] {event.text}")
+```
+
+Partial events are suppressed automatically if the LLM decides to call a tool instead of answering — only real text chunks are streamed.
+
+**Sub-agent streaming:** When using `AgentTool`, sub-agent events stream through the parent in real-time via `ctx.event_callback`. Events carry `branch` and `agent_name` so you can distinguish which sub-agent is producing output:
+
+```python
+async for event in parent.astream("Plan a trip"):
+    if event.branch:
+        # Event from a sub-agent (e.g. branch="WeatherAgent")
+        print(f"  [{event.agent_name}] {event.text}", end="")
+    elif event.is_final_response():
+        print(f"\nFinal answer: {event.text}")
+```
+
+**With Runner and SSE mode:**
 
 ```python
 from langchain_adk import AgentConfig, StreamingMode
@@ -717,11 +760,8 @@ async for event in runner.run_async(
     if event.is_final_response():
         print(f"\n[DONE] tokens: {event.llm_response.output_tokens}")
     elif event.type == EventType.AGENT_MESSAGE and event.partial:
-        # Stream chunk to the client (WebSocket, SSE endpoint, etc.)
         print(event.text, end="", flush=True)
 ```
-
-Partial events are suppressed automatically if the LLM decides to call a tool instead of answering — only real text chunks are streamed.
 
 ---
 
@@ -1196,7 +1236,7 @@ The `examples/` directory contains runnable demos for every major feature. Each 
 | Example | What it demonstrates |
 |---|---|
 | `basic_agent.py` | Minimal agent with a single tool |
-| `streaming_agent.py` | SSE streaming with partial events |
+| `streaming_agent.py` | AgentTool sub-agent streaming with real-time event bubbling |
 | `multi_agent.py` | SequentialAgent pipeline (researcher → writer) |
 | `parallel_agent.py` | ParallelAgent running 3 research agents concurrently |
 | `loop_agent.py` | LoopAgent with writer/reviewer iterative refinement |
@@ -1230,7 +1270,7 @@ flowchart TD
     classDef event fill:#fce7f3,stroke:#ec4899,color:#831843
 
     Runner:::infra --> Session[(SessionService)]:::infra
-    Runner --> Ctx[Context\nsession · user · state · run_config]:::base
+    Runner --> Ctx[Context\nsession · state · run_config · event_callback]:::base
     Ctx --> BaseAgent:::base
 
     BaseAgent --> LlmAgent:::llm

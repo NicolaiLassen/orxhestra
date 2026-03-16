@@ -38,4 +38,4 @@ async for event in agent.astream("Analyze Apple", ctx=ctx):
 1. `PydanticOutputParser.get_format_instructions()` is appended to the system prompt
 2. When the LLM responds, `PydanticOutputParser.parse()` extracts and validates JSON
 3. If direct parsing fails, `with_structured_output()` is used as a fallback
-4. Works with streaming (`StreamingMode.SSE`) and multi-agent compositions
+4. Works with streaming and multi-agent compositions

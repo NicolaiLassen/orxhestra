@@ -52,19 +52,16 @@ Sub-agents run in parallel when the LLM calls multiple tools at once — their e
 
 Any custom tool can use `ctx.event_callback` to push events — it's not limited to `AgentTool`.
 
-## With Runner (SSE mode)
+## With Runner
 
 ```python
-from langchain_adk import AgentConfig, StreamingMode
-
 async for event in runner.run_async(
     user_id="user-1",
     session_id="session-1",
     new_message="Write me a long essay about distributed systems.",
-    config=AgentConfig(streaming_mode=StreamingMode.SSE),
 ):
     if event.is_final_response():
-        print(f"\n[DONE] tokens: {event.llm_response.output_tokens}")
+        print(f"\n[DONE] {event.text}")
     elif event.type == EventType.AGENT_MESSAGE and event.partial:
         print(event.text, end="", flush=True)
 ```

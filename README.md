@@ -64,7 +64,7 @@
 - **Manual tool-call loop**: `LlmAgent` drives its own ReAct loop using `llm.bind_tools()` — no LangGraph, no hidden graphs.
 - **Planners**: inject per-turn planning instructions and post-process responses before the agent acts.
 - **Sessions**: pluggable `BaseSessionService` persists every event and state delta automatically via the `Runner`.
-- **First-class streaming**: `AgentConfig(streaming_mode=StreamingMode.SSE)` switches the LLM call to `astream()` and yields `partial=True` events for real-time UIs.
+- **First-class streaming**: every agent streams by default via `astream()`, yielding `partial=True` events for real-time UIs.
 
 ```mermaid
 flowchart LR
@@ -341,7 +341,7 @@ event.llm_response.model_version
 `Runner` is the main entry point for session-managed execution. It wires an agent, a session service, and the invocation context together.
 
 ```python
-from langchain_adk import Runner, InMemorySessionService, AgentConfig, StreamingMode
+from langchain_adk import Runner, InMemorySessionService
 
 runner = Runner(
     agent=agent,
@@ -349,23 +349,16 @@ runner = Runner(
     session_service=InMemorySessionService(),
 )
 
-# Non-streaming (default)
+# Streaming is always on — partial events arrive as text is generated
 async for event in runner.run_async(
     user_id="user-1",
     session_id="session-abc",
     new_message="Hello!",
-):
-    ...
-
-# SSE streaming — yields partial AGENT_MESSAGE events as text arrives
-async for event in runner.run_async(
-    user_id="user-1",
-    session_id="session-abc",
-    new_message="Hello!",
-    config=AgentConfig(streaming_mode=StreamingMode.SSE),
 ):
     if event.type == EventType.AGENT_MESSAGE and event.partial:
         print(event.text, end="", flush=True)
+    elif event.is_final_response():
+        print(f"\n{event.text}")
 ```
 
 `Runner` automatically:
@@ -744,19 +737,16 @@ async for event in parent.astream("Plan a trip"):
         print(f"\nFinal answer: {event.text}")
 ```
 
-**With Runner and SSE mode:**
+**With Runner:**
 
 ```python
-from langchain_adk import AgentConfig, StreamingMode
-
 async for event in runner.run_async(
     user_id="user-1",
     session_id="session-1",
     new_message="Write me a long essay about distributed systems.",
-    config=AgentConfig(streaming_mode=StreamingMode.SSE),
 ):
     if event.is_final_response():
-        print(f"\n[DONE] tokens: {event.llm_response.output_tokens}")
+        print(f"\n[DONE] {event.text}")
     elif event.type == EventType.AGENT_MESSAGE and event.partial:
         print(event.text, end="", flush=True)
 ```
@@ -899,7 +889,7 @@ async for event in agent.astream("Analyze Apple", ctx=ctx):
 1. `PydanticOutputParser.get_format_instructions()` is appended to the system prompt — the LLM sees the JSON schema.
 2. When the LLM responds, `PydanticOutputParser.parse()` extracts and validates JSON (handles markdown fences, partial JSON, etc.).
 3. If direct parsing fails, `with_structured_output()` is used as a fallback for API-level schema enforcement.
-4. Works with streaming (`StreamingMode.SSE`) and multi-agent compositions (`SequentialAgent`, `ParallelAgent`).
+4. Works with streaming and multi-agent compositions (`SequentialAgent`, `ParallelAgent`).
 
 ---
 

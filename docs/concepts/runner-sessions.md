@@ -3,7 +3,7 @@
 `Runner` is the main entry point for session-managed execution. It wires an agent, a session service, and the invocation context together.
 
 ```python
-from langchain_adk import Runner, InMemorySessionService, AgentConfig, StreamingMode
+from langchain_adk import Runner, InMemorySessionService
 
 runner = Runner(
     agent=agent,
@@ -11,23 +11,16 @@ runner = Runner(
     session_service=InMemorySessionService(),
 )
 
-# Non-streaming (default)
+# Streaming is always on — partial events arrive as text is generated
 async for event in runner.run_async(
     user_id="user-1",
     session_id="session-abc",
     new_message="Hello!",
-):
-    ...
-
-# SSE streaming
-async for event in runner.run_async(
-    user_id="user-1",
-    session_id="session-abc",
-    new_message="Hello!",
-    config=AgentConfig(streaming_mode=StreamingMode.SSE),
 ):
     if event.type == EventType.AGENT_MESSAGE and event.partial:
         print(event.text, end="", flush=True)
+    elif event.is_final_response():
+        print(f"\n{event.text}")
 ```
 
 `Runner` automatically:

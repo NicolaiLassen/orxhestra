@@ -165,7 +165,7 @@ async def astream(self, input: str, *, ctx: Context) -> AsyncIterator[Event]:
     ...
 ```
 
-The `_run_with_callbacks()` wrapper fires `before_agent_callback` / `after_agent_callback` hooks and emits `AGENT_START` / `AGENT_END` events around `astream()`.
+The `astream()` method fires `before_agent_callback` / `after_agent_callback` hooks around each turn.
 
 #### LlmAgent
 
@@ -259,8 +259,8 @@ Every agent yields a stream of unified `Event` objects. All events share the sam
 | `USER_MESSAGE` | User input persisted by Runner | `.text` (user message) |
 | `AGENT_MESSAGE` | Agent response (final answer, thoughts, tool calls) | `.text`, `.data`, `.tool_calls`, `.has_tool_calls`, `partial` |
 | `TOOL_RESPONSE` | Tool execution result | `.text` (result), `.tool_name`, `.error` |
-| `AGENT_START` | Start of `_run_with_callbacks()` | `agent_name` |
-| `AGENT_END` | End of `_run_with_callbacks()` | `agent_name` |
+| `AGENT_START` | Start of agent execution | `agent_name` |
+| `AGENT_END` | End of agent execution | `agent_name` |
 
 **Convenience properties:**
 
@@ -835,7 +835,7 @@ ctx = Context(
     agent_name="Agent",
     config=run_config,
 )
-async for event in agent._run_with_callbacks("Hello!", ctx=ctx):
+async for event in agent.astream("Hello!", ctx=ctx):
     ...
 ```
 
@@ -1055,18 +1055,18 @@ sequenceDiagram
     participant S as A2AServer
     participant A as BaseAgent
 
-    Note over S: GET /.well-known/agent-card.json
+    Note over S: GET /.well-known/agent.json
     C->>S: Agent Card discovery
     S-->>C: AgentCard (name, skills, capabilities)
 
     Note over S: POST / (JSON-RPC 2.0)
     C->>S: message/send {message: {role, parts}}
-    S->>A: _run_with_callbacks(text, ctx)
+    S->>A: astream(text, ctx)
     A-->>S: SDK Events
     S-->>C: Task {status: completed, artifacts, history}
 
     C->>S: message/stream {message: {role, parts}}
-    S->>A: _run_with_callbacks(text, ctx)
+    S->>A: astream(text, ctx)
     loop SSE stream
         A-->>S: SDK Event
         S-->>C: data: {jsonrpc: "2.0", result: TaskStatusUpdateEvent}
@@ -1108,7 +1108,7 @@ app = server.as_fastapi_app()
 
 | Method | Endpoint | Description |
 |---|---|---|
-| `GET` | `/.well-known/agent-card.json` | Agent Card discovery |
+| `GET` | `/.well-known/agent.json` | Agent Card discovery |
 | `POST` | `/` | JSON-RPC 2.0 dispatch |
 
 **JSON-RPC methods:**
@@ -1124,7 +1124,7 @@ app = server.as_fastapi_app()
 
 ```bash
 # Discover agent
-curl http://localhost:8000/.well-known/agent-card.json
+curl http://localhost:8000/.well-known/agent.json
 
 # Send message (blocking)
 curl -X POST http://localhost:8000/ \
@@ -1309,7 +1309,7 @@ sequenceDiagram
     R->>S: append_event(session, user_event)
     note over S: persists USER_MESSAGE event
 
-    R->>A: _run_with_callbacks(message, ctx)
+    R->>A: astream(message, ctx)
 
     loop for each yielded event
         A-->>R: Event

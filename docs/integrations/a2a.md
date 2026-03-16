@@ -8,18 +8,18 @@ sequenceDiagram
     participant S as A2AServer
     participant A as BaseAgent
 
-    Note over S: GET /.well-known/agent-card.json
+    Note over S: GET /.well-known/agent.json
     C->>S: Agent Card discovery
     S-->>C: AgentCard (name, skills, capabilities)
 
     Note over S: POST / (JSON-RPC 2.0)
     C->>S: message/send {message: {role, parts}}
-    S->>A: _run_with_callbacks(text, ctx)
+    S->>A: agent.astream(text, ctx)
     A-->>S: SDK Events
     S-->>C: Task {status: completed, artifacts, history}
 
     C->>S: message/stream {message: {role, parts}}
-    S->>A: _run_with_callbacks(text, ctx)
+    S->>A: agent.astream(text, ctx)
     loop SSE stream
         A-->>S: SDK Event
         S-->>C: data: TaskStatusUpdateEvent
@@ -57,7 +57,7 @@ app = server.as_fastapi_app()
 
 | Method | Endpoint | Description |
 |---|---|---|
-| `GET` | `/.well-known/agent-card.json` | Agent Card discovery |
+| `GET` | `/.well-known/agent.json` | Agent Card discovery |
 | `POST` | `/` | JSON-RPC 2.0 dispatch |
 
 ## JSON-RPC methods

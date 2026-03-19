@@ -1,0 +1,71 @@
+# Compose a multi-agent team with transfer routing.
+#
+# Run: python examples/composer/run.py
+
+defaults:
+  model:
+    provider: openai
+    name: gpt-5.4
+    api_key: ${OPENAI_API_KEY}
+
+# Reusable tool definitions
+tools:
+  search:
+    function: "examples.composer.tools.search_web"
+  weather:
+    function: "examples.composer.tools.get_weather"
+  lookup_order:
+    function: "examples.composer.tools.lookup_order"
+  check_billing:
+    function: "examples.composer.tools.check_billing"
+
+# Skills available to all LLM agents
+skills:
+  - name: summarize
+    description: "Summarize text into bullet points."
+    content: "Extract 3-5 key points. Use concise bullets."
+
+# Agent definitions
+agents:
+  researcher:
+    type: llm
+    description: "Researches topics using web search."
+    instructions: |
+      You are a research assistant. Use the search tool to find
+      information and return structured findings.
+    tools:
+      - search
+      - weather
+
+  sales:
+    type: llm
+    description: "Handles order inquiries, shipping, and returns."
+    instructions: You are a sales specialist. Help with order questions.
+    tools:
+      - lookup_order
+
+  billing:
+    type: llm
+    description: "Handles billing, payments, and subscription questions."
+    instructions: You are a billing specialist. Help with payment questions.
+    tools:
+      - check_billing
+
+  triage:
+    type: llm
+    description: "Routes customer requests to the right specialist."
+    instructions: |
+      You are a triage agent. Analyze the customer's request and
+      route to the appropriate specialist.
+    tools:
+      - transfer:
+          targets:
+            - sales
+            - billing
+            - researcher
+
+main_agent: triage
+
+runner:
+  app_name: composer-demo
+  session_service: memory

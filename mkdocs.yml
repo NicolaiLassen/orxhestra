@@ -108,6 +108,8 @@ nav:
     - Tracing: runtime/tracing.md
     - Structured Output: runtime/structured-output.md
     - Human-in-the-Loop: runtime/human-in-the-loop.md
+  - Composer:
+    - Overview: composer/overview.md
   - Integrations:
     - A2A Protocol: integrations/a2a.md
     - MCP: integrations/mcp.md

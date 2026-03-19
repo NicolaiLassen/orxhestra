@@ -3,8 +3,7 @@
 import pytest
 
 from langchain_adk.agents.base_agent import BaseAgent
-from langchain_adk.agents.context import Context
-from langchain_adk.events.event import Event, EventType
+from langchain_adk.events.event import EventType
 from langchain_adk.events.event_actions import EventActions
 from langchain_adk.models.part import Content
 from langchain_adk.runner import Runner
@@ -48,7 +47,7 @@ async def test_runner_creates_session():
         session_service=InMemorySessionService(),
     )
     events = [
-        e async for e in runner.run_async(
+        e async for e in runner.astream(
             user_id="user-1", session_id="s1", new_message="hello"
         )
     ]
@@ -62,7 +61,7 @@ async def test_runner_persists_user_message():
     svc = InMemorySessionService()
     runner = Runner(agent=StubAgent(), app_name="app", session_service=svc)
 
-    async for _ in runner.run_async(
+    async for _ in runner.astream(
         user_id="u1", session_id="s1", new_message="hello"
     ):
         pass
@@ -81,7 +80,7 @@ async def test_runner_persists_agent_events():
     svc = InMemorySessionService()
     runner = Runner(agent=StubAgent(answer="world"), app_name="app", session_service=svc)
 
-    async for _ in runner.run_async(
+    async for _ in runner.astream(
         user_id="u1", session_id="s1", new_message="hi"
     ):
         pass
@@ -97,7 +96,7 @@ async def test_runner_applies_state_delta():
     svc = InMemorySessionService()
     runner = Runner(agent=StateDeltaAgent(name="delta"), app_name="app", session_service=svc)
 
-    async for _ in runner.run_async(
+    async for _ in runner.astream(
         user_id="u1", session_id="s1", new_message="go"
     ):
         pass
@@ -112,14 +111,14 @@ async def test_runner_reuses_existing_session():
     runner = Runner(agent=StubAgent(answer="turn1"), app_name="app", session_service=svc)
 
     # First turn
-    async for _ in runner.run_async(
+    async for _ in runner.astream(
         user_id="u1", session_id="s1", new_message="first"
     ):
         pass
 
     # Second turn — same session
     runner2 = Runner(agent=StubAgent(answer="turn2"), app_name="app", session_service=svc)
-    async for _ in runner2.run_async(
+    async for _ in runner2.astream(
         user_id="u1", session_id="s1", new_message="second"
     ):
         pass
@@ -160,7 +159,7 @@ async def test_runner_passes_config_to_agent():
     svc = InMemorySessionService()
     runner = Runner(agent=ConfigCapture(name="cfg"), app_name="app", session_service=svc)
 
-    async for _ in runner.run_async(
+    async for _ in runner.astream(
         user_id="u1",
         session_id="s1",
         new_message="hi",

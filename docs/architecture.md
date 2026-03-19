@@ -47,7 +47,7 @@ sequenceDiagram
     participant S as SessionService
     participant A as Agent
 
-    C->>R: run_async(user_id, session_id, message)
+    C->>R: astream(user_id, session_id, message)
     R->>S: get_session() or create_session()
     S-->>R: Session
     R->>R: build Context with session reference

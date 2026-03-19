@@ -1,6 +1,5 @@
 """Tests for Context."""
 
-import pytest
 from langchain_adk.agents.context import Context
 
 

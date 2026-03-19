@@ -32,6 +32,10 @@ Tools::
 
     from langchain_adk.tools import function_tool, AgentTool, make_transfer_tool
     from langchain_adk.tools import exit_loop_tool, ToolContext
+
+Composer::
+
+    from langchain_adk.composer import Composer
 """
 
 from langchain_adk.agents import (
@@ -46,6 +50,7 @@ from langchain_adk.agents import (
     ReadonlyContext,
     SequentialAgent,
 )
+from langchain_adk.composer import Composer
 from langchain_adk.events.event import Event, EventType
 from langchain_adk.events.event_actions import EventActions
 from langchain_adk.models.part import (
@@ -96,4 +101,6 @@ __all__ = [
     "BaseSessionService",
     "Session",
     "InMemorySessionService",
+    # Composer
+    "Composer",
 ]

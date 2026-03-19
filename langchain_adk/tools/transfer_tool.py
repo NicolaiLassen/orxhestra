@@ -77,8 +77,9 @@ def make_transfer_tool(available_agents: list[BaseAgent]) -> BaseTool:
 
         def _run(self, agent_name: str, reason: str = "") -> str:
             """Return the transfer sentinel string."""
-            # Return sentinel - LlmAgent intercepts this
-            return f"{TRANSFER_SENTINEL}{agent_name}"
+            # agent_name may arrive as an enum member — extract .value
+            raw = agent_name.value if isinstance(agent_name, Enum) else agent_name
+            return f"{TRANSFER_SENTINEL}{raw}"
 
         async def _arun(self, agent_name: str, reason: str = "") -> str:
             """Async version of _run."""

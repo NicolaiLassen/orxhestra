@@ -1,0 +1,320 @@
+# Composer
+
+Define your entire agent team in a single YAML file. The Composer parses the spec and builds a live agent tree — no Python wiring needed.
+
+```bash
+pip install langchain-adk[composer]
+```
+
+## Quick Start
+
+```yaml title="compose.yaml"
+defaults:
+  model:
+    provider: anthropic
+    name: claude-opus-4-6
+
+agents:
+  assistant:
+    type: llm
+    instructions: You are a helpful assistant.
+
+main_agent: assistant
+```
+
+```python
+from langchain_adk.composer import Composer
+
+agent = Composer.from_yaml("compose.yaml")
+
+async for event in agent.astream("Hello!"):
+    if event.is_final_response():
+        print(event.text)
+```
+
+## Architecture
+
+The Composer is built around three modular registries under `builders/`:
+
+```
+composer/
+├── __init__.py              # Public API: Composer, register_*
+├── composer.py              # Orchestrates YAML → agent tree
+├── errors.py                # ComposerError, CircularReferenceError
+├── schema.py                # Pydantic models for YAML validation
+└── builders/
+    ├── agents/              # Agent builder registry
+    │   ├── __init__.py      # register(), get(), Helpers
+    │   ├── llm.py           # LlmAgent builder
+    │   ├── react.py         # ReActAgent builder
+    │   ├── sequential.py    # SequentialAgent builder
+    │   ├── parallel.py      # ParallelAgent builder
+    │   └── loop.py          # LoopAgent builder
+    ├── models/              # Model provider registry
+    │   └── __init__.py      # register(), create()
+    └── tools/               # Tool builtin registry + resolvers
+        └── __init__.py      # register_builtin(), resolve_*()
+```
+
+Each registry is independently extensible — register a custom agent type, model provider, or builtin tool without touching any other code.
+
+## YAML Schema
+
+### `defaults`
+
+Global settings inherited by all agents.
+
+```yaml
+defaults:
+  model:
+    provider: anthropic    # openai | anthropic | google | dotted.import.path
+    name: claude-opus-4-6
+    temperature: 0.7       # optional
+    api_key: "sk-ant-..."  # optional, provider-specific
+    base_url: "https://..."  # optional, custom endpoint
+    max_tokens: 4096       # optional
+    # any extra key is forwarded to the model constructor
+  max_iterations: 10
+```
+
+Any key beyond `provider` and `name` is passed directly to the LangChain model constructor (e.g. `ChatAnthropic(model=..., temperature=..., api_key=..., max_tokens=...)`). This works for all provider-specific options like `api_key`, `base_url`, `max_tokens`, `timeout`, etc.
+
+### `tools`
+
+Named tool definitions referenced by agents.
+
+```yaml
+tools:
+  # Python function by import path
+  search:
+    function: "myapp.tools.search_web"
+
+  # MCP server
+  weather:
+    mcp:
+      url: "http://localhost:8001/mcp"
+
+  # Built-in tool
+  exit:
+    builtin: exit_loop
+
+  # Agent as tool (AgentTool)
+  researcher:
+    agent: ResearchAgent
+```
+
+### `skills`
+
+Skills are auto-loaded into an in-memory skill store. All LLM agents automatically get `list_skills` and `load_skill` tools.
+
+```yaml
+skills:
+  - name: summarize
+    description: "Summarize text into bullet points."
+    content: "Extract 3-5 key points. Be concise."
+```
+
+### `agents`
+
+Flat dict of agent definitions. Agents reference each other by name.
+
+```yaml
+agents:
+  MyAgent:
+    type: llm              # llm | react | sequential | parallel | loop
+    description: "..."
+    instructions: |
+      System prompt goes here.
+    model:                  # optional per-agent override
+      provider: anthropic
+      name: claude-sonnet-4-20250514
+    tools:
+      - search             # named reference
+      - builtin: exit_loop # inline definition
+      - agent: OtherAgent  # inline AgentTool
+      - transfer:          # transfer routing
+          targets: [A, B]
+    planner:
+      type: task            # plan_react | task
+      tasks:
+        - title: "Research"
+    max_iterations: 10
+```
+
+#### Agent Types
+
+| Type | Description | Required fields |
+|------|-------------|-----------------|
+| `llm` | LLM-powered agent with tool loop | `instructions` |
+| `react` | Structured Reason+Act agent | — |
+| `sequential` | Run sub-agents in order | `agents` |
+| `parallel` | Run sub-agents concurrently | `agents` |
+| `loop` | Repeat sub-agents until done | `agents`, `max_iterations` |
+
+### `main_agent`
+
+The entry-point agent name.
+
+```yaml
+main_agent: MyAgent
+```
+
+### `runner`
+
+Optional. Enables `Composer.runner_from_yaml()`.
+
+```yaml
+runner:
+  app_name: my-app
+  session_service: memory  # or dotted.import.path
+```
+
+### `server`
+
+Optional. Enables `Composer.server_from_yaml()` for A2A.
+
+```yaml
+server:
+  app_name: my-app
+  version: "1.0.0"
+  url: "http://localhost:8000"
+  skills:
+    - id: general
+      name: General
+      description: "General assistant."
+```
+
+## Examples
+
+### Transfer Routing
+
+```yaml
+agents:
+  sales:
+    type: llm
+    description: "Order inquiries."
+    tools: [lookup_order]
+  support:
+    type: llm
+    description: "Technical help."
+    tools: [search_docs]
+  triage:
+    type: llm
+    instructions: "Route to the right specialist."
+    tools:
+      - transfer:
+          targets: [sales, support]
+
+main_agent: triage
+```
+
+### Sequential Pipeline
+
+```yaml
+agents:
+  researcher:
+    type: llm
+    instructions: "Research the topic."
+    tools: [search]
+  writer:
+    type: llm
+    instructions: "Write an article from research."
+  pipeline:
+    type: sequential
+    agents: [researcher, writer]
+
+main_agent: pipeline
+```
+
+### Loop with Exit
+
+```yaml
+agents:
+  writer:
+    type: llm
+    instructions: "Write a draft."
+  reviewer:
+    type: llm
+    instructions: "Review. Call exit_loop if approved."
+    tools:
+      - builtin: exit_loop
+  loop:
+    type: loop
+    agents: [writer, reviewer]
+    max_iterations: 5
+
+main_agent: loop
+```
+
+## Extending with Registries
+
+### Custom Agent Types
+
+```python
+from langchain_adk.composer import register_builder
+
+
+async def build_custom(name, agent_def, spec, *, helpers):
+    model_cfg = helpers.resolve_model(agent_def)
+    tools = await helpers.resolve_tools(agent_def)
+    return MyCustomAgent(name=name, tools=tools)
+
+register_builder("custom", build_custom)
+```
+
+Then in YAML:
+
+```yaml
+agents:
+  my_agent:
+    type: custom
+```
+
+The build function receives `(name, agent_def, spec, *, helpers)` where `helpers` provides:
+
+- `helpers.resolve_model(agent_def)` — merge agent/default model config
+- `helpers.resolve_tools(agent_def)` — resolve all tool references
+- `helpers.build_agent(name)` — recursively build a sub-agent by name
+
+### Custom Model Providers
+
+```python
+from langchain_adk.composer import register_provider
+
+register_provider("my_llm", MyCustomChatModel)
+```
+
+Built-in providers: `openai`, `anthropic`, `google`. Any unrecognized provider string is treated as a dotted import path to a custom `BaseChatModel` class.
+
+### Custom Builtin Tools
+
+```python
+from langchain_adk.composer import register_builtin_tool
+
+register_builtin_tool("my_tool", lambda: my_tool_instance)
+```
+
+Then reference it in YAML:
+
+```yaml
+tools:
+  my_tool:
+    builtin: my_tool
+```
+
+## Python API
+
+| Method | Returns | Description |
+|--------|---------|-------------|
+| `Composer.from_yaml(path)` | `BaseAgent` | Build root agent (sync) |
+| `Composer.from_yaml_async(path)` | `BaseAgent` | Build root agent (async) |
+| `Composer.runner_from_yaml(path)` | `Runner` | Build Runner with sessions |
+| `Composer.runner_from_yaml_async(path)` | `Runner` | Build Runner with sessions (async) |
+| `Composer.server_from_yaml(path)` | `FastAPI` | Build A2A server app |
+| `Composer.server_from_yaml_async(path)` | `FastAPI` | Build A2A server app (async) |
+
+| Registry function | Description |
+|-------------------|-------------|
+| `register_builder(type, fn)` | Add a custom agent type builder |
+| `register_provider(name, cls)` | Add a custom model provider |
+| `register_builtin_tool(name, factory)` | Add a custom builtin tool |

@@ -141,7 +141,7 @@ runner = Runner(
 )
 
 async def main():
-    async for event in runner.run_async(
+    async for event in runner.astream(
         user_id="user-1",
         session_id="session-1",
         new_message="What's the weather in Copenhagen and Berlin?",
@@ -350,7 +350,7 @@ runner = Runner(
 )
 
 # Streaming is always on — partial events arrive as text is generated
-async for event in runner.run_async(
+async for event in runner.astream(
     user_id="user-1",
     session_id="session-abc",
     new_message="Hello!",
@@ -740,7 +740,7 @@ async for event in parent.astream("Plan a trip"):
 **With Runner:**
 
 ```python
-async for event in runner.run_async(
+async for event in runner.astream(
     user_id="user-1",
     session_id="session-1",
     new_message="Write me a long essay about distributed systems.",
@@ -811,7 +811,7 @@ run_config = AgentConfig(
 )
 
 # Via Runner
-async for event in runner.run_async(
+async for event in runner.astream(
     user_id="user-1",
     session_id="session-1",
     new_message="Hello!",
@@ -1292,7 +1292,7 @@ sequenceDiagram
     participant S as SessionService
     participant A as Agent
 
-    C->>R: run_async(user_id, session_id, message)
+    C->>R: astream(user_id, session_id, message)
     R->>S: get_session() or create_session()
     S-->>R: Session
     R->>R: build Context with session reference

@@ -1046,7 +1046,7 @@ wheels = [
 
 [[package]]
 name = "langchain-adk"
-version = "0.3.8"
+version = "0.3.9"
 source = { editable = "." }
 dependencies = [
     { name = "langchain" },
@@ -1059,6 +1059,9 @@ a2a = [
 ]
 anthropic = [
     { name = "langchain-anthropic" },
+]
+composer = [
+    { name = "pyyaml" },
 ]
 google = [
     { name = "langchain-google-genai" },
@@ -1091,6 +1094,7 @@ requires-dist = [
     { name = "langchain-google-genai", marker = "extra == 'google'", specifier = ">=2.1.0" },
     { name = "langchain-openai", marker = "extra == 'openai'", specifier = ">=1.1.11" },
     { name = "pydantic", specifier = ">=2.12.5" },
+    { name = "pyyaml", marker = "extra == 'composer'", specifier = ">=6.0" },
 ]
 
 [package.metadata.requires-dev]

@@ -12,7 +12,7 @@ runner = Runner(
 )
 
 # Streaming is always on — partial events arrive as text is generated
-async for event in runner.run_async(
+async for event in runner.astream(
     user_id="user-1",
     session_id="session-abc",
     new_message="Hello!",

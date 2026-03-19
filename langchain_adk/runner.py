@@ -3,8 +3,8 @@
 The Runner is the main entry point for running agents. It:
 
 1. Fetches or creates the session via the session service.
-2. Builds an ``Context`` from the session and run config.
-3. Iterates the agent's ``astream()`` method.
+2. Builds a ``Context`` from the session and run config.
+3. Streams the agent via ``astream()``, following transfers.
 4. Persists every event to the session via ``append_event()``.
 5. Yields the event stream back to the caller.
 
@@ -19,7 +19,7 @@ Basic usage::
         session_service=InMemorySessionService(),
     )
 
-    async for event in runner.run_async(
+    async for event in runner.astream(
         user_id="user_1",
         session_id="session_1",
         new_message="Hello!",
@@ -30,7 +30,6 @@ Basic usage::
 
 from __future__ import annotations
 
-import logging
 from collections.abc import AsyncIterator
 from typing import TYPE_CHECKING
 
@@ -44,8 +43,6 @@ from langchain_adk.sessions.session import Session
 
 if TYPE_CHECKING:
     from langchain_adk.agents.base_agent import BaseAgent
-
-logger = logging.getLogger(__name__)
 
 
 class Runner:
@@ -113,7 +110,7 @@ class Runner:
             )
         return session
 
-    async def run_async(
+    async def astream(
         self,
         *,
         user_id: str,
@@ -121,13 +118,28 @@ class Runner:
         new_message: str,
         config: RunnableConfig | None = None,
     ) -> AsyncIterator[Event]:
-        """Run the agent and yield its event stream.
+        """Stream events from the agent, persisting to the session.
 
-        Launches the agent, drains events from the queue, persists each
-        event, and yields to the caller.
+        Persists the user message, then streams agent events. If the agent
+        emits a ``transfer_to_agent`` action, the runner resolves the target
+        in the agent tree and continues streaming from that agent.
+
+        Parameters
+        ----------
+        user_id : str
+            The user identifier.
+        session_id : str
+            The session identifier.
+        new_message : str
+            The user's input message.
+        config : RunnableConfig, optional
+            LangChain runnable configuration forwarded to the agent.
+
+        Yields
+        ------
+        Event
+            Each event produced by the agent (and any transfer targets).
         """
-        resolved_config = config or {}
-
         session = await self.get_or_create_session(
             user_id=user_id,
             session_id=session_id,
@@ -140,7 +152,7 @@ class Runner:
             agent_name=self.agent.name,
             state=dict(session.state),
             session=session,
-            run_config=resolved_config,
+            run_config=config or {},
         )
 
         user_event = Event(
@@ -152,13 +164,24 @@ class Runner:
         )
         await self.session_service.append_event(session, user_event)
 
-        logger.debug(
-            "Runner starting: agent=%s session=%s user=%s",
-            self.agent.name,
-            session_id,
-            user_id,
-        )
+        current_agent = self.agent
 
-        async for event in self.agent.astream(new_message, ctx=ctx):
-            await self.session_service.append_event(session, event)
-            yield event
+        while True:
+            transfer_target: str | None = None
+
+            async for event in current_agent.astream(new_message, ctx=ctx):
+                await self.session_service.append_event(session, event)
+                yield event
+
+                if event.actions and event.actions.transfer_to_agent:
+                    transfer_target = event.actions.transfer_to_agent
+
+            if transfer_target is None:
+                break
+
+            target = self.agent.find_agent(transfer_target)
+            if target is None:
+                break
+
+            current_agent = target
+            ctx = ctx.model_copy(update={"agent_name": target.name})

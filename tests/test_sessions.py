@@ -1,11 +1,11 @@
 """Tests for Session and InMemorySessionService."""
 
 import pytest
-from langchain_adk.sessions.session import Session
-from langchain_adk.sessions.in_memory_session_service import InMemorySessionService
+
 from langchain_adk.events.event import Event, EventType
 from langchain_adk.events.event_actions import EventActions
 from langchain_adk.models.part import Content
+from langchain_adk.sessions.in_memory_session_service import InMemorySessionService
 
 
 @pytest.fixture

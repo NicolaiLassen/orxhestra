@@ -63,7 +63,7 @@ async def main() -> None:
 
     print(f"Running agent: {agent.name}\n{'=' * 40}")
 
-    async for event in runner.run_async(
+    async for event in runner.astream(
         user_id="user_1",
         session_id="session_1",
         new_message="What's the weather in Copenhagen and Berlin?",

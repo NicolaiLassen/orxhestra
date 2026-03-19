@@ -1,6 +1,7 @@
 """Tests for gather_with_event_queue concurrency utility."""
 
 import asyncio
+
 import pytest
 
 from langchain_adk.concurrency import gather_with_event_queue

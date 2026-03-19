@@ -1,6 +1,5 @@
 """Tests for unified event model."""
 
-import pytest
 from langchain_adk.events.event import Event, EventType
 from langchain_adk.events.event_actions import EventActions
 from langchain_adk.models.part import Content, ToolCallPart, ToolResponsePart
@@ -153,7 +152,7 @@ def test_to_langchain_message_tool_response():
 
 
 def test_from_langchain_message_roundtrip():
-    from langchain_core.messages import HumanMessage, AIMessage
+    from langchain_core.messages import AIMessage, HumanMessage
 
     # HumanMessage roundtrip
     event = Event.from_langchain_message(HumanMessage(content="hello"))

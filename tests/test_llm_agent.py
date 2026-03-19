@@ -1,18 +1,16 @@
 """Tests for LlmAgent: tool loop, streaming, sentinels."""
 
 import asyncio
-import pytest
-from typing import Any, List, Optional
-from unittest.mock import AsyncMock
 
+import pytest
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
 from langchain_core.outputs import ChatGeneration, ChatResult
 from langchain_core.tools import BaseTool
 from pydantic import PrivateAttr
 
-from langchain_adk.agents.llm_agent import LlmAgent
 from langchain_adk.agents.context import Context
+from langchain_adk.agents.llm_agent import LlmAgent
 from langchain_adk.events.event import Event, EventType
 from langchain_adk.models.part import Content
 from langchain_adk.tools.exit_loop import EXIT_LOOP_SENTINEL
@@ -33,12 +31,16 @@ class FakeChatModel(BaseChatModel):
         """No-op bind_tools — just return self."""
         return self
 
-    def _generate(self, messages: List[BaseMessage], stop: Optional[List[str]] = None, **kwargs) -> ChatResult:
+    def _generate(
+        self, messages: list[BaseMessage], stop: list[str] | None = None, **kwargs,
+    ) -> ChatResult:
         msg = self.responses[min(self.call_count, len(self.responses) - 1)]
         self.call_count += 1
         return ChatResult(generations=[ChatGeneration(message=msg)])
 
-    async def _agenerate(self, messages: List[BaseMessage], stop: Optional[List[str]] = None, **kwargs) -> ChatResult:
+    async def _agenerate(
+        self, messages: list[BaseMessage], stop: list[str] | None = None, **kwargs,
+    ) -> ChatResult:
         return self._generate(messages, stop, **kwargs)
 
 
@@ -192,7 +194,7 @@ async def test_before_after_model_callbacks():
         before_model_callback=before,
         after_model_callback=after,
     )
-    events = [e async for e in agent.astream("hi", ctx=_ctx())]
+    _ = [e async for e in agent.astream("hi", ctx=_ctx())]
     assert "before_model" in calls
     assert "after_model" in calls
 
@@ -258,7 +260,7 @@ async def test_multi_turn_history_from_session():
     agent = LlmAgent(name="agent", llm=llm)
 
     ctx = _ctx(session=session)
-    events = [e async for e in agent.astream("What is my name?", ctx=ctx)]
+    _ = [e async for e in agent.astream("What is my name?", ctx=ctx)]
 
     # Should have: SystemMessage, HumanMessage("My name is Alice"),
     # AIMessage("Hello Alice!"), HumanMessage("What is my name?")

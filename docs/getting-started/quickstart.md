@@ -29,7 +29,7 @@ runner = Runner(
 )
 
 async def main():
-    async for event in runner.run_async(
+    async for event in runner.astream(
         user_id="user-1",
         session_id="session-1",
         new_message="What's the weather in Copenhagen and Berlin?",

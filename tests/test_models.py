@@ -1,6 +1,5 @@
 """Tests for LlmRequest and LlmResponse models."""
 
-import pytest
 from langchain_core.messages import AIMessage
 
 from langchain_adk.models.llm_request import LlmRequest

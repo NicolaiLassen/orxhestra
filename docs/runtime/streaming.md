@@ -55,7 +55,7 @@ Any custom tool can use `ctx.event_callback` to push events — it's not limited
 ## With Runner
 
 ```python
-async for event in runner.run_async(
+async for event in runner.astream(
     user_id="user-1",
     session_id="session-1",
     new_message="Write me a long essay about distributed systems.",

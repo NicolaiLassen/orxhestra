@@ -1,16 +1,15 @@
 """Tests for ReActAgent: reasoning loop, tool execution, max iterations."""
 
-import pytest
-from typing import Any, List, Optional
 
+import pytest
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import AIMessage, BaseMessage
 from langchain_core.outputs import ChatGeneration, ChatResult
 from langchain_core.tools import tool
 
-from langchain_adk.agents.react_agent import ReActAgent, ReActStep
 from langchain_adk.agents.context import Context
-from langchain_adk.events.event import Event, EventType
+from langchain_adk.agents.react_agent import ReActAgent, ReActStep
+from langchain_adk.events.event import EventType
 
 
 class FakeStructuredModel(BaseChatModel):
@@ -23,12 +22,17 @@ class FakeStructuredModel(BaseChatModel):
     def _llm_type(self) -> str:
         return "fake_structured"
 
-    def _generate(self, messages: List[BaseMessage], stop: Optional[List[str]] = None, **kwargs) -> ChatResult:
+    def _generate(
+        self, messages: list[BaseMessage], stop: list[str] | None = None, **kwargs,
+    ) -> ChatResult:
         step = self.steps[min(self.call_count, len(self.steps) - 1)]
         self.call_count += 1
-        return ChatResult(generations=[ChatGeneration(message=AIMessage(content=str(step.model_dump())))])
+        content = str(step.model_dump())
+        return ChatResult(generations=[ChatGeneration(message=AIMessage(content=content))])
 
-    async def _agenerate(self, messages: List[BaseMessage], stop: Optional[List[str]] = None, **kwargs) -> ChatResult:
+    async def _agenerate(
+        self, messages: list[BaseMessage], stop: list[str] | None = None, **kwargs,
+    ) -> ChatResult:
         return self._generate(messages, stop, **kwargs)
 
     def with_structured_output(self, schema=None, include_raw=False, method=None, **kwargs):
@@ -41,7 +45,7 @@ class FakeStructuredModel(BaseChatModel):
                 return "fake_structured_wrapper"
 
             def _generate(self, messages, stop=None, **kw):
-                step = parent.steps[min(parent.call_count, len(parent.steps) - 1)]
+                _step = parent.steps[min(parent.call_count, len(parent.steps) - 1)]  # noqa: F841
                 parent.call_count += 1
                 return ChatResult(generations=[ChatGeneration(message=AIMessage(content=""))])
 
@@ -113,10 +117,6 @@ async def test_react_tool_call_then_answer():
 
     tool_calls = [e for e in events if e.has_tool_calls]
     tool_results = [e for e in events if e.type == EventType.TOOL_RESPONSE]
-    observations = [
-        e for e in events
-        if e.metadata.get("react_step") == "observation"
-    ]
     finals = [e for e in events if e.is_final_response()]
 
     assert len(tool_calls) == 1

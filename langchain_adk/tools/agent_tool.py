@@ -69,10 +69,10 @@ class AgentTool(BaseTool):
         *,
         skip_summarization: bool = False,
         before_agent_callback: (
-            Callable[["Event", "Context"], str | None | Awaitable[str | None]] | None
+            Callable[[Event, Context], str | None | Awaitable[str | None]] | None
         ) = None,
         after_agent_callback: (
-            Callable[["Event", "Context"], Awaitable[None] | None] | None
+            Callable[[Event, Context], Awaitable[None] | None] | None
         ) = None,
     ) -> None:
         super().__init__(

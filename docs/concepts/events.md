@@ -9,8 +9,8 @@ Every agent yields a stream of unified `Event` objects. All events share the sam
 | `USER_MESSAGE` | User input persisted by Runner | The user's message at the start of a turn |
 | `AGENT_MESSAGE` | Agent response | Final answers, thoughts, tool call requests, or partial streaming chunks |
 | `TOOL_RESPONSE` | Tool execution result | The result returned by a tool after execution |
-| `AGENT_START` | Start of `_run_with_callbacks()` | Marks the beginning of an agent's execution |
-| `AGENT_END` | End of `_run_with_callbacks()` | Marks the end of an agent's execution |
+| `AGENT_START` | Start of `astream()` | Marks the beginning of an agent's execution |
+| `AGENT_END` | End of `astream()` | Marks the end of an agent's execution |
 
 ## Convenience properties
 

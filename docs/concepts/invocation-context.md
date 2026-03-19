@@ -42,7 +42,17 @@ child_ctx = ctx.derive(agent_name="ChildAgent", branch_suffix="child")
 # child_ctx.event_callback is ctx.event_callback  <- propagated
 ```
 
-All orchestrators (`SequentialAgent`, `ParallelAgent`, `LoopAgent`) and `AgentTool` call `derive()` automatically.
+All orchestrators (`SequentialAgent`, `ParallelAgent`, `LoopAgent`) and `AgentTool` call `derive()` automatically. `AgentTool` additionally calls `clear_session()` to give the child a fresh context without the parent's conversation history.
+
+## clear_session()
+
+Returns a copy of the context with an empty session — same IDs but no conversation history. Used by `AgentTool` to give child agents a clean slate:
+
+```python
+child_ctx = ctx.derive(agent_name="ChildAgent").clear_session()
+# child_ctx.session has no events — child starts fresh
+# child_ctx.state is still shared with parent
+```
 
 ## event_callback
 

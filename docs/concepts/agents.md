@@ -7,7 +7,7 @@ async def astream(self, input: str, *, ctx: Context) -> AsyncIterator[Event]:
     ...
 ```
 
-The `_run_with_callbacks()` wrapper fires `before_agent_callback` / `after_agent_callback` hooks and emits `AGENT_START` / `AGENT_END` events around `astream()`.
+Orchestrators and `AgentTool` call `astream()` on sub-agents, yielding `AGENT_MESSAGE` and `TOOL_RESPONSE` events throughout execution.
 
 ```mermaid
 flowchart LR

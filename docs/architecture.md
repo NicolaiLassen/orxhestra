@@ -54,7 +54,7 @@ sequenceDiagram
     R->>S: append_event(session, user_event)
     note over S: persists USER_MESSAGE event
 
-    R->>A: _run_with_callbacks(message, ctx)
+    R->>A: astream(message, ctx)
 
     loop for each yielded event
         A-->>R: Event

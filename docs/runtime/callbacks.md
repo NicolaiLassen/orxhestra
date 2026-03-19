@@ -33,11 +33,17 @@ agent = LlmAgent(
 )
 ```
 
-## Agent-level hooks
+## AgentTool callbacks
+
+`AgentTool` supports `before_agent_callback` and `after_agent_callback` to intercept child agent events:
 
 ```python
-async def on_start(ctx: Context) -> None:
-    print(f"Agent {ctx.agent_name} starting")
+from langchain_adk.tools.agent_tool import AgentTool
 
-agent.before_agent_callback = on_start
+def on_child_event(event, child_ctx):
+    if event.is_final_response():
+        print(f"Child answered: {event.text}")
+    return None  # return a string to short-circuit
+
+tool = AgentTool(child_agent, before_agent_callback=on_child_event)
 ```

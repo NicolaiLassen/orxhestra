@@ -59,7 +59,20 @@ parent = LlmAgent(
 )
 ```
 
-The tool derives a child context with branch isolation automatically. Sub-agent events stream through the parent in real-time via `ctx.event_callback` — each event carries a `branch` field (e.g. `"ResearchAgent"`) for attribution.
+The tool derives a child context with branch isolation and a clean session automatically. Sub-agent events stream through the parent in real-time via `ctx.event_callback` — each event carries a `branch` field (e.g. `"ResearchAgent"`) for attribution.
+
+### AgentTool callbacks
+
+Hook into the child agent's event stream with `before_agent_callback` (intercept each event, optionally short-circuit) and `after_agent_callback` (run after completion):
+
+```python
+def check_event(event, child_ctx):
+    if child_ctx.state.get("needs_approval"):
+        return "Paused: awaiting approval."  # short-circuits, returns this as tool result
+    return None  # continue
+
+tool = AgentTool(research_agent, before_agent_callback=check_event)
+```
 
 Any custom tool can push events the same way:
 

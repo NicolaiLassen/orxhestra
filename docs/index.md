@@ -6,7 +6,7 @@ hide:
 
 <div class="hero-section" markdown>
 
-# Build agents with <span class="gradient">LangChain + structure</span>
+# LangChain Agent Framework <span class="gradient">Build Multi-Agent AI Systems in Python</span>
 
 Async event-streaming agents, composable hierarchies, session management, planners, and first-class A2A & MCP integration. No LangGraph required.
 

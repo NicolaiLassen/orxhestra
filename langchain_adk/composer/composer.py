@@ -203,11 +203,28 @@ class Composer:
     # ------------------------------------------------------------------
 
     def _resolve_model(self, agent_def: AgentDef) -> ModelConfig:
-        """Merge agent-level model config with defaults."""
-        default = self._spec.defaults.model or ModelConfig()
+        """Resolve the model config for an agent.
+
+        The agent ``model`` field can be:
+        - ``None`` — use defaults
+        - ``str`` — reference a named model from the ``models:`` section
+        - ``ModelConfig`` — inline override merged with defaults
+        """
+        default: ModelConfig = self._spec.defaults.model or ModelConfig()
+
         if agent_def.model is None:
             return default
-        overrides = {
+
+        # String reference → look up in the models section.
+        if isinstance(agent_def.model, str):
+            named: ModelConfig | None = self._spec.models.get(agent_def.model)
+            if named is None:
+                msg = f"Model '{agent_def.model}' not found in models section"
+                raise ComposerError(msg)
+            return named
+
+        # Inline ModelConfig → merge non-None fields over defaults.
+        overrides: dict[str, Any] = {
             k: v
             for k, v in agent_def.model.model_dump().items()
             if v is not None

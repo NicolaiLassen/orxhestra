@@ -427,6 +427,127 @@ class TestComposerBuild:
         assert calls[0]["model"] == "claude-sonnet-4-20250514"
 
     @patch("langchain_adk.composer.builders.models._resolve_provider")
+    async def test_named_model_reference(self, mock_resolve, tmp_path):
+        calls = []
+
+        def track_provider(**kw):
+            calls.append(kw)
+            return _mock_llm()
+
+        mock_resolve.return_value = track_provider
+        yaml_path = _write_yaml(
+            tmp_path,
+            """\
+            models:
+              fast:
+                provider: openai
+                name: gpt-4o-mini
+                temperature: 0.0
+              smart:
+                provider: anthropic
+                name: claude-opus-4-6
+                max_tokens: 8192
+            agents:
+              bot:
+                type: llm
+                model: smart
+            main_agent: bot
+            """,
+        )
+        from langchain_adk.composer import Composer
+
+        await Composer.from_yaml_async(yaml_path)
+        assert len(calls) == 1
+        assert calls[0]["model"] == "claude-opus-4-6"
+        assert calls[0]["max_tokens"] == 8192
+
+    @patch("langchain_adk.composer.builders.models._resolve_provider")
+    async def test_named_model_not_found(self, mock_resolve, tmp_path):
+        mock_resolve.return_value = lambda **kw: _mock_llm()
+        yaml_path = _write_yaml(
+            tmp_path,
+            """\
+            agents:
+              bot:
+                type: llm
+                model: nonexistent
+            main_agent: bot
+            """,
+        )
+        from langchain_adk.composer import Composer
+
+        with pytest.raises(ComposerError, match="not found in models"):
+            await Composer.from_yaml_async(yaml_path)
+
+    @patch("langchain_adk.composer.builders.models._resolve_provider")
+    async def test_model_kwargs_forwarded(self, mock_resolve, tmp_path):
+        calls = []
+
+        def track_provider(**kw):
+            calls.append(kw)
+            return _mock_llm()
+
+        mock_resolve.return_value = track_provider
+        yaml_path = _write_yaml(
+            tmp_path,
+            """\
+            agents:
+              bot:
+                type: llm
+                model:
+                  provider: openai
+                  name: gpt-4o
+                  max_tokens: 4096
+                  top_p: 0.9
+            main_agent: bot
+            """,
+        )
+        from langchain_adk.composer import Composer
+
+        await Composer.from_yaml_async(yaml_path)
+        assert calls[0]["max_tokens"] == 4096
+        assert calls[0]["top_p"] == 0.9
+
+    @patch("langchain_adk.composer.builders.models._resolve_provider")
+    async def test_two_agents_different_models(self, mock_resolve, tmp_path):
+        calls = []
+
+        def track_provider(**kw):
+            calls.append(kw)
+            return _mock_llm()
+
+        mock_resolve.return_value = track_provider
+        yaml_path = _write_yaml(
+            tmp_path,
+            """\
+            models:
+              fast:
+                provider: openai
+                name: gpt-4o-mini
+              smart:
+                provider: anthropic
+                name: claude-opus-4-6
+            agents:
+              researcher:
+                type: llm
+                model: smart
+              writer:
+                type: llm
+                model: fast
+              pipeline:
+                type: sequential
+                agents: [researcher, writer]
+            main_agent: pipeline
+            """,
+        )
+        from langchain_adk.composer import Composer
+
+        await Composer.from_yaml_async(yaml_path)
+        models_used = {c["model"] for c in calls}
+        assert "gpt-4o-mini" in models_used
+        assert "claude-opus-4-6" in models_used
+
+    @patch("langchain_adk.composer.builders.models._resolve_provider")
     async def test_circular_reference_detected(self, mock_resolve, tmp_path):
         mock_resolve.return_value = lambda **kw: _mock_llm()
         yaml_path = _write_yaml(

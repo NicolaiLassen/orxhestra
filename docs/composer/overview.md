@@ -45,11 +45,13 @@ composer/
 └── builders/
     ├── agents/              # Agent builder registry
     │   ├── __init__.py      # register(), get(), Helpers
+    │   ├── _common.py       # Shared LLM-agent builder logic
     │   ├── llm.py           # LlmAgent builder
     │   ├── react.py         # ReActAgent builder
     │   ├── sequential.py    # SequentialAgent builder
     │   ├── parallel.py      # ParallelAgent builder
-    │   └── loop.py          # LoopAgent builder
+    │   ├── loop.py          # LoopAgent builder
+    │   └── a2a.py           # A2AAgent builder
     ├── models/              # Model provider registry
     │   └── __init__.py      # register(), create()
     └── tools/               # Tool builtin registry + resolvers
@@ -70,14 +72,56 @@ defaults:
     provider: anthropic    # openai | anthropic | google | dotted.import.path
     name: claude-opus-4-6
     temperature: 0.7       # optional
-    api_key: "sk-ant-..."  # optional, provider-specific
-    base_url: "https://..."  # optional, custom endpoint
-    max_tokens: 4096       # optional
-    # any extra key is forwarded to the model constructor
   max_iterations: 10
 ```
 
-Any key beyond `provider` and `name` is passed directly to the LangChain model constructor (e.g. `ChatAnthropic(model=..., temperature=..., api_key=..., max_tokens=...)`). This works for all provider-specific options like `api_key`, `base_url`, `max_tokens`, `timeout`, etc.
+### `models`
+
+Named model configurations. Agents reference them by name instead of repeating inline config.
+
+```yaml
+models:
+  fast:
+    provider: openai
+    name: gpt-4o-mini
+    temperature: 0.0
+  smart:
+    provider: anthropic
+    name: claude-opus-4-6
+    max_tokens: 8192
+    api_key: "sk-ant-..."
+  local:
+    provider: "myapp.models.OllamaChat"  # dotted import path
+    name: llama3
+    base_url: "http://localhost:11434"
+```
+
+Any key beyond `provider`, `name`, and `temperature` is forwarded directly to the LangChain model constructor (e.g. `max_tokens`, `api_key`, `base_url`, `timeout`, etc.).
+
+Agents reference models by name:
+
+```yaml
+agents:
+  researcher:
+    type: llm
+    model: smart             # reference to models section
+  summarizer:
+    type: llm
+    model: fast              # different model for different agent
+```
+
+Or use inline `model:` for one-off overrides:
+
+```yaml
+agents:
+  bot:
+    type: llm
+    model:
+      provider: openai
+      name: gpt-4o
+      kwargs:
+        max_tokens: 4096
+```
 
 ### `tools`
 
@@ -151,13 +195,15 @@ Flat dict of agent definitions. Agents reference each other by name.
 ```yaml
 agents:
   MyAgent:
-    type: llm              # llm | react | sequential | parallel | loop
+    type: llm              # llm | react | sequential | parallel | loop | a2a
     description: "..."
     instructions: |
       System prompt goes here.
-    model:                  # optional per-agent override
-      provider: anthropic
-      name: claude-sonnet-4-20250514
+    model: smart            # reference to models section, or inline:
+    # model:
+    #   provider: anthropic
+    #   name: claude-sonnet-4-20250514
+    #   max_tokens: 4096
     tools:
       - search             # named reference
       - builtin: exit_loop # inline definition

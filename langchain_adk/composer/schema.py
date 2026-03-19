@@ -8,18 +8,21 @@ from pydantic import BaseModel, Field, model_validator
 
 
 class ModelConfig(BaseModel):
-    """LLM provider + model configuration."""
+    """LLM provider + model configuration.
+
+    Any extra keys (``max_tokens``, ``api_key``, ``base_url``, etc.)
+    are forwarded directly to the LangChain model constructor.
+    """
 
     provider: str = "anthropic"
     name: str = "claude-opus-4-6"
     temperature: float | None = None
-    extra: dict[str, Any] = Field(default_factory=dict)
 
     model_config = {"extra": "allow"}
 
 
 class MCPConfig(BaseModel):
-    """MCP server connection — either a URL or a dotted import path to a FastMCP instance."""
+    """MCP server connection — URL or dotted import path to a FastMCP instance."""
 
     url: str | None = None
     server: str | None = None
@@ -78,10 +81,7 @@ class PlannerDef(BaseModel):
 
 
 class SkillItemDef(BaseModel):
-    """A skill definition for the agent's skill store.
-
-    Either ``content`` (inline) or ``mcp`` (remote FastMCP server) must be set.
-    """
+    """A skill definition — either inline ``content`` or remote ``mcp``."""
 
     name: str
     description: str = ""
@@ -114,7 +114,7 @@ class AgentDef(BaseModel):
     type: Literal["llm", "react", "sequential", "parallel", "loop", "a2a"] = "llm"
     description: str = ""
     url: str | None = None
-    model: ModelConfig | None = None
+    model: ModelConfig | str | None = None
     instructions: str | None = None
     tools: list[str | ToolDef] | None = None
     skills: list[str] = Field(default_factory=list)
@@ -152,6 +152,7 @@ class ComposeSpec(BaseModel):
     """Top-level YAML schema for agent composition."""
 
     defaults: DefaultsConfig = Field(default_factory=DefaultsConfig)
+    models: dict[str, ModelConfig] = Field(default_factory=dict)
     tools: dict[str, ToolDef] = Field(default_factory=dict)
     skills: dict[str, SkillItemDef] = Field(default_factory=dict)
     agents: dict[str, AgentDef]

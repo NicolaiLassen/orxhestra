@@ -28,13 +28,15 @@ async def resolve_llm_kwargs(
     from langchain_adk.composer.builders.tools import import_object
 
     model_cfg = helpers.resolve_model(agent_def)
-    extra = {
+    # Collect known fields (temperature, etc.) + any extra keys from YAML.
+    model_kwargs: dict[str, Any] = {
         k: v
         for k, v in model_cfg.model_dump().items()
-        if k not in ("provider", "name", "extra") and v is not None
+        if k not in ("provider", "name") and v is not None
     }
-    extra.update(model_cfg.extra)
-    llm = create(model_cfg.provider, model_cfg.name, **extra)
+    if model_cfg.model_extra:
+        model_kwargs.update(model_cfg.model_extra)
+    llm = create(model_cfg.provider, model_cfg.name, **model_kwargs)
 
     tools = await helpers.resolve_tools(agent_def)
     max_iter = agent_def.max_iterations or spec.defaults.max_iterations

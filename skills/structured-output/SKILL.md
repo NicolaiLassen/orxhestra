@@ -1,0 +1,46 @@
+---
+name: structured-output
+description: Force langchain-adk agents to return typed Pydantic objects instead of free-form text using output_schema.
+---
+
+# Structured Output
+
+Pass `output_schema` to `LlmAgent` to get a typed Pydantic object back.
+
+```python
+from pydantic import BaseModel, Field
+from langchain_adk import LlmAgent
+from langchain_adk.events.event import Event, EventType
+
+class CompanyAnalysis(BaseModel):
+    name: str = Field(description="Company name")
+    industry: str = Field(description="Primary industry")
+    strengths: list[str] = Field(description="Key strengths")
+    risks: list[str] = Field(description="Key risks")
+    recommendation: str = Field(description="Buy, Hold, or Sell")
+    confidence: float = Field(description="Confidence score 0-1")
+
+agent = LlmAgent(
+    name="AnalystAgent",
+    llm=llm,
+    tools=[get_financials, get_news_sentiment],
+    output_schema=CompanyAnalysis,
+    instructions="You are a financial analyst.",
+)
+```
+
+## Accessing the parsed object
+
+```python
+async for event in agent.astream("Analyze Apple", ctx=ctx):
+    if event.is_final_response():
+        analysis = event.data  # CompanyAnalysis instance
+        print(f"{analysis.name}: {analysis.recommendation} ({analysis.confidence:.0%})")
+```
+
+## How it works
+
+1. `PydanticOutputParser.get_format_instructions()` is appended to the system prompt.
+2. `PydanticOutputParser.parse()` extracts and validates JSON from the response.
+3. If direct parsing fails, `with_structured_output()` is used as a fallback.
+4. Works with streaming and multi-agent compositions.

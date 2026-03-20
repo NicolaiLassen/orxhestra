@@ -1,0 +1,43 @@
+---
+name: agent-skills
+description: Add dynamic skills to langchain-adk agents. Covers Skill, InMemorySkillStore, and skill discovery/loading tools.
+---
+
+# Agent Skills
+
+Skills are reusable instruction blocks that an agent can load dynamically at runtime.
+
+## Setup
+
+```python
+from langchain_adk import Skill, InMemorySkillStore
+from langchain_adk.skills.load_skill_tool import make_load_skill_tool, make_list_skills_tool
+
+store = InMemorySkillStore([
+    Skill(
+        name="summarization",
+        description="How to write concise summaries.",
+        content="Extract the 3-5 most important points. Use bullet points. Be concise.",
+    ),
+    Skill(
+        name="code_review",
+        description="How to conduct a thorough code review.",
+        content="Check correctness, readability, test coverage, and security.",
+    ),
+])
+
+agent = LlmAgent(
+    name="SkillfulAgent",
+    llm=llm,
+    tools=[
+        make_list_skills_tool(store),   # lets agent discover available skills
+        make_load_skill_tool(store),    # lets agent load a skill's full content
+    ],
+)
+```
+
+The agent calls `list_skills` to discover what's available, then `load_skill("summarization")` to get the full instruction text.
+
+## Custom backends
+
+Implement `BaseSkillStore` for any backend (database, file system, API).

@@ -1,0 +1,199 @@
+/* Catppuccin Mocha (dark) — matches LangChain docs */
+[data-md-color-scheme="slate"] {
+    --md-default-bg-color: #1e1e2e;
+    --md-default-fg-color: #cdd6f4;
+    --md-default-fg-color--light: #bac2de;
+    --md-default-fg-color--lighter: #a6adc8;
+    --md-default-fg-color--lightest: #313244;
+
+    --md-primary-fg-color: #1e1e2e;
+    --md-primary-bg-color: #cdd6f4;
+
+    --md-accent-fg-color: #89b4fa;
+
+    --md-typeset-a-color: #89b4fa;
+
+    --md-code-bg-color: #181825;
+    --md-code-fg-color: #cdd6f4;
+    --md-code-hl-color: rgba(137, 180, 250, 0.1);
+
+    --md-footer-bg-color: #11111b;
+    --md-footer-bg-color--dark: #11111b;
+    --md-footer-fg-color: #a6adc8;
+    --md-footer-fg-color--light: #6c7086;
+    --md-footer-fg-color--lighter: #585b70;
+
+    --md-typeset-color: #cdd6f4;
+
+    --md-admonition-bg-color: #181825;
+
+    --md-typeset-mark-color: rgba(250, 179, 135, 0.2);
+
+    --md-typeset-kbd-color: #313244;
+    --md-typeset-kbd-border-color: #45475a;
+    --md-typeset-kbd-accent-color: #585b70;
+
+    --md-typeset-table-color: #313244;
+}
+
+[data-md-color-scheme="slate"] .md-header {
+    background-color: #11111b;
+}
+
+[data-md-color-scheme="slate"] .md-tabs {
+    background-color: #181825;
+}
+
+[data-md-color-scheme="slate"] .md-sidebar {
+    background-color: #1e1e2e;
+}
+
+[data-md-color-scheme="slate"] .md-nav__link--active,
+[data-md-color-scheme="slate"] .md-nav__link:hover {
+    color: #89b4fa;
+}
+
+[data-md-color-scheme="slate"] .md-search__input {
+    background-color: #313244;
+}
+
+[data-md-color-scheme="slate"] .highlight code,
+[data-md-color-scheme="slate"] .highlighttable code {
+    color: #cdd6f4;
+}
+
+[data-md-color-scheme="slate"] .md-typeset .tabbed-labels > label {
+    color: #a6adc8;
+}
+
+[data-md-color-scheme="slate"] .md-typeset .tabbed-labels > label--active,
+[data-md-color-scheme="slate"] .md-typeset .tabbed-labels > .tabbed-labels__active {
+    color: #89b4fa;
+}
+
+/* Catppuccin Latte (light) */
+[data-md-color-scheme="default"] {
+    --md-primary-fg-color: #eff1f5;
+    --md-primary-bg-color: #4c4f69;
+
+    --md-default-bg-color: #eff1f5;
+    --md-default-fg-color: #4c4f69;
+    --md-default-fg-color--light: #5c5f77;
+    --md-default-fg-color--lighter: #6c6f85;
+    --md-default-fg-color--lightest: #ccd0da;
+
+    --md-accent-fg-color: #1e66f5;
+    --md-typeset-a-color: #1e66f5;
+
+    --md-code-bg-color: #e6e9ef;
+    --md-code-fg-color: #4c4f69;
+
+    --md-footer-bg-color: #dce0e8;
+    --md-footer-fg-color: #5c5f77;
+
+    --md-admonition-bg-color: #e6e9ef;
+
+    --md-typeset-table-color: #ccd0da;
+}
+
+[data-md-color-scheme="default"] .md-header {
+    background-color: #dce0e8;
+}
+
+[data-md-color-scheme="default"] .md-tabs {
+    background-color: #e6e9ef;
+}
+
+/* Buttons */
+.md-typeset .md-button--primary {
+    background-color: #89b4fa;
+    border-color: #89b4fa;
+    color: #1e1e2e;
+}
+
+.md-typeset .md-button--primary:hover {
+    background-color: #b4d0fb;
+    border-color: #b4d0fb;
+    color: #1e1e2e;
+}
+
+.md-typeset .md-button:not(.md-button--primary) {
+    border-color: #45475a;
+    color: #cdd6f4;
+}
+
+.md-typeset .md-button:not(.md-button--primary):hover {
+    border-color: #89b4fa;
+    color: #89b4fa;
+    background-color: rgba(137, 180, 250, 0.1);
+}
+
+[data-md-color-scheme="default"] .md-typeset .md-button--primary {
+    background-color: #1e66f5;
+    border-color: #1e66f5;
+    color: #eff1f5;
+}
+
+[data-md-color-scheme="default"] .md-typeset .md-button:not(.md-button--primary) {
+    border-color: #ccd0da;
+    color: #4c4f69;
+}
+
+/* Hero on home page */
+.md-main .hero-section {
+    padding: 60px 0 40px;
+    text-align: center;
+}
+
+.hero-section h1 {
+    font-size: 3rem;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    line-height: 1.1;
+    margin-bottom: 16px;
+}
+
+.hero-section .gradient {
+    background: linear-gradient(135deg, #89b4fa, #cba6f7);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+[data-md-color-scheme="default"] .hero-section .gradient {
+    background: linear-gradient(135deg, #1e66f5, #8839ef);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+/* Feature grid */
+.feature-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 16px;
+    margin: 32px 0;
+}
+
+.feature-card {
+    padding: 24px;
+    border: 1px solid var(--md-default-fg-color--lightest);
+    border-radius: 12px;
+    background: var(--md-code-bg-color);
+}
+
+.feature-card h3 {
+    margin-top: 8px;
+}
+
+/* Install command styling */
+.install-command {
+    display: inline-block;
+    padding: 12px 24px;
+    background: var(--md-code-bg-color);
+    border: 1px solid var(--md-default-fg-color--lightest);
+    border-radius: 8px;
+    font-family: var(--md-code-font-family);
+    font-size: 0.9rem;
+    margin-top: 24px;
+}

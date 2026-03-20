@@ -1,6 +1,6 @@
 [project]
 name = "langchain-adk"
-version = "0.3.12"
+version = "0.3.13"
 description = "A LangChain-powered Agent Development Toolkit"
 readme = "README.md"
 requires-python = ">=3.10"

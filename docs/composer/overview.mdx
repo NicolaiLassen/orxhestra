@@ -226,7 +226,7 @@ agents:
 | Type | Description | Required fields |
 |------|-------------|-----------------|
 | `llm` | LLM-powered agent with tool loop | `instructions` |
-| `react` | Structured Reason+Act agent | — |
+| `react` | Structured Reason+Act agent | `instructions` (optional) |
 | `sequential` | Run sub-agents in order | `agents` |
 | `parallel` | Run sub-agents concurrently | `agents` |
 | `loop` | Repeat sub-agents until done | `agents`, `max_iterations` |

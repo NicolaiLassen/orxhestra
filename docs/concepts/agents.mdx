@@ -102,7 +102,7 @@ agent = LlmAgent(name="Agent", llm=llm, instructions=my_instructions)
 
 ## ReActAgent
 
-A structured-reasoning variant that forces the LLM to emit explicit thought steps via `with_structured_output()` before acting.
+A structured-reasoning variant that forces the LLM to emit explicit thought steps via `with_structured_output()` before acting. Extends `LlmAgent` — supports `instructions`, `planner`, callbacks, and all other LlmAgent features.
 
 ```python
 from langchain_adk import ReActAgent
@@ -111,8 +111,11 @@ agent = ReActAgent(
     name="ThinkingAgent",
     llm=llm,
     tools=[search_tool],
+    instructions="You are a research assistant. Always cite your sources.",
     max_iterations=10,
 )
 ```
+
+Custom `instructions` are appended to the built-in ReAct system prompt under an "Additional instructions" section. Planners work the same way — their output is appended after the instructions.
 
 Yields events with types: `AGENT_START` -> `AGENT_MESSAGE` (thoughts/actions) -> `TOOL_RESPONSE` (observations) -> ... -> `AGENT_MESSAGE` (final answer) -> `AGENT_END`.

@@ -1,6 +1,7 @@
 ---
 title: "Long-Running Tools"
-description: "Handle tools that take significant time using LongRunningFunctionTool to prevent redundant invocations."
+description: "Handle slow tools like deployments and data processing with LongRunningFunctionTool, preventing the LLM from re-invoking while pending."
+keywords: ["long-running tools", "LongRunningFunctionTool", "async tools", "deployment"]
 ---
 
 For tools that take significant time (deployments, data processing), use `LongRunningFunctionTool`. It instructs the LLM not to re-invoke the tool while pending:

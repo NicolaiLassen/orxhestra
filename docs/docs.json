@@ -70,5 +70,17 @@
   "topbarLinks": [
     { "name": "GitHub", "url": "https://github.com/NicolaiLassen/langchain-adk" },
     { "name": "PyPI", "url": "https://pypi.org/project/langchain-adk/" }
-  ]
+  ],
+  "seo": {
+    "metatags": {
+      "og:site_name": "langchain-adk",
+      "og:image": "https://agent-development-kit.com/assets/logo.svg",
+      "twitter:card": "summary_large_image"
+    },
+    "indexing": "all"
+  },
+  "metadata": {
+    "og:type": "website",
+    "og:locale": "en_US"
+  }
 }

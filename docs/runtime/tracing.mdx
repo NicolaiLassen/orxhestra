@@ -1,6 +1,7 @@
 ---
-title: "Tracing"
-description: "Integrate with Langfuse, LangSmith, and other tracing backends via AgentConfig callbacks."
+title: "Tracing — Langfuse, LangSmith & Observability"
+description: "Full observability with Langfuse, LangSmith, or any LangChain callback handler. Automatic tracing of LLM calls, tool executions, and agent runs."
+keywords: ["tracing", "Langfuse", "LangSmith", "observability", "AgentConfig", "monitoring", "LLM tracing"]
 ---
 
 `AgentConfig` mirrors LangChain's `RunnableConfig` fields — pass `callbacks`, `tags`, `metadata`, `run_name` directly. The entire agent run is wrapped in a single parent trace with all child operations nested automatically.

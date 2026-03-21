@@ -1,6 +1,7 @@
 ---
-title: "Context"
-description: "Context is the runtime state passed through every agent in the call tree, carrying session binding, mutable shared state, run config, and event callbacks."
+title: "Context — Runtime State & Agent Communication"
+description: "Context carries session binding, shared state, run config, and event callbacks through the agent tree. Supports derived contexts and ReadonlyContext."
+keywords: ["Context", "invocation context", "agent state", "ReadonlyContext", "CallbackContext"]
 ---
 
 `Context` is the runtime state passed through every agent in the call tree. It carries the session binding, a mutable shared state dict, run config, and an optional event callback for real-time event pushing.

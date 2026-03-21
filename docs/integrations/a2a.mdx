@@ -1,4 +1,7 @@
-# Agent-to-Agent (A2A) Server
+---
+title: "Agent-to-Agent (A2A) Server"
+description: "Expose any agent as a spec-compliant A2A protocol endpoint with discovery, messaging, and streaming."
+---
 
 Expose any agent as a spec-compliant [A2A protocol](https://a2a-protocol.org/) endpoint (v0.3.0).
 
@@ -71,14 +74,13 @@ app = server.as_fastapi_app()
 
 ## Example requests
 
-=== "Discover"
-
+<Tabs>
+  <Tab title="Discover">
     ```bash
     curl http://localhost:8000/.well-known/agent-card.json
     ```
-
-=== "Send (blocking)"
-
+  </Tab>
+  <Tab title="Send (blocking)">
     ```bash
     curl -X POST http://localhost:8000/ \
       -H "Content-Type: application/json" \
@@ -93,9 +95,8 @@ app = server.as_fastapi_app()
         }
       }'
     ```
-
-=== "Stream (SSE)"
-
+  </Tab>
+  <Tab title="Stream (SSE)">
     ```bash
     curl -N -X POST http://localhost:8000/ \
       -H "Content-Type: application/json" \
@@ -110,3 +111,5 @@ app = server.as_fastapi_app()
         }
       }'
     ```
+  </Tab>
+</Tabs>

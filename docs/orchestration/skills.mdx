@@ -1,4 +1,7 @@
-# Skills
+---
+title: "Skills"
+description: "Reusable instruction blocks that agents can load dynamically at runtime."
+---
 
 Skills are reusable instruction blocks that an agent can load dynamically at runtime.
 
@@ -31,5 +34,6 @@ agent = LlmAgent(
 
 The agent calls `list_skills` to discover what's available, then `load_skill("summarization")` to get the full instruction text.
 
-!!! tip "Custom backends"
-    Implement `BaseSkillStore` for any backend (database, file system, API).
+<Tip>
+**Custom backends** — Implement `BaseSkillStore` for any backend (database, file system, API).
+</Tip>

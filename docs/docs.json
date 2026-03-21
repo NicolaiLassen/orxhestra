@@ -1,0 +1,74 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "name": "langchain-adk",
+  "theme": "mint",
+  "colors": {
+    "primary": "#3B82F6",
+    "light": "#93C5FD",
+    "dark": "#1D4ED8"
+  },
+  "logo": {
+    "light": "/assets/logo.svg",
+    "dark": "/assets/logo.svg"
+  },
+  "favicon": "/assets/logo.svg",
+  "appearance": {
+    "default": "dark"
+  },
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Getting Started",
+            "icon": "play",
+            "pages": ["index", "getting-started/installation", "getting-started/quickstart"]
+          },
+          {
+            "group": "Core Concepts",
+            "icon": "book",
+            "pages": ["concepts/agents", "concepts/events", "concepts/runner-sessions", "concepts/invocation-context"]
+          },
+          {
+            "group": "Tools",
+            "icon": "wrench",
+            "pages": ["tools/overview", "tools/long-running", "tools/confirmation"]
+          },
+          {
+            "group": "Orchestration",
+            "icon": "sitemap",
+            "pages": ["orchestration/composite-agents", "orchestration/planners", "orchestration/skills", "orchestration/prompts"]
+          },
+          {
+            "group": "Runtime",
+            "icon": "bolt",
+            "pages": ["runtime/streaming", "runtime/callbacks", "runtime/tracing", "runtime/structured-output", "runtime/human-in-the-loop"]
+          },
+          {
+            "group": "Composer",
+            "icon": "wand-magic-sparkles",
+            "pages": ["composer/overview"]
+          },
+          {
+            "group": "Integrations",
+            "icon": "plug",
+            "pages": ["integrations/a2a", "integrations/mcp"]
+          }
+        ]
+      },
+      {
+        "tab": "Examples",
+        "pages": ["examples"]
+      },
+      {
+        "tab": "Architecture",
+        "pages": ["architecture"]
+      }
+    ]
+  },
+  "topbarLinks": [
+    { "name": "GitHub", "url": "https://github.com/NicolaiLassen/langchain-adk" },
+    { "name": "PyPI", "url": "https://pypi.org/project/langchain-adk/" }
+  ]
+}

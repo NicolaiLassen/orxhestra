@@ -1,4 +1,7 @@
-# Long-Running Tools
+---
+title: "Long-Running Tools"
+description: "Handle tools that take significant time using LongRunningFunctionTool to prevent redundant invocations."
+---
 
 For tools that take significant time (deployments, data processing), use `LongRunningFunctionTool`. It instructs the LLM not to re-invoke the tool while pending:
 

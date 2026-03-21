@@ -1,4 +1,7 @@
-# Runner & Sessions
+---
+title: "Runner & Sessions"
+description: "Runner is the main entry point for session-managed execution, wiring an agent, session service, and invocation context together."
+---
 
 `Runner` is the main entry point for session-managed execution. It wires an agent, a session service, and the invocation context together.
 
@@ -48,5 +51,6 @@ sessions = await svc.list_sessions(app_name="demo", user_id="user-1")
 await svc.delete_session(session.id)
 ```
 
-!!! tip "Custom backends"
-    Implement `BaseSessionService` to back sessions with any database. See [Architecture](../architecture.md#custom-session-backend) for an example.
+<Tip>
+  Implement `BaseSessionService` to back sessions with any database. See [Architecture](/architecture#custom-session-backend) for an example.
+</Tip>

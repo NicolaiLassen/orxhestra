@@ -1,0 +1,70 @@
+---
+title: "LangChain Agent Framework"
+description: "Build Multi-Agent AI Systems in Python. Async event-streaming agents, composable hierarchies, session management, planners, and first-class A2A & MCP integration."
+---
+
+Async event-streaming agents, composable hierarchies, session management, planners, and first-class A2A & MCP integration. No LangGraph required.
+
+<Cards>
+  <Card title="Get Started" icon="rocket" href="/getting-started/quickstart">
+    Build your first agent in minutes
+  </Card>
+  <Card title="View on GitHub" icon="github" href="https://github.com/NicolaiLassen/langchain-adk">
+    Source code and examples
+  </Card>
+</Cards>
+
+```bash
+pip install langchain-adk
+```
+
+---
+
+<CardGroup cols={3}>
+  <Card title="Async Event Streaming">
+    Every agent is an async generator yielding typed events — thoughts, tool calls, results, streaming chunks. Built for real-time UIs.
+  </Card>
+  <Card title="Composable Hierarchies">
+    Nest agents freely. Chain them sequentially, run in parallel, loop until done, or wrap as tools. Plain Python asyncio.
+  </Card>
+  <Card title="Planners">
+    Per-turn planning hooks inject dynamic instructions and post-process responses. Built-in PlanReAct and TaskPlanner included.
+  </Card>
+  <Card title="Session Management">
+    Pluggable session service persists events and state deltas automatically. In-memory included, bring your own database.
+  </Card>
+  <Card title="Rich Tool System">
+    Function tools, agent-as-tool, transfer handoffs, exit loop, long-running tools, and tool confirmation — all built in.
+  </Card>
+  <Card title="Full Observability">
+    First-class tracing via AgentConfig callbacks. Works with Langfuse, LangSmith, or any LangChain callback handler.
+  </Card>
+</CardGroup>
+
+---
+
+## Works with any LangChain LLM
+
+<Tabs>
+  <Tab title="OpenAI">
+    ```bash
+    pip install langchain-adk[openai]
+    ```
+  </Tab>
+  <Tab title="Anthropic">
+    ```bash
+    pip install langchain-adk[anthropic]
+    ```
+  </Tab>
+  <Tab title="Google Gemini">
+    ```bash
+    pip install langchain-adk[google]
+    ```
+  </Tab>
+  <Tab title="Any BaseChatModel">
+    ```bash
+    pip install langchain-adk
+    # + your preferred langchain-* provider package
+    ```
+  </Tab>
+</Tabs>

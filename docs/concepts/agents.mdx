@@ -1,5 +1,5 @@
 ---
-title: "Agents — LlmAgent, ReActAgent & Hierarchies"
+title: "Agents"
 description: "All agents inherit from BaseAgent with async streaming. Learn about LlmAgent, ReActAgent, dynamic instructions, and composable agent hierarchies."
 keywords: ["LlmAgent", "ReActAgent", "BaseAgent", "AI agent", "agent hierarchy", "tool loop"]
 ---
@@ -91,7 +91,7 @@ agent = LlmAgent(
 
 ### Dynamic instructions
 
-The `instructions` parameter accepts either a plain string or an instruction provider — a callable that receives a `ReadonlyContext` and returns a string:
+The `instructions` parameter accepts either a plain string or an instruction provider - a callable that receives a `ReadonlyContext` and returns a string:
 
 ```python
 def my_instructions(ctx: ReadonlyContext) -> str:
@@ -103,7 +103,7 @@ agent = LlmAgent(name="Agent", llm=llm, instructions=my_instructions)
 
 ## ReActAgent
 
-A structured-reasoning variant that forces the LLM to emit explicit thought steps via `with_structured_output()` before acting. Extends `LlmAgent` — supports `instructions`, `planner`, callbacks, and all other LlmAgent features.
+A structured-reasoning variant that forces the LLM to emit explicit thought steps via `with_structured_output()` before acting. Extends `LlmAgent` - supports `instructions`, `planner`, callbacks, and all other LlmAgent features.
 
 ```python
 from langchain_adk import ReActAgent
@@ -117,6 +117,6 @@ agent = ReActAgent(
 )
 ```
 
-Custom `instructions` are appended to the built-in ReAct system prompt under an "Additional instructions" section. Planners work the same way — their output is appended after the instructions.
+Custom `instructions` are appended to the built-in ReAct system prompt under an "Additional instructions" section. Planners work the same way - their output is appended after the instructions.
 
 Yields events with types: `AGENT_START` -> `AGENT_MESSAGE` (thoughts/actions) -> `TOOL_RESPONSE` (observations) -> ... -> `AGENT_MESSAGE` (final answer) -> `AGENT_END`.

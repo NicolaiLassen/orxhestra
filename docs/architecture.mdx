@@ -1,5 +1,5 @@
 ---
-title: "Architecture — Design & Extension Points"
+title: "Architecture"
 description: "High-level architecture of langchain-adk: request lifecycle, design decisions, custom session backends, custom planners, and extension points."
 keywords: ["architecture", "design", "extension points", "custom session", "custom planner", "request lifecycle"]
 ---
@@ -70,7 +70,7 @@ sequenceDiagram
 
 ## Key design decisions
 
-- **No LangGraph** — orchestration is plain Python `asyncio` and async generators.
+- **No LangGraph** - orchestration is plain Python `asyncio` and async generators.
 - **`Context.state`** is a shared mutable dict across the call tree. Use `EventActions.state_delta` to persist changes back to the session.
 - **`Context.event_callback`** enables real-time event streaming from tools. `LlmAgent` injects an `asyncio.Queue`-based callback before tool execution; `AgentTool` uses it to push sub-agent events as they arrive. Any custom tool can use the same mechanism.
 - **`LlmRequest` / `LlmResponse`** isolate LangChain types from the rest of the SDK. Swap the LLM provider without touching agent logic.

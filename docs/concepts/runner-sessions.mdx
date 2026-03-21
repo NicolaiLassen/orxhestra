@@ -1,5 +1,5 @@
 ---
-title: "Runner & Sessions — Session-Managed Execution"
+title: "Runner & Sessions"
 description: "Runner wires agents, session services, and context together. Automatic event persistence, state management, and multi-turn conversations."
 keywords: ["Runner", "sessions", "session management", "multi-turn", "InMemorySessionService"]
 ---
@@ -15,7 +15,7 @@ runner = Runner(
     session_service=InMemorySessionService(),
 )
 
-# Streaming is always on — partial events arrive as text is generated
+# Streaming is always on - partial events arrive as text is generated
 async for event in runner.astream(
     user_id="user-1",
     session_id="session-abc",
@@ -35,7 +35,7 @@ async for event in runner.astream(
 4. Persists every agent event to the session via `append_event()`
 5. Applies `EventActions.state_delta` to the session state
 
-**Multi-turn conversations** work automatically — `LlmAgent` rebuilds LangChain message history from `session.events` on each turn, so the LLM sees the full conversation context.
+**Multi-turn conversations** work automatically - `LlmAgent` rebuilds LangChain message history from `session.events` on each turn, so the LLM sees the full conversation context.
 
 ## Using sessions directly
 

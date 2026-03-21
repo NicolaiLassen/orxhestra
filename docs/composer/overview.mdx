@@ -1,10 +1,10 @@
 ---
-title: "Composer — YAML-Based Agent Composition"
+title: "Composer"
 description: "Define multi-agent teams in a single YAML file. Configure models, tools, skills, planners, and orchestration patterns without writing Python."
 keywords: ["composer", "YAML", "agent composition", "declarative agents", "no-code agents", "orchestration"]
 ---
 
-Define your entire agent team in a single YAML file. The Composer parses the spec and builds a live agent tree — no Python wiring needed.
+Define your entire agent team in a single YAML file. The Composer parses the spec and builds a live agent tree - no Python wiring needed.
 
 ```bash
 pip install langchain-adk[composer]
@@ -62,7 +62,7 @@ composer/
         └── __init__.py      # register_builtin(), resolve_*()
 ```
 
-Each registry is independently extensible — register a custom agent type, model provider, or builtin tool without touching any other code.
+Each registry is independently extensible - register a custom agent type, model provider, or builtin tool without touching any other code.
 
 ## YAML Schema
 
@@ -354,9 +354,9 @@ agents:
 
 The build function receives `(name, agent_def, spec, *, helpers)` where `helpers` provides:
 
-- `helpers.resolve_model(agent_def)` — merge agent/default model config
-- `helpers.resolve_tools(agent_def)` — resolve all tool references
-- `helpers.build_agent(name)` — recursively build a sub-agent by name
+- `helpers.resolve_model(agent_def)` - merge agent/default model config
+- `helpers.resolve_tools(agent_def)` - resolve all tool references
+- `helpers.build_agent(name)` - recursively build a sub-agent by name
 
 ### Custom Model Providers
 

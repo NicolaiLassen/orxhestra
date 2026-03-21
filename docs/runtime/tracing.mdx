@@ -1,10 +1,10 @@
 ---
-title: "Tracing — Langfuse, LangSmith & Observability"
+title: "Tracing"
 description: "Full observability with Langfuse, LangSmith, or any LangChain callback handler. Automatic tracing of LLM calls, tool executions, and agent runs."
 keywords: ["tracing", "Langfuse", "LangSmith", "observability", "AgentConfig", "monitoring", "LLM tracing"]
 ---
 
-`AgentConfig` mirrors LangChain's `RunnableConfig` fields — pass `callbacks`, `tags`, `metadata`, `run_name` directly. The entire agent run is wrapped in a single parent trace with all child operations nested automatically.
+`AgentConfig` mirrors LangChain's `RunnableConfig` fields - pass `callbacks`, `tags`, `metadata`, `run_name` directly. The entire agent run is wrapped in a single parent trace with all child operations nested automatically.
 
 ```python
 from langfuse.langchain import CallbackHandler
@@ -27,7 +27,7 @@ async for event in runner.astream(
 ```
 
 <Tip>
-**Environment variables** — Set the following for Langfuse:
+**Environment variables** - Set the following for Langfuse:
 
 ```bash
 export LANGFUSE_SECRET_KEY="sk-lf-..."
@@ -42,8 +42,8 @@ export LANGFUSE_BASE_URL="https://cloud.langfuse.com"
 - All LLM calls (`ainvoke` / `astream`) as child spans with token usage
 - All tool executions as child spans with inputs/outputs
 - Structured output fallback calls
-- Works with composite agents — each sub-agent creates its own nested trace
+- Works with composite agents - each sub-agent creates its own nested trace
 
 <Note>
-**A2A boundaries** — A2A is HTTP, so callbacks can't cross the wire. Each A2A server should create its own handler. Link traces by passing a `trace_id` in task metadata.
+**A2A boundaries** - A2A is HTTP, so callbacks can't cross the wire. Each A2A server should create its own handler. Link traces by passing a `trace_id` in task metadata.
 </Note>

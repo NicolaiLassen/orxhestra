@@ -1,5 +1,5 @@
 ---
-title: "Skills — Dynamic Instruction Loading"
+title: "Skills"
 description: "Reusable instruction blocks agents can discover and load at runtime. InMemorySkillStore with list_skills and load_skill tools."
 keywords: ["skills", "InMemorySkillStore", "dynamic instructions", "skill store", "agent skills"]
 ---
@@ -36,5 +36,5 @@ agent = LlmAgent(
 The agent calls `list_skills` to discover what's available, then `load_skill("summarization")` to get the full instruction text.
 
 <Tip>
-**Custom backends** — Implement `BaseSkillStore` for any backend (database, file system, API).
+**Custom backends** - Implement `BaseSkillStore` for any backend (database, file system, API).
 </Tip>

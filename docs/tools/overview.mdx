@@ -1,5 +1,5 @@
 ---
-title: "Tools — Function, Agent, Transfer & MCP Tools"
+title: "Tools"
 description: "Function tools, AgentTool sub-agents, transfer handoffs, exit loop, long-running tools, MCP adapters, and ToolContext for stateful tools."
 keywords: ["tools", "function tool", "AgentTool", "transfer tool", "MCP", "tool calling", "ToolContext"]
 ---
@@ -43,9 +43,9 @@ tool = function_tool(search_web)
 # or: function_tool(search_web, name="web_search", description="...")
 ```
 
-Or use LangChain's `@tool` decorator directly — both work with `LlmAgent`.
+Or use LangChain's `@tool` decorator directly - both work with `LlmAgent`.
 
-## AgentTool — sub-agents as tools
+## AgentTool - sub-agents as tools
 
 Wrap a `BaseAgent` so it can be called as a tool by a parent agent:
 
@@ -63,7 +63,7 @@ parent = LlmAgent(
 )
 ```
 
-The tool derives a child context with branch isolation and a clean session automatically. Sub-agent events stream through the parent in real-time via `ctx.event_callback` — each event carries a `branch` field (e.g. `"ResearchAgent"`) for attribution.
+The tool derives a child context with branch isolation and a clean session automatically. Sub-agent events stream through the parent in real-time via `ctx.event_callback` - each event carries a `branch` field (e.g. `"ResearchAgent"`) for attribution.
 
 ### AgentTool callbacks
 
@@ -85,7 +85,7 @@ if ctx.event_callback is not None:
     ctx.event_callback(my_event)
 ```
 
-## Transfer tool — explicit agent handoff
+## Transfer tool - explicit agent handoff
 
 ```python
 from langchain_adk import make_transfer_tool

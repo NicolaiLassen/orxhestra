@@ -1,5 +1,5 @@
 ---
-title: "Planners — PlanReAct & TaskPlanner"
+title: "Planners"
 description: "Inject per-turn planning into agent system prompts. Built-in PlanReActPlanner for chain-of-thought and TaskPlanner for managed task boards."
 keywords: ["planner", "PlanReActPlanner", "TaskPlanner", "chain of thought", "planning", "ReAct"]
 ---
@@ -23,7 +23,7 @@ class MyPlanner(BasePlanner):
 
 ## PlanReActPlanner
 
-A built-in planner that enforces structured planning tags — the agent must emit a `/*PLANNING*/` block before reasoning and a `/*FINAL_ANSWER*/` block to conclude.
+A built-in planner that enforces structured planning tags - the agent must emit a `/*PLANNING*/` block before reasoning and a `/*FINAL_ANSWER*/` block to conclude.
 
 ```python
 from langchain_adk import PlanReActPlanner, LlmAgent

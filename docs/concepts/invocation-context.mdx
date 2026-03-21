@@ -1,5 +1,5 @@
 ---
-title: "Context — Runtime State & Agent Communication"
+title: "Context"
 description: "Context carries session binding, shared state, run config, and event callbacks through the agent tree. Supports derived contexts and ReadonlyContext."
 keywords: ["Context", "invocation context", "agent state", "ReadonlyContext", "CallbackContext"]
 ---
@@ -50,11 +50,11 @@ All orchestrators (`SequentialAgent`, `ParallelAgent`, `LoopAgent`) and `AgentTo
 
 ## clear_session()
 
-Returns a copy of the context with an empty session — same IDs but no conversation history. Used by `AgentTool` to give child agents a clean slate:
+Returns a copy of the context with an empty session - same IDs but no conversation history. Used by `AgentTool` to give child agents a clean slate:
 
 ```python
 child_ctx = ctx.derive(agent_name="ChildAgent").clear_session()
-# child_ctx.session has no events — child starts fresh
+# child_ctx.session has no events - child starts fresh
 # child_ctx.state is still shared with parent
 ```
 
@@ -76,11 +76,11 @@ The callback propagates through `derive()`, so nested sub-agents also push event
 from langchain_adk import ReadonlyContext, CallbackContext
 
 # Planners and instruction providers receive ReadonlyContext
-# state is exposed as MappingProxyType — no accidental mutations
+# state is exposed as MappingProxyType - no accidental mutations
 def instructions(ctx: ReadonlyContext) -> str:
     return f"Help {ctx.state['user_name']}."
 
-# Callbacks receive CallbackContext — state is mutable, actions available
+# Callbacks receive CallbackContext - state is mutable, actions available
 async def after_model(ctx: CallbackContext, response: LlmResponse) -> None:
     ctx.state["last_model"] = response.model_version
     ctx.actions.state_delta["last_model"] = response.model_version

@@ -1,10 +1,10 @@
 ---
-title: "Streaming — Real-Time Agent Event Streaming"
+title: "Streaming"
 description: "Stream token-by-token events from agents in real-time. Sub-agent streaming via AgentTool with branch isolation and event bubbling."
 keywords: ["streaming", "real-time", "async streaming", "token streaming", "AgentTool", "event stream"]
 ---
 
-All agents stream by default — `astream()` yields `Event` objects as they occur:
+All agents stream by default - `astream()` yields `Event` objects as they occur:
 
 ```python
 from langchain_adk.events.event import Event, EventType
@@ -17,7 +17,7 @@ async for event in agent.astream("Write about distributed systems"):
         print(f"\n[DONE] {event.text}")
 ```
 
-Partial events are suppressed automatically if the LLM decides to call a tool instead of answering — only real text chunks are streamed.
+Partial events are suppressed automatically if the LLM decides to call a tool instead of answering - only real text chunks are streamed.
 
 ## Sub-agent streaming via AgentTool
 
@@ -45,7 +45,7 @@ async for event in planner.astream("Plan a trip to Copenhagen"):
         print(f"\nFinal: {event.text}")
 ```
 
-Sub-agents run in parallel when the LLM calls multiple tools at once — their events are interleaved in the stream as they arrive.
+Sub-agents run in parallel when the LLM calls multiple tools at once - their events are interleaved in the stream as they arrive.
 
 ## How it works
 
@@ -54,7 +54,7 @@ Sub-agents run in parallel when the LLM calls multiple tools at once — their e
 3. `LlmAgent` yields events from the queue concurrently while tools run, so events appear in real-time.
 4. The `event_callback` propagates through `ctx.derive()`, so nested sub-agents also push events up to the root.
 
-Any custom tool can use `ctx.event_callback` to push events — it's not limited to `AgentTool`.
+Any custom tool can use `ctx.event_callback` to push events - it's not limited to `AgentTool`.
 
 ## With Runner
 

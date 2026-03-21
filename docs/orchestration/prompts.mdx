@@ -1,5 +1,5 @@
 ---
-title: "Prompts — Structured System Prompt Builder"
+title: "Prompts"
 description: "Build structured system prompts from PromptContext with goals, instructions, skills, agent references, and workflow steps."
 keywords: ["prompts", "system prompt", "PromptContext", "prompt builder", "agent instructions"]
 ---
@@ -30,4 +30,4 @@ prompt = build_system_prompt(PromptContext(
 agent = LlmAgent(name="WriterAgent", llm=llm, instructions=prompt)
 ```
 
-Sections are only included when non-empty — no boilerplate padding.
+Sections are only included when non-empty - no boilerplate padding.

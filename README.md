@@ -1,8 +1,6 @@
 <p align="center">
-  <img src="docs/assets/logo.svg" width="200" alt="orxhestra logo">
+  <img src="assets/logo.svg" width="400" alt="orxhestra logo">
 </p>
-
-<h1 align="center">orxhestra</h1>
 
 <p align="center">
   <strong>Multi-agent AI framework for Python.</strong>

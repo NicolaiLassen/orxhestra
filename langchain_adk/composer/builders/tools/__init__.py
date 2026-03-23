@@ -40,11 +40,14 @@ def import_object(dotted_path: str) -> Any:
 # Builtin tool registry
 # ---------------------------------------------------------------------------
 
-_BUILTIN_REGISTRY: dict[str, Callable[[], BaseTool]] = {}
+_ToolResult = BaseTool | list[BaseTool]
+_BUILTIN_REGISTRY: dict[str, Callable[[], _ToolResult]] = {}
 
 
-def register_builtin(name: str, factory: Callable[[], BaseTool]) -> None:
+def register_builtin(name: str, factory: Callable[[], _ToolResult]) -> None:
     """Register a builtin tool factory by name.
+
+    The factory may return a single ``BaseTool`` or a list of them.
 
     Example::
 
@@ -62,7 +65,19 @@ def _register_defaults() -> None:
 
             return exit_loop_tool
 
+        def _filesystem() -> list[BaseTool]:
+            from langchain_adk.tools.filesystem import make_filesystem_tools
+
+            return make_filesystem_tools()
+
+        def _shell() -> list[BaseTool]:
+            from langchain_adk.tools.shell import make_shell_tools
+
+            return make_shell_tools()
+
         _BUILTIN_REGISTRY["exit_loop"] = _exit_loop
+        _BUILTIN_REGISTRY["filesystem"] = _filesystem
+        _BUILTIN_REGISTRY["shell"] = _shell
 
 
 # ---------------------------------------------------------------------------
@@ -70,8 +85,11 @@ def _register_defaults() -> None:
 # ---------------------------------------------------------------------------
 
 
-def resolve_builtin(name: str) -> BaseTool:
-    """Look up a builtin tool by name."""
+def resolve_builtin(name: str) -> _ToolResult:
+    """Look up a builtin tool by name.
+
+    Returns a single ``BaseTool`` or a list of them.
+    """
     _register_defaults()
     factory = _BUILTIN_REGISTRY.get(name)
     if factory is None:

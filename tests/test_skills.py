@@ -2,9 +2,12 @@
 
 import pytest
 
-from orxhestra.skills.load_skill_tool import make_list_skills_tool, make_load_skill_tool
-from orxhestra.skills.skill import Skill
-from orxhestra.skills.skill_store import InMemorySkillStore
+from orxhestra.skills import (
+    InMemorySkillStore,
+    Skill,
+    make_list_skills_tool,
+    make_load_skill_tool,
+)
 
 
 @pytest.fixture

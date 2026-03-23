@@ -30,6 +30,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          path: repo
 
       - uses: actions/setup-python@v5
         with:
@@ -37,9 +39,11 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install -e ".[mcp,a2a]"
+          pip install --upgrade pip setuptools
+          pip install -e "./repo[mcp,a2a,composer]"
           pip install "pytest>=9.0" "pytest-asyncio>=0.25"
 
       - name: Run tests
         timeout-minutes: 5
+        working-directory: repo
         run: pytest -v

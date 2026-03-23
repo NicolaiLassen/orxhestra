@@ -182,6 +182,6 @@ def make_filesystem_tools(workspace: str | None = None) -> list[BaseTool]:
         StructuredTool.from_function(
             coroutine=grep,
             name="grep",
-            description="Search file contents for a text pattern. Returns matching lines with file paths and line numbers.",
+            description="Search file contents for a pattern. Returns matching lines.",
         ),
     ]

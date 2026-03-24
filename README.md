@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <strong>Multi-agent AI framework for Python.</strong>
+  <strong>Multi-agent orchestration framework for Python.</strong>
 </p>
 
 <p align="center">
@@ -14,7 +14,7 @@
 
 <br>
 
-Orxhestra is a framework for building multi-agent AI systems with async event streaming, composable agent hierarchies, and built-in support for MCP and A2A protocols.
+Orxhestra orchestrates multi-agent AI systems - compose agent ensembles with async event streaming, agent hierarchies, and built-in support for MCP and A2A protocols.
 
 ## Quickstart
 
@@ -45,14 +45,14 @@ for event in response:
 
 ## Features
 
-- **Agent types** - LLM, ReAct, Sequential, Parallel, and Loop agents out of the box
+- **Agent ensemble** - LLM, ReAct, Sequential, Parallel, and Loop agents
 - **Event streaming** - Async event-driven architecture with real-time streaming
-- **Composer** - Define multi-agent systems declaratively with YAML
+- **Composer** - Conduct entire agent orchestras declaratively with YAML
 - **Tools** - Function tools, filesystem tools, agent-as-tool, shell, and long-running tool support
-- **Planners** - Task planning with PlanReAct and TaskPlanner strategies
-- **Skills** - Reusable, composable agent capabilities
+- **Planners** - Choreograph task execution with PlanReAct and TaskPlanner strategies
+- **Skills** - Reusable, composable agent repertoires
 - **MCP** - Model Context Protocol integration for tool servers
-- **A2A** - Agent-to-Agent protocol for cross-service communication
+- **A2A** - Agent-to-Agent protocol for cross-service harmonization
 - **Memory** - Pluggable memory stores for persistent agent context
 - **Tracing** - Built-in support for Langfuse, LangSmith, and custom callbacks
 
@@ -67,7 +67,7 @@ for event in response:
 | `LoopAgent` | Repeats a sub-agent until exit condition |
 | `A2AAgent` | Connects to remote agents via A2A protocol |
 
-## Composer (YAML)
+## Composer
 
 Define entire agent systems in YAML:
 

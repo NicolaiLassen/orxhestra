@@ -1,7 +1,7 @@
 [project]
 name = "orxhestra"
 version = "0.0.2"
-description = "Multi-Agent AI Framework for Python"
+description = "Multi-Agent Orchestration Framework for Python"
 readme = "README.md"
 requires-python = ">=3.10"
 license = "MIT"

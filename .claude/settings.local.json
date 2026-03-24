@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(xxd orxhestra/skills/load_skill_tool.py)"
+    ]
+  }
+}

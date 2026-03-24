@@ -74,7 +74,7 @@
   "seo": {
     "metatags": {
       "og:site_name": "orxhestra",
-      "og:image": "https://agent-development-kit.com/assets/logo.svg",
+      "og:image": "https://orxhestra.com/assets/logo.svg",
       "twitter:card": "summary_large_image"
     },
     "indexing": "all"

@@ -14,7 +14,7 @@
 
 <br>
 
-Orxhestra orchestrates multi-agent AI systems - compose agent ensembles with async event streaming, agent hierarchies, and built-in support for MCP and A2A protocols.
+Compose multi-agent AI systems with async event streaming, agent hierarchies, and built-in support for MCP and A2A protocols.
 
 ## Quickstart
 

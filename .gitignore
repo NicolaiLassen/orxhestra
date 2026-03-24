@@ -39,3 +39,4 @@ site/
 # Web
 web/
 .netlify/
+assets/calc_logo.py

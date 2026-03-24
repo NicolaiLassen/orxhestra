@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/logo.svg" width="400" alt="orxhestra logo">
+  <img src="assets/logo_text_bottom.svg" width="400" alt="orxhestra logo">
 </p>
 
 <p align="center">

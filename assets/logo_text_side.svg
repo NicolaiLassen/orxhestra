@@ -1,4 +1,4 @@
-<svg viewBox="0 0 400 80" fill="none" xmlns="http://www.w3.org/2000/svg">
+<svg viewBox="0 0 305 80" fill="none" xmlns="http://www.w3.org/2000/svg">
   <defs>
     <linearGradient id="waveFade" x1="0" y1="0" x2="1" y2="0">
       <stop offset="0%" stop-color="#3b82f6" stop-opacity="0.1" />
@@ -7,7 +7,7 @@
       <stop offset="80%" stop-color="#38bdf8" stop-opacity="1" />
       <stop offset="100%" stop-color="#38bdf8" stop-opacity="0.1" />
     </linearGradient>
-    <linearGradient id="textGrad" x1="115" y1="0" x2="400" y2="0" gradientUnits="userSpaceOnUse">
+    <linearGradient id="textGrad" x1="72" y1="0" x2="300" y2="0" gradientUnits="userSpaceOnUse">
       <stop offset="0%" stop-color="#60a5fa" />
       <stop offset="50%" stop-color="#a78bfa" />
       <stop offset="100%" stop-color="#38bdf8" />

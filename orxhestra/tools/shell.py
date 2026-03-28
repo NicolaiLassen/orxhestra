@@ -12,7 +12,9 @@ from typing import Any
 
 from langchain_core.tools import BaseTool, StructuredTool
 
-_DEFAULT_WORKSPACE = os.environ.get("AGENT_WORKSPACE", "/tmp/agent-workspace")
+def _default_workspace() -> str:
+    """Resolve workspace at call time, not import time."""
+    return os.environ.get("AGENT_WORKSPACE", "/tmp/agent-workspace")
 _DEFAULT_TIMEOUT = int(os.environ.get("AGENT_SHELL_TIMEOUT", "30"))
 _DEFAULT_MAX_OUTPUT = int(os.environ.get("AGENT_SHELL_MAX_OUTPUT", "102400"))
 
@@ -49,7 +51,7 @@ def make_shell_tools(
     list[BaseTool]
         Two tools: ``shell_exec``, ``shell_exec_background``.
     """
-    ws: str = workspace or _DEFAULT_WORKSPACE
+    ws: str = workspace or _default_workspace()
     max_timeout: int = timeout or _DEFAULT_TIMEOUT
     max_out: int = max_output_bytes or _DEFAULT_MAX_OUTPUT
     denied: set[str] = set(denied_commands or [])

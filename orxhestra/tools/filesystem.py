@@ -15,7 +15,9 @@ from pathlib import Path
 
 from langchain_core.tools import BaseTool, StructuredTool
 
-_DEFAULT_WORKSPACE = os.environ.get("AGENT_WORKSPACE", "/tmp/agent-workspace")
+def _default_workspace() -> str:
+    """Resolve workspace at call time, not import time."""
+    return os.environ.get("AGENT_WORKSPACE", "/tmp/agent-workspace")
 
 
 def _resolve_path(path: str, workspace: str) -> Path:
@@ -44,7 +46,7 @@ def make_filesystem_tools(workspace: str | None = None) -> list[BaseTool]:
         Seven tools: ``ls``, ``read_file``, ``write_file``, ``edit_file``,
         ``mkdir``, ``glob``, ``grep``.
     """
-    ws = workspace or _DEFAULT_WORKSPACE
+    ws = workspace or _default_workspace()
 
     async def ls(path: str = ".") -> str:
         """List files and directories at the given path."""

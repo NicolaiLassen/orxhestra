@@ -4,7 +4,7 @@ version = "0.0.7"
 description = "Multi-Agent Orchestration Framework for Python"
 readme = "README.md"
 requires-python = ">=3.10"
-license = "MIT"
+license = "Apache-2.0"
 authors = [
     {name = "Nicolai M. T. Lassen"},
 ]

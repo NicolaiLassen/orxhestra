@@ -50,31 +50,58 @@ def _has_suspicious_unicode(text: str) -> bool:
     return False
 
 
-def _format_approval_prompt(tool_name: str, args: dict[str, Any]) -> str:
-    """Format a human-readable approval prompt."""
-    lines: list[str] = [f"\n  [bold yellow]Approval required:[/bold yellow] [bold]{tool_name}[/bold]"]
+def format_approval_prompt(tool_name: str, args: dict[str, Any]) -> str:
+    """Format a Rich-styled approval prompt with a bordered panel."""
+    # Build the primary value to display
+    if tool_name == "shell_exec":
+        primary: str = args.get("command", "")
+    elif tool_name in ("write_file", "edit_file", "mkdir"):
+        primary = args.get("path", "")
+    else:
+        primary = ""
 
+    lines: list[str] = []
+    if primary:
+        display: str = primary if len(primary) <= 120 else primary[:120] + "..."
+        lines.append(f"  [bold white]{display}[/bold white]")
+
+    # Show other args (skip the primary one we already showed)
+    skip_key: str = "command" if tool_name == "shell_exec" else "path"
     for key, value in args.items():
+        if key == skip_key:
+            continue
         val_str: str = str(value)
-        if len(val_str) > 200:
-            val_str = val_str[:200] + "..."
-        lines.append(f"    {key}: {val_str}")
+        if len(val_str) > 100:
+            val_str = val_str[:100] + "..."
+        lines.append(f"  [dim]{key}: {val_str}[/dim]")
 
     # Warn about dangerous patterns
+    is_dangerous: bool = False
     if tool_name == "shell_exec":
         cmd: str = args.get("command", "")
         for pattern in _DANGEROUS_PATTERNS:
             if pattern.search(cmd):
-                lines.append("    [bold red]WARNING: potentially destructive command[/bold red]")
+                is_dangerous = True
                 break
 
     # Check for hidden Unicode
+    has_hidden: bool = False
     for value in args.values():
         if isinstance(value, str) and _has_suspicious_unicode(value):
-            lines.append("    [bold red]WARNING: contains hidden Unicode characters[/bold red]")
+            has_hidden = True
             break
 
-    return "\n".join(lines)
+    if is_dangerous:
+        lines.append("  [bold red]⚠ destructive command[/bold red]")
+    if has_hidden:
+        lines.append("  [bold red]⚠ hidden unicode detected[/bold red]")
+
+    border: str = "[bold red]" if is_dangerous or has_hidden else "[yellow]"
+    header: str = f"{border}{'━' * 50}[/]"
+    label: str = f"  {border}approve[/] [bold]{tool_name}[/bold]"
+
+    body: str = "\n".join(lines)
+    return f"\n{header}\n{label}\n{body}\n{header}"
 
 
 class ApprovalWrapper(BaseTool):

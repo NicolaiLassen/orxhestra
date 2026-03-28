@@ -1,12 +1,11 @@
-"""Orx CLI - terminal coding agent powered by any LLM.
+"""Orx CLI - terminal agent powered by any LLM.
 
 Usage::
 
-    orx                            # interactive REPL with coding agent
+    orx                            # uses ./orx.yaml if present, else built-in default
     orx --model claude-sonnet-4-6  # use a specific model
-    orx compose.yaml               # run a compose file interactively
+    orx my-agents.yaml             # run a specific orx file
     orx -c "fix the tests"         # single-shot command
-    orx --coding                   # multi-agent pipeline
     orx --auto-approve             # skip approval prompts
 """
 
@@ -22,18 +21,22 @@ from uuid import uuid4
 
 from orxhestra.cli.config import APP_NAME, DEFAULT_MODEL, DEFAULT_USER_ID, HISTORY_DIR, HISTORY_FILE
 
+# Built-in orx templates (shipped inside the package)
+_CLI_DIR: Path = Path(__file__).parent
+_DEFAULT_ORX: Path = _CLI_DIR / "orx.yaml"
+
 
 def _parse_args() -> argparse.Namespace:
     """Parse CLI arguments."""
     parser = argparse.ArgumentParser(
         prog="orx",
-        description="Orx - terminal coding agent powered by any LLM.",
+        description="Orx - terminal agent powered by any LLM.",
     )
     parser.add_argument(
-        "compose_file",
+        "orx_file",
         nargs="?",
         default=None,
-        help="Optional compose YAML file to run instead of the built-in coding agent.",
+        help="orx YAML file to run. Defaults to built-in coding agent.",
     )
     parser.add_argument(
         "-m", "--model",
@@ -51,11 +54,6 @@ def _parse_args() -> argparse.Namespace:
         help="Single-shot command. Runs the prompt and exits.",
     )
     parser.add_argument(
-        "--coding",
-        action="store_true",
-        help="Use the built-in multi-agent coding pipeline (plan -> code -> review loop).",
-    )
-    parser.add_argument(
         "--auto-approve",
         action="store_true",
         help="Skip approval prompts for destructive tools.",
@@ -64,102 +62,105 @@ def _parse_args() -> argparse.Namespace:
 
 
 # ---------------------------------------------------------------------------
-# Agent builders
+# Agent builder
 # ---------------------------------------------------------------------------
 
 
-async def _build_coding_agent(
+async def _build_from_orx(
+    orx_path: Path,
     model_name: str,
     workspace: str,
 ) -> tuple[Any, str, Any, Any]:
-    """Build an LlmAgent with all CLI features.
+    """Build a Runner from an orx YAML with CLI enhancements.
+
+    Injects model overrides, workspace env var, CLI builtins (todos, task),
+    and project context (memory, local context) into the orx spec.
 
     Returns (runner, session_id, todo_list, llm).
     """
-    from orxhestra.agents.llm_agent import LlmAgent
+    import yaml
+
+    from orxhestra.cli.builtins import get_todo_list, register_cli_builtins
     from orxhestra.cli.context_injection import collect_local_context
     from orxhestra.cli.memory import load_agents_md
-    from orxhestra.cli.models import create_llm
-    from orxhestra.cli.prompt import get_system_prompt
-    from orxhestra.cli.task_tool import make_task_tool
-    from orxhestra.cli.todo_tool import TodoList, make_todo_tool
-    from orxhestra.runner import Runner
-    from orxhestra.sessions.in_memory_session_service import InMemorySessionService
-    from orxhestra.tools.filesystem import make_filesystem_tools
-    from orxhestra.tools.shell import make_shell_tools
+    from orxhestra.cli.models import create_llm, detect_provider
+    from orxhestra.composer.composer import Composer
+    from orxhestra.composer.schema import ComposeSpec
 
+    if not orx_path.exists():
+        print(f"Error: orx file not found: {orx_path}")
+        sys.exit(1)
+
+    # Set workspace for filesystem/shell builtins
+    os.environ["AGENT_WORKSPACE"] = workspace
+
+    # Create LLM for CLI features (summarization, task delegation)
     llm = create_llm(model_name)
 
-    # Core tools
-    fs_tools = make_filesystem_tools(workspace=workspace)
-    sh_tools = make_shell_tools(workspace=workspace, timeout=120, max_output_bytes=200_000)
+    # Register CLI builtins before building
+    register_cli_builtins(workspace, llm)
 
-    # Todo tracking
-    todo_list = TodoList()
-    todo_tool = make_todo_tool(todo_list)
+    # Load and modify the orx spec
+    with open(orx_path) as f:
+        raw: dict = yaml.safe_load(f)
 
-    # Sub-agent delegation
-    task_tool = make_task_tool(llm, [*fs_tools, *sh_tools], workspace)
+    # Override the default model
+    if "defaults" not in raw:
+        raw["defaults"] = {}
+    raw["defaults"]["model"] = {
+        "provider": detect_provider(model_name),
+        "name": model_name,
+    }
 
-    all_tools = [*fs_tools, *sh_tools, todo_tool, task_tool]
-
-    # Collect context in parallel
+    # Inject memory + local context into LLM agent instructions
     memory_content: str = load_agents_md(workspace)
     local_context: str = await collect_local_context(workspace)
+    _inject_context(raw, workspace, memory_content, local_context)
 
-    instructions: str = get_system_prompt(
-        cwd=workspace,
-        memory_content=memory_content,
-        local_context=local_context,
-    )
+    # Build via Composer
+    spec: ComposeSpec = ComposeSpec.model_validate(raw)
+    composer = Composer(spec)
+    root = await composer._build()
 
-    agent = LlmAgent(
-        name="orx-coder",
-        llm=llm,
-        tools=all_tools,
-        instructions=instructions,
-        description="Terminal coding agent with filesystem, shell, planning, and delegation.",
-        max_iterations=30,
-    )
+    # Build runner (use spec's runner config or create a default one)
+    if spec.runner is not None:
+        runner = composer._build_runner(root)
+    else:
+        from orxhestra.runner import Runner
+        from orxhestra.sessions.in_memory_session_service import InMemorySessionService
 
-    session_service = InMemorySessionService()
-    runner = Runner(agent=agent, app_name=APP_NAME, session_service=session_service)
+        runner = Runner(agent=root, app_name=APP_NAME, session_service=InMemorySessionService())
+
     session_id: str = str(uuid4())
+    todo_list = get_todo_list()
     return runner, session_id, todo_list, llm
 
 
-async def _build_compose_runner(compose_path: str) -> tuple[Any, str, None, None]:
-    """Build a Runner from a compose YAML file."""
-    from orxhestra.composer import Composer
-
-    path = Path(compose_path)
-    if not path.exists():
-        print(f"Error: compose file not found: {path}")
-        sys.exit(1)
-
-    runner = await Composer.runner_from_yaml_async(path)
-    session_id: str = str(uuid4())
-    return runner, session_id, None, None
-
-
-async def _build_coding_pipeline(
-    model_name: str,
+def _inject_context(
+    raw: dict,
     workspace: str,
-) -> tuple[Any, str, None, None]:
-    """Build the multi-agent coding pipeline from the built-in compose."""
-    from orxhestra.composer import Composer
+    memory_content: str,
+    local_context: str,
+) -> None:
+    """Append workspace, memory, and local context to LLM agent instructions.
 
-    compose_path = Path(__file__).parent.parent.parent / "skills" / "coding" / "compose.yaml"
-    if not compose_path.exists():
-        print(f"Error: built-in coding compose not found at {compose_path}")
-        sys.exit(1)
+    Walks the agent tree and injects into every LLM-type agent that has
+    instructions defined.
+    """
+    extra: str = f"\n# Workspace\nCurrent working directory: {workspace}\n"
+    if memory_content:
+        extra += f"\n{memory_content}\n"
+    if local_context:
+        extra += f"\n{local_context}\n"
 
-    os.environ.setdefault("AGENT_WORKSPACE", workspace)
-    os.environ.setdefault("ORX_MODEL", model_name)
+    if not extra.strip():
+        return
 
-    runner = await Composer.runner_from_yaml_async(compose_path)
-    session_id: str = str(uuid4())
-    return runner, session_id, None, None
+    agents: dict = raw.get("agents", {})
+    for agent_def in agents.values():
+        agent_type: str = agent_def.get("type", "llm")
+        if agent_type in ("llm", "react") and "instructions" in agent_def:
+            agent_def["instructions"] += extra
 
 
 # ---------------------------------------------------------------------------
@@ -173,16 +174,16 @@ async def _prompt_approval(
     console: Any,
     auto_approve: bool,
 ) -> bool:
-    """Ask the user to approve a destructive tool call. Returns True if approved."""
+    """Ask the user to approve a destructive tool call."""
     if auto_approve:
         return True
 
-    from orxhestra.cli.approval import APPROVE_REQUIRED, _format_approval_prompt
+    from orxhestra.cli.approval import APPROVE_REQUIRED, format_approval_prompt
 
     if tool_name not in APPROVE_REQUIRED:
         return True
 
-    console.print(_format_approval_prompt(tool_name, args))
+    console.print(format_approval_prompt(tool_name, args))
 
     try:
         response: str = input("  approve? [y/n/a(ll)]: ").strip().lower()
@@ -319,10 +320,6 @@ async def _stream_response(
                         )
                         if not approved:
                             console.print("  [dim]Denied.[/dim]")
-                            # Note: we can't actually cancel mid-stream in the
-                            # current SDK - the tool already ran. This approval
-                            # is informational. Future: integrate with
-                            # before_tool_callback to block execution.
                 continue
 
             # Tool response
@@ -336,14 +333,16 @@ async def _stream_response(
 
             # Final response
             if event.is_final_response():
+                was_streaming: bool = in_stream
                 if in_stream and live:
                     live.stop()
                     in_stream = False
                     buffer = ""
-                if event.text:
+                # Only print if we weren't already streaming (Live already showed it)
+                if not was_streaming and event.text:
                     agent_label: str = (
                         f"[{event.agent_name}] "
-                        if event.agent_name and event.agent_name != "orx-coder"
+                        if event.agent_name and event.agent_name != "coder"
                         else ""
                     )
                     if agent_label:
@@ -373,7 +372,57 @@ async def _stream_response(
     return auto_approve
 
 
+def _print_orx_config(orx_path: Path, console: Any) -> None:
+    """Pretty-print the orx.yaml agent configuration on startup."""
+    try:
+        import yaml
+    except ImportError:
+        return
+
+    try:
+        with open(orx_path) as f:
+            raw: dict = yaml.safe_load(f)
+    except Exception:
+        return
+
+    version: str = raw.get("version", "?")
+    agents: dict = raw.get("agents", {})
+    main_agent: str = raw.get("main_agent", "")
+    model_cfg: dict = raw.get("defaults", {}).get("model", {})
+    model_str: str = model_cfg.get("name", "?")
+
+    # Build agent tree summary
+    lines: list[str] = []
+    for name, agent_def in agents.items():
+        agent_type: str = agent_def.get("type", "llm")
+        desc: str = agent_def.get("description", "")
+        marker: str = "[bold cyan]*[/bold cyan] " if name == main_agent else "  "
+        tools: list = agent_def.get("tools", [])
+        tool_names: str = ", ".join(str(t) for t in tools) if tools else ""
+
+        type_badge: str = f"[dim]({agent_type})[/dim]"
+        line: str = f"  {marker}[bold]{name}[/bold] {type_badge}"
+        if desc:
+            line += f"  [dim]{desc}[/dim]"
+        lines.append(line)
+        if tool_names:
+            lines.append(f"      [dim]tools: {tool_names}[/dim]")
+
+        # Show sub-agents for orchestration types
+        sub_agents: list | None = agent_def.get("agents")
+        if sub_agents:
+            lines.append(f"      [dim]agents: {' -> '.join(sub_agents)}[/dim]")
+
+    console.print(f"\n  [bold blue]orx[/bold blue] [dim]{orx_path.name} v{version}[/dim]")
+    console.print(f"  [dim]model: {model_str}[/dim]")
+    if lines:
+        console.print()
+        for line in lines:
+            console.print(line)
+
+
 async def _repl(
+    orx_path: Path,
     runner: Any,
     session_id: str,
     model_name: str,
@@ -393,9 +442,9 @@ async def _repl(
 
     console = Console()
 
-    # Welcome banner
-    console.print("\n[bold blue]  orx[/bold blue] [dim]- terminal coding agent[/dim]")
-    console.print(f"  [dim]model: {model_name} | workspace: {workspace}[/dim]")
+    # Welcome banner with agent config
+    _print_orx_config(orx_path, console)
+    console.print(f"  [dim]workspace: {workspace}[/dim]")
     console.print(f"  [dim]type /help for commands, Ctrl+D to exit[/dim]\n")
 
     # Try prompt_toolkit for history support, fall back to plain input
@@ -457,15 +506,15 @@ async def _repl(
                     else:
                         console.print("[dim]Nothing to compact.[/dim]")
                 else:
-                    console.print("[dim]Compact not available in compose mode.[/dim]")
+                    console.print("[dim]Compact not available.[/dim]")
                 continue
 
             elif cmd == "/model":
                 if len(cmd_parts) > 1:
                     new_model: str = cmd_parts[1].strip()
                     try:
-                        runner, session_id, todo_list, llm = await _build_coding_agent(
-                            new_model, workspace
+                        runner, session_id, todo_list, llm = await _build_from_orx(
+                            orx_path, new_model, workspace
                         )
                         model_name = new_model
                         turn_count = 0
@@ -482,7 +531,7 @@ async def _repl(
                     if not todo_list.todos:
                         console.print("[dim]No tasks.[/dim]")
                 else:
-                    console.print("[dim]Todos not available in compose mode.[/dim]")
+                    console.print("[dim]No tasks.[/dim]")
                 continue
 
             elif cmd == "/help":
@@ -536,16 +585,19 @@ async def _async_main() -> None:
     """Async entry point."""
     args = _parse_args()
 
-    if args.compose_file:
-        runner, session_id, todo_list, llm = await _build_compose_runner(args.compose_file)
-    elif args.coding:
-        runner, session_id, todo_list, llm = await _build_coding_pipeline(
-            args.model, args.workspace
-        )
+    # Resolve the orx file to use:
+    # 1. Explicit file argument
+    # 2. orx.yaml in the current workspace
+    # 3. Built-in default template
+    if args.orx_file:
+        orx_path = Path(args.orx_file)
     else:
-        runner, session_id, todo_list, llm = await _build_coding_agent(
-            args.model, args.workspace
-        )
+        local_orx = Path(args.workspace) / "orx.yaml"
+        orx_path = local_orx if local_orx.exists() else _DEFAULT_ORX
+
+    runner, session_id, todo_list, llm = await _build_from_orx(
+        orx_path, args.model, args.workspace
+    )
 
     auto_approve: bool = args.auto_approve
 
@@ -572,6 +624,7 @@ async def _async_main() -> None:
 
     # Interactive REPL
     await _repl(
+        orx_path,
         runner,
         session_id,
         args.model,

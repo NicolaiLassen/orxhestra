@@ -53,6 +53,9 @@ Issues = "https://github.com/NicolaiLassen/orxhestra/issues"
 where = ["."]
 include = ["orxhestra*"]
 
+[tool.setuptools.package-data]
+"orxhestra.cli" = ["*.yaml"]
+
 [build-system]
 requires = ["setuptools>=70"]
 build-backend = "setuptools.build_meta"

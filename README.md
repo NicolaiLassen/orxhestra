@@ -110,7 +110,7 @@ for event in response:
 ```
 
 > [!TIP]
-> For full documentation, guides, and API reference, visit [orxhestra.com](https://docs.orxhestra.com).
+> For full documentation, guides, and API reference, visit [docs.orxhestra.com](https://docs.orxhestra.com).
 
 ## Features
 

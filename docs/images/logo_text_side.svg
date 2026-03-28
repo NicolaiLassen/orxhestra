@@ -1,0 +1,29 @@
+<svg viewBox="0 0 345 109" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="waveFade" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#3b82f6" stop-opacity="0.1" />
+      <stop offset="20%" stop-color="#3b82f6" stop-opacity="1" />
+      <stop offset="50%" stop-color="#8b5cf6" stop-opacity="1" />
+      <stop offset="80%" stop-color="#38bdf8" stop-opacity="1" />
+      <stop offset="100%" stop-color="#38bdf8" stop-opacity="0.1" />
+    </linearGradient>
+    <linearGradient id="textGrad" x1="124" y1="0" x2="340" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#60a5fa" />
+      <stop offset="50%" stop-color="#a78bfa" />
+      <stop offset="100%" stop-color="#38bdf8" />
+    </linearGradient>
+  </defs>
+
+  <!-- Wave Icon — φ² ratio: icon 94px tall vs 36px text -->
+  <g transform="translate(1.5, -4.4) scale(1.1781)">
+    <path d="M 5 50 L 20 50 C 30 50, 35 10, 50 50 C 65 90, 70 50, 80 50 L 95 50" stroke="url(#waveFade)" stroke-width="4" stroke-linecap="round"/>
+    <path d="M 5 50 L 20 50 C 30 50, 35 90, 50 50 C 65 10, 70 50, 80 50 L 95 50" stroke="url(#waveFade)" stroke-width="4" stroke-linecap="round"/>
+    <path d="M 5 50 L 20 50 C 30 50, 35 25, 50 50 C 65 75, 70 50, 80 50 L 95 50" stroke="#6366F1" stroke-width="3" stroke-linecap="round" opacity="0.8"/>
+    <path d="M 5 50 L 20 50 C 30 50, 35 75, 50 50 C 65 25, 70 50, 80 50 L 95 50" stroke="#38BDF8" stroke-width="3" stroke-linecap="round" opacity="0.8"/>
+    <path d="M 5 50 L 20 50 C 30 50, 35 38, 50 50 C 65 62, 70 50, 80 50 L 95 50" stroke="#A855F7" stroke-width="2.5" stroke-linecap="round" opacity="0.9"/>
+    <path d="M 5 50 L 20 50 C 30 50, 35 62, 50 50 C 65 38, 70 50, 80 50 L 95 50" stroke="#C084FC" stroke-width="2.5" stroke-linecap="round" opacity="0.9"/>
+  </g>
+
+  <!-- ORXHESTRA -->
+  <text x="124" y="67" font-family="Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="800" font-size="36" font-style="italic" fill="url(#textGrad)" letter-spacing="-0.5">ORXHESTRA</text>
+</svg>

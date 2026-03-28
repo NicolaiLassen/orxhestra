@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <strong>Multi-agent orchestration framework for Python.</strong>
+  <strong>Multi-agent orchestration framework for Python — with a built-in coding CLI.</strong>
 </p>
 
 <p align="center">
@@ -16,7 +16,76 @@
 
 Compose multi-agent AI systems with async event streaming, agent hierarchies, and built-in support for MCP and A2A protocols.
 
-## Quickstart
+## Orx CLI
+
+A pre-built coding agent in your terminal — similar to Claude Code or Cursor — powered by any LLM. One install command and you're up and running.
+
+```bash
+pip install orxhestra[cli,openai]
+orx
+```
+
+```
+  orx - terminal coding agent
+  model: gpt-5.4 | workspace: ~/my-project
+  type /help for commands, Ctrl+D to exit
+
+orx> add error handling to the API routes
+
+  > read_file(src/api/routes.py)
+  > grep(pattern=raise, path=src/api/)
+  > write_todos([{"content": "Add try/except to all route handlers", "status": "in_progress"}, ...])
+
+  Tasks:
+    ▶ Add try/except to all route handlers
+    ○ Add custom error response model
+    ○ Write tests for error cases
+
+  > edit_file(src/api/routes.py)
+  > shell_exec(pytest tests/test_api.py)
+
+  Done. Added structured error handling to all 4 route handlers with
+  a custom `ErrorResponse` model. All tests pass.
+```
+
+### Features
+
+- **Any LLM** — OpenAI, Anthropic, Google via `--model gpt-5.4` / `claude-sonnet-4-6` / `gemini-2.0-flash`
+- **Streaming** — real-time token rendering with Markdown formatting
+- **Tool approval** — prompts before destructive operations (write, edit, shell)
+- **Task planning** — structured todo lists visible in the terminal
+- **Sub-agent delegation** — spawn isolated agents for complex subtasks
+- **AGENTS.md memory** — persistent project context across sessions
+- **Local context injection** — auto-detects language, git state, package manager, project tree
+- **Context summarization** — auto-compacts long conversations, `/compact` command
+- **Compose support** — run any compose YAML: `orx compose.yaml`
+- **Multi-agent pipeline** — built-in plan → code → review loop: `orx --coding`
+
+### Usage
+
+```bash
+orx                               # interactive REPL (default model)
+orx --model claude-sonnet-4-6     # use a specific model
+orx -c "fix the failing tests"    # single-shot command
+orx compose.yaml                  # run a compose file
+orx --coding                      # multi-agent coding pipeline
+orx --auto-approve                # skip approval prompts
+```
+
+### Commands
+
+| Command | Description |
+|---------|-------------|
+| `/model <name>` | Switch model mid-session |
+| `/clear` | Reset conversation |
+| `/compact` | Summarize old messages to free context |
+| `/todos` | Show current task list |
+| `/help` | Show all commands |
+| `/exit` | Exit |
+
+---
+
+## Quickstart (SDK)
 
 ```bash
 pip install orxhestra

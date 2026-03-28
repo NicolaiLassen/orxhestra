@@ -29,6 +29,7 @@ anthropic = ["langchain-anthropic>=0.3.0"]
 google = ["langchain-google-genai>=2.1.0"]
 mcp = ["fastmcp>=2.0.0"]
 composer = ["pyyaml>=6.0"]
+cli = ["rich>=13.0", "prompt-toolkit>=3.0", "pyyaml>=6.0"]
 all = [
     "fastapi>=0.115.0",
     "langchain-openai>=1.1.11",
@@ -36,7 +37,12 @@ all = [
     "langchain-google-genai>=2.1.0",
     "fastmcp>=2.0.0",
     "pyyaml>=6.0",
+    "rich>=13.0",
+    "prompt-toolkit>=3.0",
 ]
+
+[project.scripts]
+orx = "orxhestra.cli.app:main"
 
 [project.urls]
 Homepage = "https://github.com/NicolaiLassen/orxhestra"

@@ -5,7 +5,7 @@
 defaults:
   model:
     provider: openai
-    name: gpt-4o
+    name: gpt-5.4
 
 tools:
   exit:

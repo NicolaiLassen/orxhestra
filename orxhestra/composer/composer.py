@@ -4,7 +4,7 @@ Usage::
 
     from orxhestra.composer import Composer
 
-    agent = Composer.from_yaml("compose.yaml")
+    agent = Composer.from_yaml("orx.yaml")
     async for event in agent.astream("Hello"):
         print(event.text)
 """
@@ -40,7 +40,7 @@ if TYPE_CHECKING:
 
 
 class Composer:
-    """Parse a YAML compose file and build a live agent tree.
+    """Parse a YAML orx file and build a live agent tree.
 
     Uses the builder registry (``orxhestra.composer.builders``) to
     delegate construction of each agent type.  Custom types can be added
@@ -118,7 +118,7 @@ class Composer:
 
     @staticmethod
     def _load_spec(path: str | Path) -> ComposeSpec:
-        """Load and validate a YAML compose file."""
+        """Load and validate a YAML orx file."""
         try:
             import yaml
         except ImportError:

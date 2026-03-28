@@ -1,4 +1,4 @@
-"""Pydantic models that validate the YAML compose specification."""
+"""Pydantic models that validate the YAML orx specification."""
 
 from __future__ import annotations
 
@@ -109,7 +109,7 @@ class A2ASkillDef(BaseModel):
 
 
 class AgentDef(BaseModel):
-    """Definition of a single agent in the compose file."""
+    """Definition of a single agent in the orx file."""
 
     type: Literal["llm", "react", "sequential", "parallel", "loop", "a2a"] = "llm"
     description: str = ""

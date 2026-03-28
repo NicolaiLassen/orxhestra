@@ -27,14 +27,14 @@ Send a message:
 import sys
 from pathlib import Path
 
-# In Docker, tools.py is in the same directory as compose.yaml.
+# In Docker, tools.py is in the same directory as orx.yaml.
 # Locally, we also need the repo root for orxhestra.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
 from orxhestra.composer import Composer
 
-yaml_path = Path(__file__).parent / "compose.yaml"
+yaml_path = Path(__file__).parent / "orx.yaml"
 app = Composer.server_from_yaml(yaml_path)
 
 if __name__ == "__main__":

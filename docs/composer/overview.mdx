@@ -12,7 +12,7 @@ pip install orxhestra[composer]
 
 ## Quick Start
 
-```yaml title="compose.yaml"
+```yaml title="orx.yaml"
 defaults:
   model:
     provider: anthropic
@@ -29,7 +29,7 @@ main_agent: assistant
 ```python
 from orxhestra.composer import Composer
 
-agent = Composer.from_yaml("compose.yaml")
+agent = Composer.from_yaml("orx.yaml")
 
 async for event in agent.astream("Hello!"):
     if event.is_final_response():

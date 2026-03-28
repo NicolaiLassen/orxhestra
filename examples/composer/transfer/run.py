@@ -17,7 +17,7 @@ from orxhestra.events.event import EventType
 
 
 async def main() -> None:
-    yaml_path = Path(__file__).parent / "compose.yaml"
+    yaml_path = Path(__file__).parent / "orx.yaml"
 
     # Build the full agent tree + runner from YAML.
     runner = await Composer.runner_from_yaml_async(yaml_path)

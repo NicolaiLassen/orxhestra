@@ -9,11 +9,11 @@ RUN uv pip install --system --no-cache \
     orxhestra[composer,openai,anthropic,google,a2a,mcp] \
     uvicorn
 
-# Generic entrypoint that loads compose.yaml from /app
+# Generic entrypoint that loads orx.yaml from /app
 COPY entrypoint.py /app/entrypoint.py
 
 EXPOSE 8080
 
-# Users mount their compose.yaml (and optional tools.py) to /app
-# docker run -v ./compose.yaml:/app/compose.yaml -e OPENAI_API_KEY=$OPENAI_API_KEY nicolaimtlassen/orxhestra
+# Users mount their orx.yaml (and optional tools.py) to /app
+# docker run -v ./orx.yaml:/app/orx.yaml -e OPENAI_API_KEY=$OPENAI_API_KEY nicolaimtlassen/orxhestra
 CMD ["python", "entrypoint.py"]

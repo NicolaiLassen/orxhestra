@@ -16,7 +16,7 @@ from orxhestra.events.event import EventType
 
 
 async def main() -> None:
-    yaml_path = Path(__file__).parent / "compose.yaml"
+    yaml_path = Path(__file__).parent / "orx.yaml"
     runner = await Composer.runner_from_yaml_async(yaml_path)
 
     print("Review loop ready. Streaming...\n")

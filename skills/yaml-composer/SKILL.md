@@ -1,6 +1,6 @@
 ---
 name: yaml-composer
-description: Build orxhestra agent trees from declarative YAML compose files. Covers full schema, models, tools, agents, runner, and server.
+description: Build orxhestra agent trees from declarative YAML orx files. Covers full schema, models, tools, agents, runner, and server.
 ---
 
 # YAML Composer
@@ -30,7 +30,7 @@ main_agent: assistant
 ```python
 from orxhestra.composer import Composer
 
-agent = Composer.from_yaml("compose.yaml")
+agent = Composer.from_yaml("orx.yaml")
 async for event in agent.astream("Hello"):
     print(event.text)
 ```
@@ -142,6 +142,6 @@ server:
 ```
 
 ```python
-runner = Composer.runner_from_yaml("compose.yaml")
-app = Composer.server_from_yaml("compose.yaml")  # FastAPI app
+runner = Composer.runner_from_yaml("orx.yaml")
+app = Composer.server_from_yaml("orx.yaml")  # FastAPI app
 ```

@@ -1,19 +1,19 @@
 """Generic entrypoint for the orxhestra Docker image.
 
-Loads compose.yaml from /app and starts either:
+Loads orx.yaml from /app and starts either:
   - An A2A server (if `server:` section exists in YAML) on port 8080
   - A Runner with interactive stdin (if `runner:` section exists)
   - A standalone agent that runs a single prompt from $PROMPT env var
 
 Usage:
   # A2A server mode (default when server: is defined)
-  docker run -v ./compose.yaml:/app/compose.yaml -p 8080:8080 nicolaimtlassen/orxhestra
+  docker run -v ./orx.yaml:/app/orx.yaml -p 8080:8080 nicolaimtlassen/orxhestra
 
   # With custom tools
-  docker run -v ./compose.yaml:/app/compose.yaml -v ./tools.py:/app/tools.py -p 8080:8080 nicolaimtlassen/orxhestra
+  docker run -v ./orx.yaml:/app/orx.yaml -v ./tools.py:/app/tools.py -p 8080:8080 nicolaimtlassen/orxhestra
 
   # Override port
-  docker run -e PORT=9000 -p 9000:9000 -v ./compose.yaml:/app/compose.yaml nicolaimtlassen/orxhestra
+  docker run -e PORT=9000 -p 9000:9000 -v ./orx.yaml:/app/orx.yaml nicolaimtlassen/orxhestra
 """
 
 import asyncio
@@ -26,10 +26,10 @@ sys.path.insert(0, "/app")
 
 
 def main() -> None:
-    yaml_path = Path("/app/compose.yaml")
+    yaml_path = Path("/app/orx.yaml")
     if not yaml_path.exists():
-        print("Error: No compose.yaml found at /app/compose.yaml")
-        print("Mount your config: docker run -v ./compose.yaml:/app/compose.yaml ...")
+        print("Error: No orx.yaml found at /app/orx.yaml")
+        print("Mount your config: docker run -v ./orx.yaml:/app/orx.yaml ...")
         sys.exit(1)
 
     from orxhestra.composer import Composer
@@ -56,7 +56,7 @@ def main() -> None:
         prompt = os.environ.get("PROMPT")
         if not prompt:
             print("Error: Runner mode requires PROMPT env var")
-            print('  docker run -e PROMPT="Hello!" -v ./compose.yaml:/app/compose.yaml ...')
+            print('  docker run -e PROMPT="Hello!" -v ./orx.yaml:/app/orx.yaml ...')
             sys.exit(1)
 
         runner = Composer.runner_from_yaml(yaml_path)

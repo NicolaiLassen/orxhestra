@@ -58,8 +58,7 @@ a custom <code>ErrorResponse</code> model. All tests pass.
 - **AGENTS.md memory** — persistent project context across sessions
 - **Local context injection** — auto-detects language, git state, package manager, project tree
 - **Context summarization** — auto-compacts long conversations, `/compact` command
-- **Compose support** — run any compose YAML: `orx compose.yaml`
-- **Multi-agent pipeline** — built-in plan → code → review loop: `orx --coding`
+- **Orx YAML** — run any orx.yaml agent team: `orx my-agents.yaml`
 
 ### Usage
 
@@ -67,8 +66,7 @@ a custom <code>ErrorResponse</code> model. All tests pass.
 orx                               # interactive REPL (default model)
 orx --model claude-sonnet-4-6     # use a specific model
 orx -c "fix the failing tests"    # single-shot command
-orx compose.yaml                  # run a compose file
-orx --coding                      # multi-agent coding pipeline
+orx my-agents.yaml                # run a custom orx file
 orx --auto-approve                # skip approval prompts
 ```
 
@@ -200,14 +198,14 @@ runner:
 ```
 
 ```bash
-orxhestra compose.yaml
+orx orx.yaml
 ```
 
 ## Docker
 
 ```bash
 docker run -e OPENAI_API_KEY=$OPENAI_API_KEY \
-  -v ./compose.yaml:/app/compose.yaml \
+  -v ./orx.yaml:/app/orx.yaml \
   nicolaimtlassen/orxhestra
 ```
 

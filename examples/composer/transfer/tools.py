@@ -1,4 +1,4 @@
-"""Example tools referenced by compose.yaml."""
+"""Example tools referenced by orx.yaml."""
 
 
 async def search_web(query: str) -> str:

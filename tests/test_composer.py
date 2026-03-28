@@ -29,7 +29,7 @@ from orxhestra.composer.schema import ComposeSpec, SkillItemDef, ToolDef
 
 def _write_yaml(tmp_path: Path, content: str) -> Path:
     """Write a YAML string to a temp file and return its path."""
-    p = tmp_path / "compose.yaml"
+    p = tmp_path / "orx.yaml"
     p.write_text(textwrap.dedent(content))
     return p
 
@@ -590,7 +590,7 @@ class TestComposerBuild:
         from orxhestra.composer import Composer
 
         with pytest.raises(ComposerError, match="File not found"):
-            await Composer.from_yaml_async("/nonexistent/compose.yaml")
+            await Composer.from_yaml_async("/nonexistent/orx.yaml")
 
     async def test_missing_runner_section(self, tmp_path):
         yaml_path = _write_yaml(

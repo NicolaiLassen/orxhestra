@@ -216,20 +216,33 @@ class LlmAgent(BaseAgent):
 
     @staticmethod
     def _events_to_messages(events: list[Event]) -> list[BaseMessage]:
-        """Convert session events to LangChain messages for multi-turn context."""
+        """Convert session events to LangChain messages for multi-turn context.
+
+        Drops tool call AIMessages that lack matching ToolMessages to
+        prevent ``tool_call_id`` pairing errors from the LLM provider.
+        """
+        # Collect tool_call_ids that have a response
+        responded_ids: set[str] = set()
+        for event in events:
+            if not event.partial and event.type == EventType.TOOL_RESPONSE:
+                for tr in event.content.tool_responses:
+                    if tr.tool_call_id:
+                        responded_ids.add(tr.tool_call_id)
+
         messages: list[BaseMessage] = []
         for event in events:
             if event.partial:
                 continue
-            if event.type in (
-                EventType.USER_MESSAGE,
-                EventType.AGENT_MESSAGE,
-                EventType.TOOL_RESPONSE,
-            ):
-                if event.type == EventType.AGENT_MESSAGE and not (
-                    event.text or event.has_tool_calls
-                ):
-                    continue
+            if event.type == EventType.USER_MESSAGE:
+                messages.append(event.to_langchain_message())
+            elif event.type == EventType.AGENT_MESSAGE:
+                if event.has_tool_calls:
+                    ids = [tc.tool_call_id for tc in event.tool_calls]
+                    if ids and all(tid in responded_ids for tid in ids):
+                        messages.append(event.to_langchain_message())
+                elif event.text:
+                    messages.append(event.to_langchain_message())
+            elif event.type == EventType.TOOL_RESPONSE:
                 messages.append(event.to_langchain_message())
         return messages
 

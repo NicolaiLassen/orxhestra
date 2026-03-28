@@ -151,7 +151,7 @@ class ServerConfig(BaseModel):
 class ComposeSpec(BaseModel):
     """Top-level YAML schema for agent composition."""
 
-    version: str = "0.0.4"
+    version: str = "0.0.5"
     defaults: DefaultsConfig = Field(default_factory=DefaultsConfig)
     models: dict[str, ModelConfig] = Field(default_factory=dict)
     tools: dict[str, ToolDef] = Field(default_factory=dict)

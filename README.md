@@ -198,8 +198,27 @@ runner:
   session_service: memory
 ```
 
+Run it as an interactive CLI or expose it as an A2A server:
+
 ```bash
-orx orx.yaml
+orx orx.yaml                    # interactive terminal agent
+orx orx.yaml --serve -p 9000    # A2A server on port 9000
+```
+
+```bash
+# test the server
+curl -X POST http://localhost:9000/ \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0", "id": "1",
+    "method": "message/send",
+    "params": {
+      "message": {
+        "role": "user",
+        "parts": [{"text": "Hello!", "mediaType": "text/plain"}]
+      }
+    }
+  }'
 ```
 
 ## Docker

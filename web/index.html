@@ -1,0 +1,918 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>orxhestra - Multi-Agent Orchestration Framework</title>
+  <meta name="description" content="Open-source Python framework for orchestrating multi-agent AI systems. Async streaming, composable agent hierarchies, and first-class MCP & A2A integration.">
+  <meta property="og:title" content="orxhestra - Multi-Agent Orchestration Framework">
+  <meta property="og:description" content="Compose multi-agent AI systems with async event streaming, agent hierarchies, and built-in MCP & A2A support.">
+  <meta property="og:image" content="https://orxhestra.netlify.app/og-image.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:type" content="website">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="orxhestra - Multi-Agent Orchestration Framework">
+  <meta name="twitter:description" content="Compose multi-agent AI systems with async event streaming, agent hierarchies, and built-in MCP & A2A support.">
+  <meta name="twitter:image" content="https://orxhestra.netlify.app/og-image.png">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg viewBox='0 0 100 100' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='0'%3E%3Cstop offset='0%25' stop-color='%233b82f6'/%3E%3Cstop offset='50%25' stop-color='%238b5cf6'/%3E%3Cstop offset='100%25' stop-color='%2338bdf8'/%3E%3C/linearGradient%3E%3C/defs%3E%3Cpath d='M5 50L20 50C30 50,35 10,50 50C65 90,70 50,80 50L95 50' stroke='url(%23g)' stroke-width='3' stroke-linecap='round'/%3E%3Cpath d='M5 50L20 50C30 50,35 90,50 50C65 10,70 50,80 50L95 50' stroke='url(%23g)' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,400;0,500;0,600;0,700;0,800;1,800&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --blue: #3b82f6;
+      --purple: #8b5cf6;
+      --sky: #38bdf8;
+      --indigo: #6366f1;
+      --violet: #a855f7;
+      --bg: #0a0a0f;
+      --bg-card: #111118;
+      --border: #1e1e2e;
+      --text: #e2e8f0;
+      --text-dim: #94a3b8;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      overflow-x: hidden;
+    }
+
+    /* Background ambient light */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background: radial-gradient(ellipse 80% 50% at 50% -20%, rgba(99, 102, 241, 0.12), transparent),
+                  radial-gradient(ellipse 60% 40% at 80% 50%, rgba(56, 189, 248, 0.06), transparent);
+      pointer-events: none;
+      z-index: 0;
+    }
+    .glow-layer {
+      position: fixed;
+      top: -100px; left: 0; right: 0;
+      height: 400px;
+      pointer-events: none;
+      z-index: 0;
+    }
+    .glow-indigo {
+      background: radial-gradient(ellipse 80% 100% at 50% 0%, rgba(99, 102, 241, 0.18), transparent);
+      animation: breatheIndigo 12s ease-in-out infinite;
+    }
+    .glow-purple {
+      background: radial-gradient(ellipse 70% 90% at 50% 0%, rgba(168, 85, 247, 0.14), transparent);
+      animation: breathePurple 15s ease-in-out infinite;
+    }
+    .glow-sky {
+      background: radial-gradient(ellipse 75% 95% at 50% 0%, rgba(56, 189, 248, 0.12), transparent);
+      animation: breatheSky 18s ease-in-out infinite;
+    }
+    @keyframes breatheIndigo {
+      0%, 100% { opacity: 0.3; }
+      50% { opacity: 0.6; }
+    }
+    @keyframes breathePurple {
+      0%, 100% { opacity: 0.2; }
+      50% { opacity: 0.55; }
+    }
+    @keyframes breatheSky {
+      0%, 100% { opacity: 0.25; }
+      50% { opacity: 0.5; }
+    }
+
+    .container { max-width: 1100px; margin: 0 auto; padding: 0 24px; position: relative; z-index: 1; }
+
+    /* ── Nav ── */
+    nav {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+      background: rgba(10, 10, 15, 0.8);
+      backdrop-filter: blur(20px);
+      border-bottom: 1px solid var(--border);
+    }
+    nav .container {
+      display: flex; align-items: center; justify-content: space-between;
+      height: 64px;
+    }
+    .nav-logo {
+      display: flex; align-items: center; gap: 10px;
+      text-decoration: none; color: var(--text);
+    }
+    .nav-logo img { height: 52px; width: auto; }
+    .nav-links { display: flex; align-items: center; gap: 28px; }
+    .nav-links a {
+      color: var(--text-dim); text-decoration: none; font-size: 14px; font-weight: 500;
+      transition: color 0.2s;
+    }
+    .nav-links a:hover { color: var(--text); }
+    .nav-cta {
+      background: linear-gradient(135deg, var(--blue), var(--purple));
+      color: #fff !important; padding: 8px 20px; border-radius: 8px;
+      font-weight: 600; font-size: 13px;
+      transition: opacity 0.2s;
+    }
+    .nav-cta:hover { opacity: 0.9; }
+
+    /* ── Hero ── */
+    .hero {
+      padding: 140px 0 120px;
+      text-align: center;
+    }
+    .hero-wave {
+      width: 300px; height: 300px; margin: 0 auto;
+      overflow: visible;
+    }
+    .hero-wave path { /* opacity controlled by SVG animate */ }
+    .hero h1 {
+      font-size: clamp(48px, 7vw, 80px);
+      font-weight: 800; font-style: italic;
+      letter-spacing: -2px; line-height: 1;
+      background: linear-gradient(90deg, #60a5fa, #a78bfa, #38bdf8);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 24px;
+    }
+    .hero p {
+      font-size: clamp(18px, 2.5vw, 22px);
+      color: var(--text-dim);
+      max-width: 640px; margin: 0 auto 48px;
+      line-height: 1.5;
+    }
+    .hero-actions { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; }
+    .btn {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 14px 28px; border-radius: 10px;
+      font-size: 15px; font-weight: 600;
+      text-decoration: none; transition: all 0.2s;
+      border: none; cursor: pointer;
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, var(--blue), var(--purple));
+      color: #fff;
+    }
+    .btn-primary:hover { opacity: 0.9; transform: translateY(-1px); }
+    .btn-secondary {
+      background: var(--bg-card);
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+    .btn-secondary:hover { border-color: #333; transform: translateY(-1px); }
+
+    /* ── Install ── */
+    .install-bar {
+      margin: 48px auto 0; max-width: 420px;
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: 12px; padding: 14px 20px;
+      display: flex; align-items: center; justify-content: space-between;
+      font-family: 'SF Mono', 'Fira Code', monospace; font-size: 14px;
+      color: var(--text-dim);
+    }
+    .install-bar code { color: var(--text); }
+    .install-bar code span { color: var(--sky); }
+    .install-bar button {
+      background: none; border: none; color: var(--text-dim);
+      cursor: pointer; padding: 4px; transition: color 0.2s;
+    }
+    .install-bar button:hover { color: var(--text); }
+    .install-tabs {
+      display: flex; gap: 0; margin: 48px auto 0; max-width: 420px;
+      justify-content: center;
+    }
+    .install-tab {
+      background: none; border: 1px solid var(--border); color: var(--text-dim);
+      padding: 8px 20px; font-size: 13px; font-weight: 600;
+      cursor: pointer; transition: all 0.2s;
+      font-family: 'Inter', sans-serif;
+    }
+    .install-tab:first-child { border-radius: 8px 0 0 8px; }
+    .install-tab:last-child { border-radius: 0 8px 8px 0; border-left: none; }
+    .install-tab.active {
+      background: var(--bg-card); color: var(--text);
+      border-color: #333;
+    }
+
+    /* ── Features ── */
+    .features { padding: 100px 0; }
+    .section-label {
+      text-transform: uppercase; font-size: 12px; font-weight: 700;
+      letter-spacing: 3px; color: var(--purple);
+      text-align: center; margin-bottom: 12px;
+    }
+    .section-title {
+      font-size: clamp(28px, 4vw, 40px); font-weight: 800;
+      text-align: center; margin-bottom: 64px;
+      letter-spacing: -1px;
+    }
+    .features-grid {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 20px;
+    }
+    .feature-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 16px; padding: 32px;
+      transition: border-color 0.3s, transform 0.3s;
+    }
+    .feature-card:hover { border-color: #2a2a3e; transform: translateY(-2px); }
+    .feature-icon {
+      width: 40px; height: 40px; border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      margin-bottom: 16px; font-size: 20px;
+    }
+    .feature-card h3 { font-size: 18px; font-weight: 700; margin-bottom: 8px; }
+    .feature-card p { font-size: 14px; color: var(--text-dim); line-height: 1.6; }
+
+    /* ── Code ── */
+    .code-section { padding: 100px 0; }
+    .code-grid {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 40px;
+      align-items: start;
+    }
+    .code-text h3 {
+      font-size: 28px; font-weight: 800; margin-bottom: 16px;
+      letter-spacing: -0.5px;
+    }
+    .code-text p { color: var(--text-dim); margin-bottom: 24px; font-size: 15px; }
+    .code-text ul { list-style: none; }
+    .code-text li {
+      padding: 8px 0; font-size: 15px; color: var(--text-dim);
+      display: flex; align-items: center; gap: 10px;
+    }
+    .code-text li::before {
+      content: '';
+      width: 6px; height: 6px; border-radius: 50%;
+      background: var(--purple); flex-shrink: 0;
+    }
+    .code-block {
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: 16px; overflow: hidden;
+    }
+    .code-header {
+      padding: 12px 20px; border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; gap: 8px;
+    }
+    .code-dot {
+      width: 12px; height: 12px; border-radius: 50%;
+    }
+    .code-dot:nth-child(1) { background: #ff5f57; }
+    .code-dot:nth-child(2) { background: #febc2e; }
+    .code-dot:nth-child(3) { background: #28c840; }
+    .code-header span {
+      margin-left: 8px; font-size: 13px; color: var(--text-dim);
+    }
+    .code-block pre {
+      padding: 24px; overflow-x: auto;
+      font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+      font-size: 13px; line-height: 1.7;
+    }
+    .code-block .kw { color: #c792ea; }
+    .code-block .fn { color: #82aaff; }
+    .code-block .str { color: #c3e88d; }
+    .code-block .cm { color: #546e7a; }
+    .code-block .num { color: #f78c6c; }
+    .code-block .op { color: #89ddff; }
+
+    /* ── Agents table ── */
+    .agents-section { padding: 100px 0; }
+    .agents-grid {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 16px;
+    }
+    .agent-card {
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: 14px; padding: 24px;
+      display: flex; align-items: flex-start; gap: 16px;
+      transition: border-color 0.3s;
+    }
+    .agent-card:hover { border-color: #2a2a3e; }
+    .agent-badge {
+      padding: 6px 12px; border-radius: 8px;
+      font-family: 'SF Mono', monospace; font-size: 12px; font-weight: 600;
+      white-space: nowrap;
+      background: rgba(99, 102, 241, 0.1); color: var(--indigo);
+      border: 1px solid rgba(99, 102, 241, 0.2);
+    }
+    .agent-card p { font-size: 14px; color: var(--text-dim); }
+
+    /* ── Composer ── */
+    .composer-section { padding: 100px 0; }
+    .composer-section .code-block { max-width: 700px; margin: 0 auto; }
+
+    /* ── CTA ── */
+    .cta {
+      padding: 120px 0; text-align: center;
+    }
+    .cta h2 {
+      font-size: clamp(32px, 5vw, 48px); font-weight: 800;
+      margin-bottom: 16px; letter-spacing: -1px;
+    }
+    .cta p { color: var(--text-dim); font-size: 18px; margin-bottom: 40px; }
+
+    /* ── Footer ── */
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 40px 0;
+    }
+    footer .container {
+      display: flex; justify-content: space-between; align-items: center;
+      flex-wrap: wrap; gap: 16px;
+    }
+    footer p { font-size: 14px; color: var(--text-dim); }
+    .footer-links { display: flex; gap: 24px; }
+    .footer-links a {
+      color: var(--text-dim); text-decoration: none; font-size: 14px;
+      transition: color 0.2s;
+    }
+    .footer-links a:hover { color: var(--text); }
+    .footer-links svg { width: 20px; height: 20px; }
+
+    /* ── Flow Line ── */
+    .flow-line {
+      position: absolute;
+      left: 0;
+      width: 100%;
+      pointer-events: none;
+      z-index: 0;
+    }
+    .flow-line circle {
+      animation: nodePulse 3s ease-in-out infinite;
+    }
+    @keyframes nodePulse {
+      0%, 100% { opacity: 0.2; }
+      50% { opacity: 0.5; }
+    }
+    .flow-energy {
+      stroke-dasharray: 40 1960;
+      animation: flowEnergy 12s linear infinite;
+    }
+    @keyframes flowEnergy {
+      0% { stroke-dashoffset: 2000; }
+      100% { stroke-dashoffset: 0; }
+    }
+
+
+    /* ── Responsive ── */
+    @media (max-width: 768px) {
+      .code-grid { grid-template-columns: 1fr; }
+      .nav-links { gap: 16px; }
+      .nav-links a:not(.nav-cta) { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="glow-layer glow-indigo"></div>
+<div class="glow-layer glow-purple"></div>
+<div class="glow-layer glow-sky"></div>
+<!-- removed background SVG waves --><div style="display:none">
+    <path class="wave-path wave-1" d="M-100 200 C-77 200,-53 225,-30 225 C-7 225,17 247,40 247 C63 247,87 265,110 265 C133 265,157 276,180 276 C203 276,227 280,250 280 C273 280,297 276,320 276 C343 276,367 265,390 265 C413 265,437 247,460 247 C483 247,507 225,530 225 C553 225,577 200,600 200 C623 200,647 175,670 175 C693 175,717 153,740 153 C763 153,787 135,810 135 C833 135,857 124,880 124 C903 124,927 120,950 120 C973 120,997 124,1020 124 C1043 124,1067 135,1090 135 C1113 135,1137 153,1160 153 C1183 153,1207 175,1230 175 C1253 175,1277 200,1300 200"/>
+    <path class="wave-path wave-2" d="M-100 281 C-77 281,-53 289,-30 289 C-7 289,17 288,40 288 C63 288,87 278,110 278 C133 278,157 259,180 259 C203 259,227 235,250 235 C273 235,297 208,320 208 C343 208,367 184,390 184 C413 184,437 164,460 164 C483 164,507 153,530 153 C553 153,577 150,600 150 C623 150,647 158,670 158 C693 158,717 174,740 174 C763 174,787 197,810 197 C833 197,857 223,880 223 C903 223,927 249,950 249 C973 249,997 270,1020 270 C1043 270,1067 285,1090 285 C1113 285,1137 290,1160 290 C1183 290,1207 286,1230 286 C1253 286,1277 272,1300 272"/>
+    <path class="wave-path wave-3" d="M-100 240 C-77 240,-53 238,-30 238 C-7 238,17 233,40 233 C63 233,87 224,110 224 C133 224,157 212,180 212 C203 212,227 199,250 199 C273 199,297 184,320 184 C343 184,367 169,390 169 C413 169,437 155,460 155 C483 155,507 142,530 142 C553 142,577 132,600 132 C623 132,647 124,670 124 C693 124,717 121,740 121 C763 121,787 121,810 121 C833 121,857 124,880 124 C903 124,927 132,950 132 C973 132,997 142,1020 142 C1043 142,1067 155,1090 155 C1113 155,1137 169,1160 169 C1183 169,1207 184,1230 184 C1253 184,1277 199,1300 199"/>
+    <path class="wave-path wave-4" d="M-100 230 C-77 230,-53 209,-30 209 C-7 209,17 192,40 192 C63 192,87 182,110 182 C133 182,157 181,180 181 C203 181,227 190,250 190 C273 190,297 206,320 206 C343 206,367 227,390 227 C413 227,437 248,460 248 C483 248,507 266,530 266 C553 266,577 278,600 278 C623 278,647 280,670 280 C693 280,717 272,740 272 C763 272,787 257,810 257 C833 257,857 236,880 236 C903 236,927 215,950 215 C973 215,997 196,1020 196 C1043 196,1067 184,1090 184 C1113 184,1137 180,1160 180 C1183 180,1207 186,1230 186 C1253 186,1277 201,1300 201"/>
+    <path class="wave-path wave-5" d="M-100 125 C-77 125,-53 128,-30 128 C-7 128,17 135,40 135 C63 135,87 147,110 147 C133 147,157 162,180 162 C203 162,227 180,250 180 C273 180,297 198,320 198 C343 198,367 216,390 216 C413 216,437 231,460 231 C483 231,507 244,530 244 C553 244,577 252,600 252 C623 252,647 255,670 255 C693 255,717 253,740 253 C763 253,787 246,810 246 C833 246,857 235,880 235 C903 235,927 220,950 220 C973 220,997 202,1020 202 C1043 202,1067 184,1090 184 C1113 184,1137 166,1160 166 C1183 166,1207 150,1230 150 C1253 150,1277 137,1300 137"/>
+    <path class="wave-path wave-6" d="M-100 249 C-77 249,-53 260,-30 260 C-7 260,17 265,40 265 C63 265,87 263,110 263 C133 263,157 256,180 256 C203 256,227 242,250 242 C273 242,297 225,320 225 C343 225,367 207,390 207 C413 207,437 188,460 188 C483 188,507 172,530 172 C553 172,577 161,600 161 C623 161,647 155,670 155 C693 155,717 156,740 156 C763 156,787 164,810 164 C833 164,857 176,880 176 C903 176,927 193,950 193 C973 193,997 212,1020 212 C1043 212,1067 230,1090 230 C1113 230,1137 246,1160 246 C1183 246,1207 258,1230 258 C1253 258,1277 264,1300 264"/>
+</div>
+
+<!-- Nav -->
+<nav>
+  <div class="container">
+    <a href="/" class="nav-logo">
+      <img src="logo_text_side.svg" alt="ORXHESTRA" />
+    </a>
+    <div class="nav-links">
+      <a href="https://docs.orxhestra.com">Docs</a>
+      <a href="https://github.com/NicolaiLassen/orxhestra">GitHub</a>
+      <a href="https://pypi.org/project/orxhestra/">PyPI</a>
+      <a href="https://docs.orxhestra.com/getting-started/quickstart" class="nav-cta">Get Started</a>
+    </div>
+  </div>
+</nav>
+
+<!-- Hero -->
+<section class="hero">
+  <div class="container">
+    <div class="hero-wave">
+      <svg viewBox="-20 -20 140 140" fill="none" xmlns="http://www.w3.org/2000/svg" style="overflow:visible">
+        <defs>
+          <linearGradient id="heroWave" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%" stop-color="#3b82f6" stop-opacity="0.1"/>
+            <stop offset="20%" stop-color="#3b82f6"/>
+            <stop offset="50%" stop-color="#8b5cf6"/>
+            <stop offset="80%" stop-color="#38bdf8"/>
+            <stop offset="100%" stop-color="#38bdf8" stop-opacity="0.1"/>
+          </linearGradient>
+          <!-- SVG glow filter — bright blurred halo -->
+          <filter id="glow" x="-200%" y="-200%" width="500%" height="500%" filterUnits="objectBoundingBox">
+            <feGaussianBlur in="SourceGraphic" stdDeviation="2" result="b1"/>
+            <feGaussianBlur in="SourceGraphic" stdDeviation="5" result="b2"/>
+            <feMerge>
+              <feMergeNode in="b2"/>
+              <feMergeNode in="b1"/>
+              <feMergeNode in="b1"/>
+            </feMerge>
+          </filter>
+        </defs>
+        <!-- hw-1: outer+ (spiral order: 0s) -->
+        <g>
+          <path d="M5 50L20 50C30 50,35 10,50 50C65 90,70 50,80 50L95 50" stroke="url(#heroWave)" stroke-width="3" stroke-linecap="round" filter="url(#glow)" opacity="0">
+            <animate attributeName="d" dur="6s" repeatCount="indefinite" begin="0s"
+              values="M5 50L20 50C30 50,35 10,50 50C65 90,70 50,80 50L95 50;M5 50L20 50C30 50,35 5,50 50C65 95,70 50,80 50L95 50;M5 50L20 50C30 50,35 10,50 50C65 90,70 50,80 50L95 50"
+              keyTimes="0;0.1;0.25" keySplines="0.4 0 0.2 1;0.4 0 0.2 1" calcMode="spline"/>
+            <animate attributeName="opacity" dur="6s" repeatCount="indefinite" begin="0s"
+              values="0;0.85;0;0" keyTimes="0;0.05;0.15;1" calcMode="linear"/>
+          </path>
+          <path d="M5 50L20 50C30 50,35 10,50 50C65 90,70 50,80 50L95 50" stroke="url(#heroWave)" stroke-width="3" stroke-linecap="round" opacity="0.25">
+            <animate attributeName="d" dur="6s" repeatCount="indefinite" begin="0s"
+              values="M5 50L20 50C30 50,35 10,50 50C65 90,70 50,80 50L95 50;M5 50L20 50C30 50,35 5,50 50C65 95,70 50,80 50L95 50;M5 50L20 50C30 50,35 10,50 50C65 90,70 50,80 50L95 50"
+              keyTimes="0;0.1;0.25" keySplines="0.4 0 0.2 1;0.4 0 0.2 1" calcMode="spline"/>
+            <animate attributeName="opacity" dur="6s" repeatCount="indefinite" begin="0s"
+              values="0.25;1;0.25;0.25" keyTimes="0;0.1;0.3;1" calcMode="linear"/>
+          </path>
+        </g>
+        <!-- hw-2: outer- (spiral order: 5s) -->
+        <g>
+          <path d="M5 50L20 50C30 50,35 90,50 50C65 10,70 50,80 50L95 50" stroke="url(#heroWave)" stroke-width="3" stroke-linecap="round" filter="url(#glow)" opacity="0">
+            <animate attributeName="d" dur="6s" repeatCount="indefinite" begin="5s"
+              values="M5 50L20 50C30 50,35 90,50 50C65 10,70 50,80 50L95 50;M5 50L20 50C30 50,35 95,50 50C65 5,70 50,80 50L95 50;M5 50L20 50C30 50,35 90,50 50C65 10,70 50,80 50L95 50"
+              keyTimes="0;0.1;0.25" keySplines="0.4 0 0.2 1;0.4 0 0.2 1" calcMode="spline"/>
+            <animate attributeName="opacity" dur="6s" repeatCount="indefinite" begin="5s"
+              values="0;0.85;0;0" keyTimes="0;0.05;0.15;1" calcMode="linear"/>
+          </path>
+          <path d="M5 50L20 50C30 50,35 90,50 50C65 10,70 50,80 50L95 50" stroke="url(#heroWave)" stroke-width="3" stroke-linecap="round" opacity="0.25">
+            <animate attributeName="d" dur="6s" repeatCount="indefinite" begin="5s"
+              values="M5 50L20 50C30 50,35 90,50 50C65 10,70 50,80 50L95 50;M5 50L20 50C30 50,35 95,50 50C65 5,70 50,80 50L95 50;M5 50L20 50C30 50,35 90,50 50C65 10,70 50,80 50L95 50"
+              keyTimes="0;0.1;0.25" keySplines="0.4 0 0.2 1;0.4 0 0.2 1" calcMode="spline"/>
+            <animate attributeName="opacity" dur="6s" repeatCount="indefinite" begin="5s"
+              values="0.25;1;0.25;0.25" keyTimes="0;0.1;0.3;1" calcMode="linear"/>
+          </path>
+        </g>
+        <!-- hw-3: mid+ (spiral order: 1s) -->
+        <g>
+          <path d="M5 50L20 50C30 50,35 25,50 50C65 75,70 50,80 50L95 50" stroke="#6366F1" stroke-width="2" stroke-linecap="round" filter="url(#glow)" opacity="0">
+            <animate attributeName="d" dur="6s" repeatCount="indefinite" begin="1s"
+              values="M5 50L20 50C30 50,35 25,50 50C65 75,70 50,80 50L95 50;M5 50L20 50C30 50,35 15,50 50C65 85,70 50,80 50L95 50;M5 50L20 50C30 50,35 25,50 50C65 75,70 50,80 50L95 50"
+              keyTimes="0;0.1;0.25" keySplines="0.4 0 0.2 1;0.4 0 0.2 1" calcMode="spline"/>
+            <animate attributeName="opacity" dur="6s" repeatCount="indefinite" begin="1s"
+              values="0;0.85;0;0" keyTimes="0;0.05;0.15;1" calcMode="linear"/>
+          </path>
+          <path d="M5 50L20 50C30 50,35 25,50 50C65 75,70 50,80 50L95 50" stroke="#6366F1" stroke-width="2" stroke-linecap="round" opacity="0.25">
+            <animate attributeName="d" dur="6s" repeatCount="indefinite" begin="1s"
+              values="M5 50L20 50C30 50,35 25,50 50C65 75,70 50,80 50L95 50;M5 50L20 50C30 50,35 15,50 50C65 85,70 50,80 50L95 50;M5 50L20 50C30 50,35 25,50 50C65 75,70 50,80 50L95 50"
+              keyTimes="0;0.1;0.25" keySplines="0.4 0 0.2 1;0.4 0 0.2 1" calcMode="spline"/>
+            <animate attributeName="opacity" dur="6s" repeatCount="indefinite" begin="1s"
+              values="0.25;1;0.25;0.25" keyTimes="0;0.1;0.3;1" calcMode="linear"/>
+          </path>
+        </g>
+        <!-- hw-4: mid- (spiral order: 4s) -->
+        <g>
+          <path d="M5 50L20 50C30 50,35 75,50 50C65 25,70 50,80 50L95 50" stroke="#38BDF8" stroke-width="2" stroke-linecap="round" filter="url(#glow)" opacity="0">
+            <animate attributeName="d" dur="6s" repeatCount="indefinite" begin="4s"
+              values="M5 50L20 50C30 50,35 75,50 50C65 25,70 50,80 50L95 50;M5 50L20 50C30 50,35 85,50 50C65 15,70 50,80 50L95 50;M5 50L20 50C30 50,35 75,50 50C65 25,70 50,80 50L95 50"
+              keyTimes="0;0.1;0.25" keySplines="0.4 0 0.2 1;0.4 0 0.2 1" calcMode="spline"/>
+            <animate attributeName="opacity" dur="6s" repeatCount="indefinite" begin="4s"
+              values="0;0.85;0;0" keyTimes="0;0.05;0.15;1" calcMode="linear"/>
+          </path>
+          <path d="M5 50L20 50C30 50,35 75,50 50C65 25,70 50,80 50L95 50" stroke="#38BDF8" stroke-width="2" stroke-linecap="round" opacity="0.25">
+            <animate attributeName="d" dur="6s" repeatCount="indefinite" begin="4s"
+              values="M5 50L20 50C30 50,35 75,50 50C65 25,70 50,80 50L95 50;M5 50L20 50C30 50,35 85,50 50C65 15,70 50,80 50L95 50;M5 50L20 50C30 50,35 75,50 50C65 25,70 50,80 50L95 50"
+              keyTimes="0;0.1;0.25" keySplines="0.4 0 0.2 1;0.4 0 0.2 1" calcMode="spline"/>
+            <animate attributeName="opacity" dur="6s" repeatCount="indefinite" begin="4s"
+              values="0.25;1;0.25;0.25" keyTimes="0;0.1;0.3;1" calcMode="linear"/>
+          </path>
+        </g>
+        <!-- hw-5: inner+ (spiral order: 2s) -->
+        <g>
+          <path d="M5 50L20 50C30 50,35 38,50 50C65 62,70 50,80 50L95 50" stroke="#A855F7" stroke-width="1.5" stroke-linecap="round" filter="url(#glow)" opacity="0">
+            <animate attributeName="d" dur="6s" repeatCount="indefinite" begin="2s"
+              values="M5 50L20 50C30 50,35 38,50 50C65 62,70 50,80 50L95 50;M5 50L20 50C30 50,35 28,50 50C65 72,70 50,80 50L95 50;M5 50L20 50C30 50,35 38,50 50C65 62,70 50,80 50L95 50"
+              keyTimes="0;0.1;0.25" keySplines="0.4 0 0.2 1;0.4 0 0.2 1" calcMode="spline"/>
+            <animate attributeName="opacity" dur="6s" repeatCount="indefinite" begin="2s"
+              values="0;0.85;0;0" keyTimes="0;0.05;0.15;1" calcMode="linear"/>
+          </path>
+          <path d="M5 50L20 50C30 50,35 38,50 50C65 62,70 50,80 50L95 50" stroke="#A855F7" stroke-width="1.5" stroke-linecap="round" opacity="0.25">
+            <animate attributeName="d" dur="6s" repeatCount="indefinite" begin="2s"
+              values="M5 50L20 50C30 50,35 38,50 50C65 62,70 50,80 50L95 50;M5 50L20 50C30 50,35 28,50 50C65 72,70 50,80 50L95 50;M5 50L20 50C30 50,35 38,50 50C65 62,70 50,80 50L95 50"
+              keyTimes="0;0.1;0.25" keySplines="0.4 0 0.2 1;0.4 0 0.2 1" calcMode="spline"/>
+            <animate attributeName="opacity" dur="6s" repeatCount="indefinite" begin="2s"
+              values="0.25;1;0.25;0.25" keyTimes="0;0.1;0.3;1" calcMode="linear"/>
+          </path>
+        </g>
+        <!-- hw-6: inner- (spiral order: 3s) -->
+        <g>
+          <path d="M5 50L20 50C30 50,35 62,50 50C65 38,70 50,80 50L95 50" stroke="#C084FC" stroke-width="1.5" stroke-linecap="round" filter="url(#glow)" opacity="0">
+            <animate attributeName="d" dur="6s" repeatCount="indefinite" begin="3s"
+              values="M5 50L20 50C30 50,35 62,50 50C65 38,70 50,80 50L95 50;M5 50L20 50C30 50,35 72,50 50C65 28,70 50,80 50L95 50;M5 50L20 50C30 50,35 62,50 50C65 38,70 50,80 50L95 50"
+              keyTimes="0;0.1;0.25" keySplines="0.4 0 0.2 1;0.4 0 0.2 1" calcMode="spline"/>
+            <animate attributeName="opacity" dur="6s" repeatCount="indefinite" begin="3s"
+              values="0;0.85;0;0" keyTimes="0;0.05;0.15;1" calcMode="linear"/>
+          </path>
+          <path d="M5 50L20 50C30 50,35 62,50 50C65 38,70 50,80 50L95 50" stroke="#C084FC" stroke-width="1.5" stroke-linecap="round" opacity="0.25">
+            <animate attributeName="d" dur="6s" repeatCount="indefinite" begin="3s"
+              values="M5 50L20 50C30 50,35 62,50 50C65 38,70 50,80 50L95 50;M5 50L20 50C30 50,35 72,50 50C65 28,70 50,80 50L95 50;M5 50L20 50C30 50,35 62,50 50C65 38,70 50,80 50L95 50"
+              keyTimes="0;0.1;0.25" keySplines="0.4 0 0.2 1;0.4 0 0.2 1" calcMode="spline"/>
+            <animate attributeName="opacity" dur="6s" repeatCount="indefinite" begin="3s"
+              values="0.25;1;0.25;0.25" keyTimes="0;0.1;0.3;1" calcMode="linear"/>
+          </path>
+        </g>
+      </svg>
+    </div>
+    <h1>ORXHESTRA</h1>
+    <p>Compose multi-agent AI systems with async event streaming, composable agent hierarchies, and built-in MCP & A2A integration.</p>
+    <div class="hero-actions">
+      <a href="https://docs.orxhestra.com/getting-started/quickstart" class="btn btn-primary">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+        Get Started
+      </a>
+      <a href="https://github.com/NicolaiLassen/orxhestra" class="btn btn-secondary">
+        <svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+        GitHub
+      </a>
+    </div>
+    <div class="install-tabs">
+      <button class="install-tab active" onclick="switchInstall('pip')">pip</button>
+      <button class="install-tab" onclick="switchInstall('uv')">uv</button>
+    </div>
+    <div class="install-bar" id="install-bar" style="position:relative;">
+      <code>$ <span id="install-cmd">pip install</span> <span>orxhestra</span></code>
+      <button onclick="copyInstall()" title="Copy">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+      </button>
+      <div id="flow-start-dot" style="position:absolute;bottom:-5px;left:50%;transform:translateX(-50%);width:10px;height:10px;border-radius:50%;background:#3b82f6;box-shadow:0 0 8px #3b82f6,0 0 20px rgba(59,130,246,0.5);opacity:0.9;"></div>
+    </div>
+    <script>
+      function switchInstall(type) {
+        document.getElementById('install-cmd').textContent = type === 'uv' ? 'uv add' : 'pip install';
+        document.querySelectorAll('.install-tab').forEach(t => t.classList.remove('active'));
+        event.target.classList.add('active');
+      }
+      function copyInstall() {
+        const cmd = document.getElementById('install-cmd').textContent + ' orxhestra';
+        navigator.clipboard.writeText(cmd);
+      }
+    </script>
+  </div>
+</section>
+
+<!-- Features -->
+<section class="features">
+  <div class="container">
+    <div class="section-label">Features</div>
+    <h2 class="section-title">Everything you need to orchestrate agents</h2>
+    <div class="features-grid">
+      <div class="feature-card">
+        <div class="feature-icon" style="background: rgba(99,102,241,0.1)">
+          <svg width="22" height="22" fill="none" stroke="#6366f1" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 1v4m0 14v4m-9-9h4m14 0h4m-3.3-7.7l-2.8 2.8m-9.8 9.8l-2.8 2.8m0-15.4l2.8 2.8m9.8 9.8l2.8 2.8"/></svg>
+        </div>
+        <h3>Agent Ensemble</h3>
+        <p>LLM, ReAct, Sequential, Parallel, and Loop agents. Mix and match to build any orchestration pattern.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon" style="background: rgba(56,189,248,0.1)">
+          <svg width="22" height="22" fill="none" stroke="#38bdf8" stroke-width="2" viewBox="0 0 24 24"><path d="M2 12l5-5v3h10V7l5 5-5 5v-3H7v3z"/></svg>
+        </div>
+        <h3>Event Streaming</h3>
+        <p>Async event-driven architecture with real-time streaming. Every agent yields typed events you can observe and react to.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon" style="background: rgba(168,85,247,0.1)">
+          <svg width="22" height="22" fill="none" stroke="#a855f7" stroke-width="2" viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+        </div>
+        <h3>Composer</h3>
+        <p>Conduct entire agent orchestras declaratively with YAML. No Python wiring needed for complex pipelines.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon" style="background: rgba(59,130,246,0.1)">
+          <svg width="22" height="22" fill="none" stroke="#3b82f6" stroke-width="2" viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg>
+        </div>
+        <h3>Tools</h3>
+        <p>Function tools, filesystem, shell, agent-as-tool, and long-running tool support. Extend agents with any capability.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon" style="background: rgba(99,102,241,0.1)">
+          <svg width="22" height="22" fill="none" stroke="#6366f1" stroke-width="2" viewBox="0 0 24 24"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 012-2h2a2 2 0 012 2M9 5h6m-3 7v4m-2-2h4"/></svg>
+        </div>
+        <h3>Planners</h3>
+        <p>Choreograph task execution with PlanReAct and TaskPlanner strategies. Agents that think before they act.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon" style="background: rgba(56,189,248,0.1)">
+          <svg width="22" height="22" fill="none" stroke="#38bdf8" stroke-width="2" viewBox="0 0 24 24"><path d="M4 4h16v16H4zM9 9h6v6H9z"/><path d="M9 1v3M15 1v3M9 20v3M15 20v3M20 9h3M20 15h3M1 9h3M1 15h3"/></svg>
+        </div>
+        <h3>MCP & A2A</h3>
+        <p>First-class Model Context Protocol and Agent-to-Agent protocol integration for cross-service harmonization.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Code Example -->
+<section class="code-section">
+  <div class="container">
+    <div class="code-grid">
+      <div class="code-text">
+        <h3>Build agents in minutes</h3>
+        <p>Create powerful AI agents with just a few lines of Python. Stream events in real-time and compose complex orchestration patterns.</p>
+        <ul>
+          <li>Works with any LangChain-compatible LLM</li>
+          <li>OpenAI, Anthropic, Google, and custom providers</li>
+          <li>Async-first with full streaming support</li>
+          <li>Session management and memory built-in</li>
+          <li>Type-safe with full Pydantic models</li>
+        </ul>
+      </div>
+      <div class="code-block">
+        <div class="code-header">
+          <div class="code-dot"></div>
+          <div class="code-dot"></div>
+          <div class="code-dot"></div>
+          <span>agent.py</span>
+        </div>
+<pre><span class="kw">from</span> orxhestra <span class="kw">import</span> LlmAgent, Runner
+<span class="kw">from</span> langchain_openai <span class="kw">import</span> ChatOpenAI
+
+agent <span class="op">=</span> LlmAgent(
+    name<span class="op">=</span><span class="str">"assistant"</span>,
+    model<span class="op">=</span>ChatOpenAI(model<span class="op">=</span><span class="str">"gpt-5.4"</span>),
+    instructions<span class="op">=</span><span class="str">"You are a helpful assistant."</span>,
+)
+
+runner <span class="op">=</span> Runner(agent<span class="op">=</span>agent, app_name<span class="op">=</span><span class="str">"my-app"</span>)
+
+<span class="kw">async for</span> event <span class="kw">in</span> runner.<span class="fn">astream</span>(
+    user_id<span class="op">=</span><span class="str">"user-1"</span>,
+    session_id<span class="op">=</span><span class="str">"session-1"</span>,
+    new_message<span class="op">=</span><span class="str">"Hello!"</span>,
+):
+    print(event.content)</pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Agents -->
+<section class="agents-section">
+  <div class="container">
+    <div class="section-label">Agents</div>
+    <h2 class="section-title">A complete ensemble</h2>
+    <div class="agents-grid">
+      <div class="agent-card">
+        <div class="agent-badge">LlmAgent</div>
+        <p>Chat model agent with tools, instructions, and structured output</p>
+      </div>
+      <div class="agent-card">
+        <div class="agent-badge">ReActAgent</div>
+        <p>Reasoning + acting loop with automatic tool use</p>
+      </div>
+      <div class="agent-card">
+        <div class="agent-badge">SequentialAgent</div>
+        <p>Runs sub-agents in order, like a pipeline</p>
+      </div>
+      <div class="agent-card">
+        <div class="agent-badge">ParallelAgent</div>
+        <p>Runs sub-agents concurrently for maximum throughput</p>
+      </div>
+      <div class="agent-card">
+        <div class="agent-badge">LoopAgent</div>
+        <p>Repeats sub-agents until an exit condition is met</p>
+      </div>
+      <div class="agent-card">
+        <div class="agent-badge">A2AAgent</div>
+        <p>Connects to remote agents via the A2A protocol</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Composer -->
+<section class="composer-section">
+  <div class="container">
+    <div class="section-label">Composer</div>
+    <h2 class="section-title">Declare. Compose. Run.</h2>
+    <div class="code-block">
+      <div class="code-header">
+        <div class="code-dot"></div>
+        <div class="code-dot"></div>
+        <div class="code-dot"></div>
+        <span>orx.yaml</span>
+      </div>
+<pre><span class="cm"># Define an entire coding agent in YAML</span>
+<span class="kw">defaults</span>:
+  <span class="kw">model</span>:
+    <span class="fn">provider</span>: <span class="str">openai</span>
+    <span class="fn">name</span>: <span class="str">gpt-5.4</span>
+
+<span class="kw">tools</span>:
+  <span class="fn">filesystem</span>:
+    <span class="fn">builtin</span>: <span class="str">"filesystem"</span>
+  <span class="fn">shell</span>:
+    <span class="fn">builtin</span>: <span class="str">"shell"</span>
+
+<span class="kw">agents</span>:
+  <span class="fn">planner</span>:
+    <span class="fn">type</span>: <span class="str">llm</span>
+    <span class="fn">instructions</span>: <span class="str">Output actionable steps for the coder.</span>
+
+  <span class="fn">coder</span>:
+    <span class="fn">type</span>: <span class="str">llm</span>
+    <span class="fn">tools</span>: [<span class="str">filesystem</span>, <span class="str">shell</span>]
+    <span class="fn">instructions</span>: <span class="str">Execute the plan. Never ask the user.</span>
+
+  <span class="fn">dev_loop</span>:
+    <span class="fn">type</span>: <span class="str">loop</span>
+    <span class="fn">agents</span>: [<span class="str">coder</span>, <span class="str">reviewer</span>]
+
+  <span class="fn">coordinator</span>:
+    <span class="fn">type</span>: <span class="str">sequential</span>
+    <span class="fn">agents</span>: [<span class="str">planner</span>, <span class="str">dev_loop</span>]
+
+<span class="kw">main_agent</span>: <span class="str">coordinator</span></pre>
+    </div>
+  </div>
+</section>
+
+<!-- CTA -->
+<section class="cta">
+  <div class="container">
+    <h2>Ready to orchestrate?</h2>
+    <p>Get started with orxhestra in minutes.</p>
+    <div class="hero-actions">
+      <a href="https://docs.orxhestra.com/getting-started/quickstart" class="btn btn-primary">Read the Docs</a>
+      <a href="https://github.com/NicolaiLassen/orxhestra" class="btn btn-secondary">View on GitHub</a>
+    </div>
+  </div>
+</section>
+
+<!-- Footer -->
+<footer>
+  <div class="container">
+    <p>orxhestra &mdash; Open-source multi-agent orchestration framework</p>
+    <div class="footer-links">
+      <a href="https://docs.orxhestra.com">Docs</a>
+      <a href="https://pypi.org/project/orxhestra/">PyPI</a>
+      <a href="https://github.com/NicolaiLassen/orxhestra" title="GitHub">
+        <svg fill="currentColor" viewBox="0 0 24 24"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+      </a>
+    </div>
+  </div>
+</footer>
+
+<!-- Flow Line -->
+<svg class="flow-line" id="flow-line" xmlns="http://www.w3.org/2000/svg" fill="none">
+  <defs>
+    <linearGradient id="flowGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#3b82f6" stop-opacity="0.3"/>
+      <stop offset="30%" stop-color="#6366f1" stop-opacity="0.3"/>
+      <stop offset="60%" stop-color="#8b5cf6" stop-opacity="0.3"/>
+      <stop offset="100%" stop-color="#38bdf8" stop-opacity="0.15"/>
+    </linearGradient>
+    <filter id="flowGlow" x="-200%" y="-200%" width="500%" height="500%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="3" result="b1"/>
+      <feGaussianBlur in="SourceGraphic" stdDeviation="6" result="b2"/>
+      <feMerge>
+        <feMergeNode in="b2"/>
+        <feMergeNode in="b1"/>
+      </feMerge>
+    </filter>
+  </defs>
+</svg>
+<script>
+(function() {
+  function buildFlowLine() {
+    var svg = document.getElementById('flow-line');
+    if (!svg) return;
+
+    var features = document.querySelector('.features');
+    var code = document.querySelector('.code-section');
+    var agents = document.querySelector('.agents-section');
+    var composer = document.querySelector('.composer-section');
+    var cta = document.querySelector('.cta');
+    var dot = document.getElementById('flow-start-dot');
+
+    if (!features || !cta || !dot) return;
+
+    var dotEl = document.getElementById('flow-start-dot');
+    // Walk offsetParent chain to get absolute Y
+    var startY = dotEl.offsetHeight / 2;
+    var el = dotEl;
+    while (el) { startY += el.offsetTop; el = el.offsetParent; }
+    var endY = cta.offsetTop - 20;
+    var totalH = endY - startY + 20;
+    var w = document.documentElement.clientWidth;
+    var cx = w / 2;
+    var drift = Math.min(w * 0.12, 140);
+    var ns = 'http://www.w3.org/2000/svg';
+
+    // Base waypoints (center line)
+    var basePts = [
+      [cx, startY],
+      [cx - drift, features.offsetTop + features.offsetHeight * 0.5],
+      [cx + drift, code.offsetTop + code.offsetHeight * 0.5],
+      [cx - drift * 0.7, agents.offsetTop + agents.offsetHeight * 0.5],
+      [cx + drift * 0.5, composer.offsetTop + composer.offsetHeight * 0.5],
+      [cx, endY]
+    ];
+
+    // 3 parallel lines with x-offsets (converge at start/end)
+    var offsets = [0, -25, 25, -50, 50];
+    var delays = [0, 2.4, 4.8, 7.2, 9.6]; // staggered energy dash delays
+
+    function buildPath(pts) {
+      var d = 'M' + pts[0][0].toFixed(1) + ' ' + pts[0][1].toFixed(1);
+      for (var i = 1; i < pts.length; i++) {
+        var prev = pts[i - 1];
+        var curr = pts[i];
+        var cpDist = (curr[1] - prev[1]) * 0.4;
+        d += ' C' + prev[0].toFixed(1) + ' ' + (prev[1] + cpDist).toFixed(1) +
+             ', ' + curr[0].toFixed(1) + ' ' + (curr[1] - cpDist).toFixed(1) +
+             ', ' + curr[0].toFixed(1) + ' ' + curr[1].toFixed(1);
+      }
+      return d;
+    }
+
+    // Position SVG
+    svg.style.top = (startY - 10) + 'px';
+    svg.style.height = (totalH + 20) + 'px';
+    svg.setAttribute('viewBox', '0 ' + (startY - 10) + ' ' + w + ' ' + (totalH + 20));
+    svg.style.overflow = 'visible';
+
+    // Remove old elements
+    var old = svg.querySelectorAll('path, circle');
+    for (var j = 0; j < old.length; j++) old[j].remove();
+
+    // Draw 3 parallel lines
+    for (var li = 0; li < offsets.length; li++) {
+      var off = offsets[li];
+      // Offset waypoints — ease spread from center outward
+      var last = basePts.length - 1;
+      var pts = basePts.map(function(p, idx) {
+        // Ramp: 0 at start, gradual increase to full at midpoint, then back to 0 at end
+        var t;
+        if (idx <= last / 2) {
+          t = idx / (last / 2); // 0 → 1 over first half
+        } else {
+          t = (last - idx) / (last / 2); // 1 → 0 over second half
+        }
+        // Ease the ramp — spread early with sqrt curve
+        var factor = Math.sqrt(t);
+        return [p[0] + off * factor, p[1]];
+      });
+      var d = buildPath(pts);
+
+      // Glow layer
+      var glow = document.createElementNS(ns, 'path');
+      glow.setAttribute('d', d);
+      glow.setAttribute('stroke', 'url(#flowGrad)');
+      glow.setAttribute('stroke-width', '4');
+      glow.setAttribute('opacity', '0.1');
+      glow.setAttribute('filter', 'url(#flowGlow)');
+      glow.setAttribute('stroke-linecap', 'round');
+      svg.appendChild(glow);
+
+      // Core line
+      var core = document.createElementNS(ns, 'path');
+      core.setAttribute('d', d);
+      core.setAttribute('stroke', 'url(#flowGrad)');
+      core.setAttribute('stroke-width', '1');
+      core.setAttribute('opacity', '0.28');
+      core.setAttribute('stroke-linecap', 'round');
+      svg.appendChild(core);
+
+      // Energy dash with staggered delay
+      var energy = document.createElementNS(ns, 'path');
+      energy.setAttribute('d', d);
+      energy.setAttribute('stroke', 'url(#flowGrad)');
+      energy.setAttribute('stroke-width', '1.5');
+      energy.setAttribute('opacity', '0.2');
+      energy.setAttribute('stroke-linecap', 'round');
+      energy.setAttribute('class', 'flow-energy');
+      energy.style.animationDelay = delays[li] + 's';
+      svg.appendChild(energy);
+    }
+
+    // Node dots at base waypoints
+    var colors = ['#3b82f6', '#6366f1', '#8b5cf6', '#6366f1', '#38bdf8', '#38bdf8'];
+    for (var k = 0; k < basePts.length; k++) {
+      var circle = document.createElementNS(ns, 'circle');
+      circle.setAttribute('cx', basePts[k][0].toFixed(1));
+      circle.setAttribute('cy', basePts[k][1].toFixed(1));
+      circle.setAttribute('r', k === 0 || k === basePts.length - 1 ? '2' : '3');
+      circle.setAttribute('fill', colors[k]);
+      circle.setAttribute('opacity', '0.3');
+      circle.style.animationDelay = (k * 0.5) + 's';
+      svg.appendChild(circle);
+    }
+  }
+
+  // Build on load and resize
+  window.addEventListener('load', buildFlowLine);
+  window.addEventListener('resize', buildFlowLine);
+})();
+</script>
+</body>
+</html>

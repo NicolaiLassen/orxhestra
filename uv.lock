@@ -1461,7 +1461,7 @@ wheels = [
 
 [[package]]
 name = "orxhestra"
-version = "0.0.2"
+version = "0.0.4"
 source = { editable = "." }
 dependencies = [
     { name = "langchain" },
@@ -1472,8 +1472,23 @@ dependencies = [
 a2a = [
     { name = "fastapi" },
 ]
+all = [
+    { name = "fastapi" },
+    { name = "fastmcp" },
+    { name = "langchain-anthropic" },
+    { name = "langchain-google-genai" },
+    { name = "langchain-openai" },
+    { name = "prompt-toolkit" },
+    { name = "pyyaml" },
+    { name = "rich" },
+]
 anthropic = [
     { name = "langchain-anthropic" },
+]
+cli = [
+    { name = "prompt-toolkit" },
+    { name = "pyyaml" },
+    { name = "rich" },
 ]
 composer = [
     { name = "pyyaml" },
@@ -1501,13 +1516,24 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "fastapi", marker = "extra == 'a2a'", specifier = ">=0.115.0" },
+    { name = "fastapi", marker = "extra == 'all'", specifier = ">=0.115.0" },
+    { name = "fastmcp", marker = "extra == 'all'", specifier = ">=2.0.0" },
     { name = "fastmcp", marker = "extra == 'mcp'", specifier = ">=2.0.0" },
     { name = "langchain", specifier = ">=1.2.12" },
+    { name = "langchain-anthropic", marker = "extra == 'all'", specifier = ">=0.3.0" },
     { name = "langchain-anthropic", marker = "extra == 'anthropic'", specifier = ">=0.3.0" },
+    { name = "langchain-google-genai", marker = "extra == 'all'", specifier = ">=2.1.0" },
     { name = "langchain-google-genai", marker = "extra == 'google'", specifier = ">=2.1.0" },
+    { name = "langchain-openai", marker = "extra == 'all'", specifier = ">=1.1.11" },
     { name = "langchain-openai", marker = "extra == 'openai'", specifier = ">=1.1.11" },
+    { name = "prompt-toolkit", marker = "extra == 'all'", specifier = ">=3.0" },
+    { name = "prompt-toolkit", marker = "extra == 'cli'", specifier = ">=3.0" },
     { name = "pydantic", specifier = ">=2.12.5" },
+    { name = "pyyaml", marker = "extra == 'all'", specifier = ">=6.0" },
+    { name = "pyyaml", marker = "extra == 'cli'", specifier = ">=6.0" },
     { name = "pyyaml", marker = "extra == 'composer'", specifier = ">=6.0" },
+    { name = "rich", marker = "extra == 'all'", specifier = ">=13.0" },
+    { name = "rich", marker = "extra == 'cli'", specifier = ">=13.0" },
 ]
 
 [package.metadata.requires-dev]
@@ -1554,6 +1580,18 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/f9/e2/3e91f31a7d2b083fe6ef3fa267035b518369d9511ffab804f839851d2779/pluggy-1.6.0.tar.gz", hash = "sha256:7dcc130b76258d33b90f61b658791dede3486c3e6bfb003ee5c9bfb396dd22f3", size = 69412 }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/54/20/4d324d65cc6d9205fabedc306948156824eb9f0ee1633355a8f7ec5c66bf/pluggy-1.6.0-py3-none-any.whl", hash = "sha256:e920276dd6813095e9377c0bc5566d94c932c33b27a3e3945d8389c374dd4746", size = 20538 },
+]
+
+[[package]]
+name = "prompt-toolkit"
+version = "3.0.52"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "wcwidth" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/a1/96/06e01a7b38dce6fe1db213e061a4602dd6032a8a97ef6c1a862537732421/prompt_toolkit-3.0.52.tar.gz", hash = "sha256:28cde192929c8e7321de85de1ddbe736f1375148b02f2e17edd840042b1be855", size = 434198 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/84/03/0d3ce49e2505ae70cf43bc5bb3033955d2fc9f932163e84dc0779cc47f48/prompt_toolkit-3.0.52-py3-none-any.whl", hash = "sha256:9aac639a3bbd33284347de5ad8d68ecc044b91a762dc39b7c21095fcd6a19955", size = 391431 },
 ]
 
 [[package]]
@@ -2696,6 +2734,15 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/bd/95/615e72cd27b85b61eec764a5ca51bd94d40b5adea5ff47567d9ebc4d275a/watchfiles-1.1.1-pp311-pypy311_pp73-macosx_11_0_arm64.whl", hash = "sha256:89eef07eee5e9d1fda06e38822ad167a044153457e6fd997f8a858ab7564a336", size = 396117 },
     { url = "https://files.pythonhosted.org/packages/c9/81/e7fe958ce8a7fb5c73cc9fb07f5aeaf755e6aa72498c57d760af760c91f8/watchfiles-1.1.1-pp311-pypy311_pp73-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:ce19e06cbda693e9e7686358af9cd6f5d61312ab8b00488bc36f5aabbaf77e24", size = 450493 },
     { url = "https://files.pythonhosted.org/packages/6e/d4/ed38dd3b1767193de971e694aa544356e63353c33a85d948166b5ff58b9e/watchfiles-1.1.1-pp311-pypy311_pp73-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:3e6f39af2eab0118338902798b5aa6664f46ff66bc0280de76fca67a7f262a49", size = 457546 },
+]
+
+[[package]]
+name = "wcwidth"
+version = "0.6.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/35/a2/8e3becb46433538a38726c948d3399905a4c7cabd0df578ede5dc51f0ec2/wcwidth-0.6.0.tar.gz", hash = "sha256:cdc4e4262d6ef9a1a57e018384cbeb1208d8abbc64176027e2c2455c81313159", size = 159684 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/68/5a/199c59e0a824a3db2b89c5d2dade7ab5f9624dbf6448dc291b46d5ec94d3/wcwidth-0.6.0-py3-none-any.whl", hash = "sha256:1a3a1e510b553315f8e146c54764f4fb6264ffad731b3d78088cdb1478ffbdad", size = 94189 },
 ]
 
 [[package]]

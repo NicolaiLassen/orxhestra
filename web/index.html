@@ -734,6 +734,41 @@ runner <span class="op">=</span> Runner(agent<span class="op">=</span>agent, app
 
 <span class="kw">main_agent</span>: <span class="str">coordinator</span></pre>
     </div>
+    <div style="display:flex;gap:1rem;margin-top:2rem;flex-wrap:wrap;justify-content:center;">
+      <div class="code-block" style="flex:1;min-width:280px;max-width:420px;">
+        <div class="code-header">
+          <div class="code-dot"></div>
+          <div class="code-dot"></div>
+          <div class="code-dot"></div>
+          <span>terminal</span>
+        </div>
+<pre><span class="cm"># interactive agent</span>
+<span class="fn">$</span> orx orx.yaml
+
+<span class="cm"># or expose as A2A server</span>
+<span class="fn">$</span> orx orx.yaml <span class="str">--serve</span> -p 9000</pre>
+      </div>
+      <div class="code-block" style="flex:1;min-width:280px;max-width:420px;">
+        <div class="code-header">
+          <div class="code-dot"></div>
+          <div class="code-dot"></div>
+          <div class="code-dot"></div>
+          <span>curl</span>
+        </div>
+<pre><span class="fn">$</span> curl -X POST http://localhost:9000/ \
+  -H <span class="str">"Content-Type: application/json"</span> \
+  -d <span class="str">'{
+    "jsonrpc": "2.0", "id": "1",
+    "method": "message/send",
+    "params": {
+      "message": {
+        "role": "user",
+        "parts": [{"text": "Hello!"}]
+      }
+    }
+  }'</span></pre>
+      </div>
+    </div>
   </div>
 </section>
 

@@ -44,6 +44,11 @@ class AgentTool(BaseTool):
     skip_summarization : bool
         If True, signals the parent to skip LLM summarization of this
         tool's result.
+    output_limit : int, optional
+        Maximum number of characters in the returned answer. If the
+        sub-agent's response exceeds this limit, it is truncated at
+        a newline boundary using ``truncate_output()``. ``None``
+        (default) means no limit.
     before_agent_callback : callable, optional
         Called with ``(event, child_ctx)`` for each child event before
         it is processed. Return a string to short-circuit and use it
@@ -68,6 +73,7 @@ class AgentTool(BaseTool):
         agent: BaseAgent,
         *,
         skip_summarization: bool = False,
+        output_limit: int | None = None,
         before_agent_callback: (
             Callable[[Event, Context], str | None | Awaitable[str | None]] | None
         ) = None,
@@ -81,6 +87,7 @@ class AgentTool(BaseTool):
         )
         object.__setattr__(self, "_agent", agent)
         object.__setattr__(self, "skip_summarization", skip_summarization)
+        object.__setattr__(self, "_output_limit", output_limit)
         object.__setattr__(self, "_before_agent_callback", before_agent_callback)
         object.__setattr__(self, "_after_agent_callback", after_agent_callback)
         object.__setattr__(self, "_ctx", None)
@@ -149,4 +156,13 @@ class AgentTool(BaseTool):
             if asyncio.iscoroutine(result):
                 await result
 
-        return final_answer or f"Agent '{agent.name}' produced no final answer."
+        answer = final_answer or f"Agent '{agent.name}' produced no final answer."
+
+        # Truncate if output_limit is set
+        output_limit: int | None = object.__getattribute__(self, "_output_limit")
+        if output_limit is not None:
+            from orxhestra.tools.output import truncate_output
+
+            answer = truncate_output(answer, output_limit)
+
+        return answer

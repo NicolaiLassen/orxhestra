@@ -1461,7 +1461,7 @@ wheels = [
 
 [[package]]
 name = "orxhestra"
-version = "0.0.4"
+version = "0.0.9"
 source = { editable = "." }
 dependencies = [
     { name = "langchain" },

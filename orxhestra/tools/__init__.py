@@ -3,6 +3,7 @@ from orxhestra.tools.exit_loop import EXIT_LOOP_SENTINEL, exit_loop_tool, make_e
 from orxhestra.tools.filesystem import make_filesystem_tools
 from orxhestra.tools.function_tool import function_tool
 from orxhestra.tools.long_running_tool import LongRunningFunctionTool
+from orxhestra.tools.output import truncate_output
 from orxhestra.tools.shell import make_shell_tools
 from orxhestra.tools.tool_context import ToolContext
 from orxhestra.tools.tool_registry import ToolRegistry, register_tool, tool_registry
@@ -22,4 +23,5 @@ __all__ = [
     "make_exit_loop_tool",
     "EXIT_LOOP_SENTINEL",
     "LongRunningFunctionTool",
+    "truncate_output",
 ]

@@ -4,6 +4,7 @@ import pytest
 
 from orxhestra.agents.base_agent import BaseAgent  # noqa: F401
 from orxhestra.agents.invocation_context import InvocationContext as Context
+from orxhestra.artifacts.base_artifact_service import BaseArtifactService  # noqa: F401
 
 Context.model_rebuild()
 from orxhestra.tools.exit_loop import EXIT_LOOP_SENTINEL, exit_loop_tool

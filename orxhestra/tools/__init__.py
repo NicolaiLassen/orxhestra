@@ -1,4 +1,5 @@
 from orxhestra.tools.agent_tool import AgentTool
+from orxhestra.tools.artifact_tools import make_artifact_tools
 from orxhestra.tools.exit_loop import EXIT_LOOP_SENTINEL, exit_loop_tool, make_exit_loop_tool
 from orxhestra.tools.filesystem import make_filesystem_tools
 from orxhestra.tools.function_tool import function_tool
@@ -13,6 +14,7 @@ __all__ = [
     "function_tool",
     "AgentTool",
     "make_transfer_tool",
+    "make_artifact_tools",
     "make_filesystem_tools",
     "make_shell_tools",
     "ToolRegistry",

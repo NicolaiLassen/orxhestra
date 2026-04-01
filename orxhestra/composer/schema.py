@@ -153,6 +153,7 @@ class RunnerConfig(BaseModel):
 
     app_name: str = "agent-app"
     session_service: str = "memory"
+    artifact_service: str | None = None
     compaction: CompactionConfigDef | None = None
 
 

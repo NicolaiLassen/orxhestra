@@ -90,12 +90,9 @@ def print_orx_config(orx_path: Path, console: Any) -> None:
         if sub_agents:
             lines.append(f"      [dim]agents: {' -> '.join(sub_agents)}[/dim]")
 
-    from importlib.metadata import version as pkg_version
+    import orxhestra
 
-    try:
-        pkg_ver: str = pkg_version("orxhestra")
-    except Exception:
-        pkg_ver = "?"
+    pkg_ver: str = orxhestra.__version__
 
     console.print(f"\n  [bold blue]orx[/bold blue] [dim]v{pkg_ver}[/dim]  [dim]{orx_path.name}[/dim]")
     console.print(f"  [dim]model: {model_str}[/dim]")

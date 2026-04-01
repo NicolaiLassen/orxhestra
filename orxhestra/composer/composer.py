@@ -35,6 +35,7 @@ from orxhestra.composer.schema import (
 if TYPE_CHECKING:
     from langchain_core.tools import BaseTool
 
+    from orxhestra.artifacts.base_artifact_service import BaseArtifactService
     from orxhestra.runner import Runner
     from orxhestra.sessions.base_session_service import BaseSessionService
 
@@ -294,10 +295,13 @@ class Composer:
                 llm=llm,
             )
 
+        artifact_svc = self._build_artifact_service(cfg.artifact_service)
+
         return Runner(
             agent=root,
             app_name=cfg.app_name,
             session_service=session_svc,
+            artifact_service=artifact_svc,
             compaction_config=compaction_config,
         )
 
@@ -339,5 +343,36 @@ class Composer:
             )
 
             return InMemorySessionService()
+        cls = import_object(name)
+        return cls()
+
+    @staticmethod
+    def _build_artifact_service(
+        name: str | None,
+    ) -> BaseArtifactService | None:
+        """Instantiate an artifact service by name or import path.
+
+        Supported names:
+
+        - ``"memory"`` — in-memory (dev/test)
+        - ``"file"`` or ``"file:/path/to/dir"`` — filesystem-backed
+        - ``None`` — no artifact service
+        - dotted import path — custom implementation
+        """
+        if name is None:
+            return None
+        if name == "memory":
+            from orxhestra.artifacts.in_memory_artifact_service import (
+                InMemoryArtifactService,
+            )
+
+            return InMemoryArtifactService()
+        if name == "file" or name.startswith("file:"):
+            from orxhestra.artifacts.file_artifact_service import (
+                FileArtifactService,
+            )
+
+            root: str = name.removeprefix("file:") if ":" in name else ".artifacts"
+            return FileArtifactService(root)
         cls = import_object(name)
         return cls()

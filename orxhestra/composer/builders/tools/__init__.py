@@ -80,9 +80,15 @@ def _register_defaults() -> None:
 
             return make_shell_tools()
 
+        def _artifacts() -> list[BaseTool]:
+            from orxhestra.tools.artifact_tools import make_artifact_tools
+
+            return make_artifact_tools()
+
         _BUILTIN_REGISTRY["exit_loop"] = _exit_loop
         _BUILTIN_REGISTRY["filesystem"] = _filesystem
         _BUILTIN_REGISTRY["shell"] = _shell
+        _BUILTIN_REGISTRY["artifacts"] = _artifacts
 
 
 

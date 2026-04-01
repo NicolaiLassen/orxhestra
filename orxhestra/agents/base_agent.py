@@ -14,13 +14,15 @@ from __future__ import annotations
 import asyncio
 from abc import ABC, abstractmethod
 from collections.abc import AsyncIterator, Iterator
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from uuid import uuid4
 
 from langchain_core.runnables import RunnableConfig
 
-from orxhestra.agents.invocation_context import InvocationContext
 from orxhestra.events.event import Event, EventType
+
+if TYPE_CHECKING:
+    from orxhestra.agents.invocation_context import InvocationContext
 
 
 class BaseAgent(ABC):
@@ -55,7 +57,9 @@ class BaseAgent(ABC):
         """Return the provided ctx or create a fresh one."""
         if ctx is not None:
             return ctx
-        return InvocationContext(
+        from orxhestra.agents.invocation_context import InvocationContext as _IC
+
+        return _IC(
             session_id=str(uuid4()),
             agent_name=self.name,
             run_config=config or {},

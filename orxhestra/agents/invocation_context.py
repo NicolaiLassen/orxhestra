@@ -8,13 +8,13 @@ and how the run is configured.
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import TYPE_CHECKING, Any
+from typing import Any
 from uuid import uuid4
 
-if TYPE_CHECKING:
-    from orxhestra.agents.base_agent import BaseAgent
-
 from pydantic import BaseModel, ConfigDict, Field
+
+from orxhestra.agents.base_agent import BaseAgent
+from orxhestra.artifacts.base_artifact_service import BaseArtifactService
 
 
 class InvocationContext(BaseModel):
@@ -99,6 +99,7 @@ class InvocationContext(BaseModel):
     session: Any | None = None
     run_config: dict[str, Any] = Field(default_factory=dict)
     current_agent: BaseAgent | None = None
+    artifact_service: BaseArtifactService | None = None
     memory_service: Any | None = None
     event_callback: Callable[[Any], None] | None = None
 
@@ -140,6 +141,8 @@ class InvocationContext(BaseModel):
                 "session": self.session,
                 "run_config": self.run_config,
                 "current_agent": self.current_agent,
+                "artifact_service": self.artifact_service,
+                "memory_service": self.memory_service,
                 "event_callback": self.event_callback,
             }
         )

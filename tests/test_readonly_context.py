@@ -6,6 +6,7 @@ import pytest
 
 from orxhestra.agents.base_agent import BaseAgent  # noqa: F401
 from orxhestra.agents.invocation_context import InvocationContext as Context
+from orxhestra.artifacts.base_artifact_service import BaseArtifactService  # noqa: F401
 from orxhestra.agents.readonly_context import CallbackContext, ReadonlyContext
 
 Context.model_rebuild()

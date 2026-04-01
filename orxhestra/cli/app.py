@@ -69,6 +69,11 @@ def _parse_args() -> argparse.Namespace:
         default=int(os.environ.get("PORT", "8000")),
         help="Port for --serve mode (default: 8000). Also reads $PORT.",
     )
+    parser.add_argument(
+        "-v", "--version",
+        action="store_true",
+        help="Print version and exit.",
+    )
     return parser.parse_args()
 
 
@@ -129,10 +134,16 @@ async def _build_from_orx(
     if spec.runner is not None:
         runner = composer._build_runner(root)
     else:
+        from orxhestra.artifacts.in_memory_artifact_service import InMemoryArtifactService
         from orxhestra.runner import Runner
         from orxhestra.sessions.in_memory_session_service import InMemorySessionService
 
-        runner = Runner(agent=root, app_name=APP_NAME, session_service=InMemorySessionService())
+        runner = Runner(
+            agent=root,
+            app_name=APP_NAME,
+            session_service=InMemorySessionService(),
+            artifact_service=InMemoryArtifactService(),
+        )
 
     session_id: str = str(uuid4())
     todo_list = get_todo_list()
@@ -369,6 +380,12 @@ async def _repl(
 async def _async_main() -> None:
     """Async entry point."""
     args = _parse_args()
+
+    if args.version:
+        import orxhestra
+
+        print(f"orx v{orxhestra.__version__}")
+        return
 
     # Resolve orx file: explicit arg → ./orx.yaml → built-in default
     if args.orx_file:

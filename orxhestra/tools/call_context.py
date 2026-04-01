@@ -122,7 +122,7 @@ class CallContext:
             The version number of the saved artifact, or ``None``
             if no artifact service is configured.
         """
-        svc = getattr(self._ctx, "artifact_service", None)
+        svc = self._ctx.artifact_service
         if svc is None:
             logger.debug("No artifact service configured — save_artifact skipped.")
             return None
@@ -130,7 +130,7 @@ class CallContext:
         if isinstance(data, str):
             data = data.encode("utf-8")
 
-        return await svc.save_artifact(
+        version = await svc.save_artifact(
             app_name=self._ctx.app_name,
             user_id=self._ctx.user_id,
             session_id=self.session_id,
@@ -139,6 +139,8 @@ class CallContext:
             mime_type=mime_type,
             metadata=metadata or {},
         )
+        self.actions.artifact_delta[filename] = version
+        return version
 
     async def load_artifact(
         self,
@@ -161,7 +163,7 @@ class CallContext:
             The artifact content, or ``None`` if not found or no
             artifact service is configured.
         """
-        svc = getattr(self._ctx, "artifact_service", None)
+        svc = self._ctx.artifact_service
         if svc is None:
             return None
 
@@ -181,7 +183,7 @@ class CallContext:
         list[str]
             Filenames of saved artifacts.
         """
-        svc = getattr(self._ctx, "artifact_service", None)
+        svc = self._ctx.artifact_service
         if svc is None:
             return []
 
@@ -189,6 +191,126 @@ class CallContext:
             app_name=self._ctx.app_name,
             user_id=self._ctx.user_id,
             session_id=self.session_id,
+        )
+
+    async def save_artifact_part(
+        self,
+        filename: str,
+        part: Any,
+        *,
+        metadata: dict[str, Any] | None = None,
+    ) -> int | None:
+        """Save a multimodal Part as an artifact.
+
+        Accepts any Part type (``TextPart``, ``DataPart``, ``FilePart``)
+        and serializes it appropriately for storage.
+
+        Parameters
+        ----------
+        filename : str
+            Name of the artifact.
+        part : Part
+            A ``TextPart``, ``DataPart``, or ``FilePart`` instance.
+        metadata : dict, optional
+            Additional metadata stored with the artifact.
+
+        Returns
+        -------
+        int or None
+            The version number, or ``None`` if no artifact service.
+        """
+        import base64
+        import json
+
+        from orxhestra.models.part import DataPart, FilePart, TextPart
+
+        if isinstance(part, TextPart):
+            data: bytes = part.text.encode("utf-8")
+            mime_type: str = "text/plain"
+        elif isinstance(part, DataPart):
+            data = json.dumps(part.data, default=str).encode("utf-8")
+            mime_type = "application/json"
+        elif isinstance(part, FilePart):
+            if part.inline_bytes:
+                data = base64.b64decode(part.inline_bytes)
+            else:
+                data = b""
+            mime_type = part.mime_type or "application/octet-stream"
+        else:
+            data = str(part).encode("utf-8")
+            mime_type = "text/plain"
+
+        combined_meta: dict[str, Any] = {"part_type": type(part).__name__}
+        if metadata:
+            combined_meta.update(metadata)
+
+        return await self.save_artifact(
+            filename, data, mime_type=mime_type, metadata=combined_meta,
+        )
+
+    async def load_artifact_part(
+        self,
+        filename: str,
+        *,
+        version: int | None = None,
+    ) -> Any | None:
+        """Load an artifact and return it as a typed Part.
+
+        Uses the stored MIME type to reconstruct the appropriate Part
+        type (``TextPart``, ``DataPart``, or ``FilePart``).
+
+        Parameters
+        ----------
+        filename : str
+            Name of the artifact.
+        version : int, optional
+            Specific version to load.  ``None`` loads the latest.
+
+        Returns
+        -------
+        Part or None
+            The artifact as a typed Part, or ``None`` if not found.
+        """
+        import base64
+        import json
+
+        from orxhestra.models.part import DataPart, FilePart, TextPart
+
+        svc = self._ctx.artifact_service
+        if svc is None:
+            return None
+
+        data: bytes | None = await self.load_artifact(filename, version=version)
+        if data is None:
+            return None
+
+        version_info = await svc.get_artifact_version(
+            app_name=self._ctx.app_name,
+            user_id=self._ctx.user_id,
+            session_id=self.session_id,
+            filename=filename,
+            version=version,
+        )
+
+        mime: str = version_info.mime_type if version_info else "application/octet-stream"
+
+        if mime == "application/json":
+            try:
+                return DataPart(data=json.loads(data.decode("utf-8")))
+            except (json.JSONDecodeError, UnicodeDecodeError):
+                pass
+
+        if mime.startswith("text/"):
+            try:
+                return TextPart(text=data.decode("utf-8"))
+            except UnicodeDecodeError:
+                pass
+
+        # Binary — return as FilePart with inline bytes
+        return FilePart(
+            name=filename,
+            mime_type=mime,
+            inline_bytes=base64.b64encode(data).decode("ascii"),
         )
 
     async def save_credential(

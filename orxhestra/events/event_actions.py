@@ -51,6 +51,10 @@ class EventActions(BaseModel):
         Key-value updates merged into ``InvocationContext.state`` (and
         persisted to ``Session.state``) when the event is committed via
         ``append_event()``.
+    artifact_delta : dict[str, int]
+        Maps artifact filenames to the version number saved during this
+        event.  Populated by ``CallContext.save_artifact()`` so that
+        artifact changes are visible in the session event log.
     transfer_to_agent : str, optional
         Name of the agent to hand control to after this event. The parent
         agent intercepts this to perform the handoff.
@@ -70,6 +74,7 @@ class EventActions(BaseModel):
     """
 
     state_delta: dict[str, Any] = Field(default_factory=dict)
+    artifact_delta: dict[str, int] = Field(default_factory=dict)
     transfer_to_agent: str | None = None
     escalate: bool | None = None
     skip_summarization: bool | None = None

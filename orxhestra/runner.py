@@ -38,6 +38,7 @@ from langchain_core.runnables import RunnableConfig
 from orxhestra.agents.invocation_context import InvocationContext
 from orxhestra.events.event import Event, EventType
 from orxhestra.models.part import Content
+from orxhestra.artifacts.base_artifact_service import BaseArtifactService
 from orxhestra.sessions.base_session_service import BaseSessionService
 from orxhestra.sessions.compaction import CompactionConfig, compact_session
 from orxhestra.sessions.session import Session
@@ -66,6 +67,8 @@ class Runner:
         Application identifier. Used to namespace sessions.
     session_service : BaseSessionService
         Where sessions are stored and retrieved.
+    artifact_service : BaseArtifactService, optional
+        Where artifacts (files, blobs) are stored.
     compaction_config : CompactionConfig, optional
         If set, enables automatic session compaction after each
         invocation.
@@ -77,11 +80,13 @@ class Runner:
         *,
         app_name: str,
         session_service: BaseSessionService,
+        artifact_service: BaseArtifactService | None = None,
         compaction_config: CompactionConfig | None = None,
     ) -> None:
         self.agent = agent
         self.app_name = app_name
         self.session_service = session_service
+        self.artifact_service = artifact_service
         self.compaction_config = compaction_config
 
     async def get_or_create_session(
@@ -166,6 +171,7 @@ class Runner:
             session=session,
             run_config=config or {},
             current_agent=self.agent,
+            artifact_service=self.artifact_service,
         )
 
         user_event = Event(

@@ -1,4 +1,4 @@
-"""orxhestra - Multi-Agent AI Framework for Python.
+"""orxhestra — Multi-Agent AI Framework for Python.
 
 Core agents::
 
@@ -37,6 +37,8 @@ Composer::
 
     from orxhestra.composer import Composer
 """
+
+__version__ = "0.0.12"
 
 from orxhestra.agents import (
     AgentConfig,

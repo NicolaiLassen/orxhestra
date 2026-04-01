@@ -22,6 +22,8 @@ tools:
     builtin: "filesystem"
   shell:
     builtin: "shell"
+  artifacts:
+    builtin: "artifacts"
   todos:
     builtin: "write_todos"
   task:
@@ -47,6 +49,11 @@ agents:
       ## Shell
       - **shell_exec**: run shell commands (git, npm, pip, make, tests, etc.).
       - **shell_exec_background**: start long-running processes (servers, watchers).
+
+      ## Artifacts
+      - **save_artifact**: save files or data to the artifact store for later retrieval.
+      - **load_artifact**: load a previously saved artifact by filename.
+      - **list_artifacts**: list all available artifact filenames.
 
       ## Planning
       - **write_todos**: create/update a structured task list to track progress.
@@ -100,6 +107,7 @@ agents:
     tools:
       - filesystem
       - shell
+      - artifacts
       - todos
       - task
     max_iterations: 30
@@ -109,3 +117,4 @@ main_agent: coder
 runner:
   app_name: orx
   session_service: memory
+  artifact_service: memory

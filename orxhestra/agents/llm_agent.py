@@ -384,10 +384,13 @@ class LlmAgent(BaseAgent):
 
         # Rebuild conversation history from session events (multi-turn).
         # ctx.state is always shared (not affected by event filters).
+        # Only filter by branch/invocation when inside a composite agent
+        # (indicated by a non-empty branch). Top-level agents need the
+        # full session history for multi-turn conversations.
         if self._include_contents != "none":
             filtered = ctx.get_events(
                 current_branch=bool(ctx.branch),
-                current_invocation=bool(ctx.invocation_id),
+                current_invocation=bool(ctx.branch),
             )
             if filtered:
                 messages.extend(self._events_to_messages(filtered))

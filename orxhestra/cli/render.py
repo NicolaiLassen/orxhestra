@@ -65,7 +65,6 @@ def print_orx_config(orx_path: Path, console: Any) -> None:
     except Exception:
         return
 
-    version: str = raw.get("version", "?")
     agents: dict = raw.get("agents", {})
     main_agent: str = raw.get("main_agent", "")
     model_cfg: dict = raw.get("defaults", {}).get("model", {})
@@ -91,7 +90,14 @@ def print_orx_config(orx_path: Path, console: Any) -> None:
         if sub_agents:
             lines.append(f"      [dim]agents: {' -> '.join(sub_agents)}[/dim]")
 
-    console.print(f"\n  [bold blue]orx[/bold blue] [dim]{orx_path.name} v{version}[/dim]")
+    from importlib.metadata import version as pkg_version
+
+    try:
+        pkg_ver: str = pkg_version("orxhestra")
+    except Exception:
+        pkg_ver = "?"
+
+    console.print(f"\n  [bold blue]orx[/bold blue] [dim]v{pkg_ver}[/dim]  [dim]{orx_path.name}[/dim]")
     console.print(f"  [dim]model: {model_str}[/dim]")
     if lines:
         console.print()

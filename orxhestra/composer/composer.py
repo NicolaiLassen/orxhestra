@@ -297,12 +297,33 @@ class Composer:
 
         artifact_svc = self._build_artifact_service(cfg.artifact_service)
 
+        # Resolve run config (callbacks, tags, metadata)
+        default_config: dict = {}
+        if cfg.config is not None:
+            from orxhestra.composer.builders.tools import import_object
+
+            if cfg.config.callbacks:
+                callbacks = []
+                for path in cfg.config.callbacks:
+                    obj = import_object(path)
+                    if isinstance(obj, type):
+                        obj = obj()
+                    callbacks.append(obj)
+                default_config["callbacks"] = callbacks
+
+            if cfg.config.tags:
+                default_config["tags"] = cfg.config.tags
+
+            if cfg.config.metadata:
+                default_config["metadata"] = cfg.config.metadata
+
         return Runner(
             agent=root,
             app_name=cfg.app_name,
             session_service=session_svc,
             artifact_service=artifact_svc,
             compaction_config=compaction_config,
+            default_config=default_config or None,
         )
 
     def _build_server(self, root: BaseAgent) -> Any:

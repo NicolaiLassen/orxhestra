@@ -82,12 +82,14 @@ class Runner:
         session_service: BaseSessionService,
         artifact_service: BaseArtifactService | None = None,
         compaction_config: CompactionConfig | None = None,
+        default_config: dict | None = None,
     ) -> None:
         self.agent = agent
         self.app_name = app_name
         self.session_service = session_service
         self.artifact_service = artifact_service
         self.compaction_config = compaction_config
+        self._base_config = default_config or {}
 
     async def get_or_create_session(
         self,
@@ -161,6 +163,15 @@ class Runner:
             session_id=session_id,
         )
 
+        run_config = {**self._base_config, **(config or {})}
+
+        # Expose session metadata so callbacks (tracing, etc.) can use it
+        meta = dict(run_config.get("metadata", {}))
+        meta.setdefault("session_id", session.id)
+        meta.setdefault("user_id", user_id)
+        meta.setdefault("app_name", self.app_name)
+        run_config["metadata"] = meta
+
         ctx = InvocationContext(
             session_id=session.id,
             user_id=user_id,
@@ -169,7 +180,7 @@ class Runner:
             state=dict(session.state),
             input_content=new_message,
             session=session,
-            run_config=config or {},
+            run_config=run_config,
             current_agent=self.agent,
             artifact_service=self.artifact_service,
         )
@@ -211,3 +222,4 @@ class Runner:
             await compact_session(
                 session, self.session_service, self.compaction_config,
             )
+

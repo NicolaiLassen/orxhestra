@@ -148,6 +148,14 @@ class CompactionConfigDef(BaseModel):
     retention_count: int = 20
 
 
+class RunConfigDef(BaseModel):
+    """LangChain RunnableConfig — passed to every LLM and tool call."""
+
+    callbacks: list[str] = Field(default_factory=list)
+    tags: list[str] = Field(default_factory=list)
+    metadata: dict[str, str] = Field(default_factory=dict)
+
+
 class RunnerConfig(BaseModel):
     """Runner configuration."""
 
@@ -155,6 +163,7 @@ class RunnerConfig(BaseModel):
     session_service: str = "memory"
     artifact_service: str | None = None
     compaction: CompactionConfigDef | None = None
+    config: RunConfigDef | None = None
 
 
 class ServerConfig(BaseModel):

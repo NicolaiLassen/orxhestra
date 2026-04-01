@@ -28,6 +28,8 @@ tools:
     builtin: "write_todos"
   task:
     builtin: "task"
+  human_input:
+    builtin: "human_input"
 
 agents:
   coder:
@@ -54,6 +56,10 @@ agents:
       - **save_artifact**: save files or data to the artifact store for later retrieval.
       - **load_artifact**: load a previously saved artifact by filename.
       - **list_artifacts**: list all available artifact filenames.
+
+      ## User Interaction
+      - **human_input**: ask the user a clarifying question when you need more
+        information, confirmation, or a choice before proceeding.
 
       ## Planning
       - **write_todos**: create/update a structured task list to track progress.
@@ -110,6 +116,7 @@ agents:
       - artifacts
       - todos
       - task
+      - human_input
     max_iterations: 30
 
 main_agent: coder

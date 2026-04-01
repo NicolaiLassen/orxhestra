@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import logging
 import os
 import sys
 from pathlib import Path
@@ -70,6 +71,12 @@ def _parse_args() -> argparse.Namespace:
         help="Port for --serve mode (default: 8000). Also reads $PORT.",
     )
     parser.add_argument(
+        "--log-level",
+        default=os.environ.get("ORX_LOG_LEVEL", "WARNING"),
+        choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
+        help="Logging level (default: WARNING). Also reads $ORX_LOG_LEVEL.",
+    )
+    parser.add_argument(
         "-v", "--version",
         action="store_true",
         help="Print version and exit.",
@@ -77,6 +84,16 @@ def _parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+
+
+def _set_human_input_callbacks(agent: Any, callback: Any) -> None:
+    """Walk the agent tree and set the callback on any human_input tools."""
+    if hasattr(agent, "_tools"):
+        for tool in agent._tools.values():
+            if tool.name == "human_input" and hasattr(tool, "set_callback"):
+                tool.set_callback(callback)
+    for child in getattr(agent, "sub_agents", []):
+        _set_human_input_callbacks(child, callback)
 
 
 async def _build_from_orx(
@@ -130,6 +147,15 @@ async def _build_from_orx(
     spec: ComposeSpec = ComposeSpec.model_validate(raw)
     composer = Composer(spec)
     root = await composer._build()
+
+    # Set up human_input callback on any human_input tools in the agent tree
+    async def _human_input_prompt(question: str) -> str:
+        try:
+            return input(f"\n  ? {question}\n  > ")
+        except (EOFError, KeyboardInterrupt):
+            return "(user declined to answer)"
+
+    _set_human_input_callbacks(root, _human_input_prompt)
 
     if spec.runner is not None:
         runner = composer._build_runner(root)
@@ -380,6 +406,8 @@ async def _repl(
 async def _async_main() -> None:
     """Async entry point."""
     args = _parse_args()
+
+    logging.basicConfig(level=getattr(logging, args.log_level))
 
     if args.version:
         import orxhestra

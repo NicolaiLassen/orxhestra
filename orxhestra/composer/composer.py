@@ -80,7 +80,7 @@ class Composer:
             raise ComposerError(msg)
         composer = cls(spec)
         root = await composer._build()
-        return composer._build_runner(root)
+        return await composer._build_runner(root)
 
     @classmethod
     def server_from_yaml(cls, path: str | Path) -> Any:
@@ -96,7 +96,7 @@ class Composer:
             raise ComposerError(msg)
         composer = cls(spec)
         root = await composer._build()
-        return composer._build_server(root)
+        return await composer._build_server(root)
 
 
     @classmethod
@@ -270,14 +270,14 @@ class Composer:
         raise ComposerError(msg)
 
 
-    def _build_runner(self, root: BaseAgent) -> Runner:
+    async def _build_runner(self, root: BaseAgent) -> Runner:
         """Build a ``Runner`` from the spec's runner config."""
         from orxhestra.runner import Runner
         from orxhestra.sessions.compaction import CompactionConfig
 
         cfg = self._spec.runner
         assert cfg is not None
-        session_svc = self._build_session_service(cfg.session_service)
+        session_svc = await self._build_session_service(cfg.session_service)
 
         compaction_config: CompactionConfig | None = None
         if cfg.compaction is not None:
@@ -326,7 +326,7 @@ class Composer:
             default_config=default_config or None,
         )
 
-    def _build_server(self, root: BaseAgent) -> Any:
+    async def _build_server(self, root: BaseAgent) -> Any:
         """Build a FastAPI app from the spec's server config."""
         from orxhestra.a2a.server import A2AServer
         from orxhestra.a2a.types import AgentSkill
@@ -337,7 +337,7 @@ class Composer:
         svc_name = (
             self._spec.runner.session_service if self._spec.runner else "memory"
         )
-        session_svc = self._build_session_service(svc_name)
+        session_svc = await self._build_session_service(svc_name)
 
         skills = [
             AgentSkill(
@@ -356,7 +356,7 @@ class Composer:
         return server.as_fastapi_app()
 
     @staticmethod
-    def _build_session_service(name: str) -> BaseSessionService:
+    async def _build_session_service(name: str) -> BaseSessionService:
         """Instantiate a session service by name or import path."""
         if name == "memory":
             from orxhestra.sessions.in_memory_session_service import (
@@ -364,6 +364,14 @@ class Composer:
             )
 
             return InMemorySessionService()
+        if name.startswith(("sqlite", "postgresql", "mysql")):
+            from orxhestra.sessions.database_session_service import (
+                DatabaseSessionService,
+            )
+
+            svc = DatabaseSessionService(name)
+            await svc.initialize()
+            return svc
         cls = import_object(name)
         return cls()
 

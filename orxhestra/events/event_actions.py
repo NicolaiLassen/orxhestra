@@ -13,12 +13,12 @@ from pydantic import BaseModel, Field
 
 
 class EventCompaction(BaseModel):
-    """A compacted summary replacing a range of session events.
+    """A compacted summary covering a range of session events.
 
     When a session history grows too long for the model context window, old
-    events can be collapsed into a single compaction entry. The session service
-    replaces the original events with this summary and stores it on
-    ``EventActions.compaction`` of a synthetic event.
+    events are summarized into a compaction event appended to the session.
+    Original events are preserved; the ``apply_compaction`` view-layer filter
+    hides them when building LLM context.
 
     Attributes
     ----------

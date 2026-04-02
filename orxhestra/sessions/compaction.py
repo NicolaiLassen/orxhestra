@@ -1,17 +1,17 @@
 """Session event compaction — LLM-based summarization of old events.
 
 When session history grows beyond a configured threshold, old events
-are summarized into a single compaction event using an LLM call.
-The summary replaces the original events, keeping the context window
-manageable across long conversations.
+are summarized into a compaction event appended to the session. The
+original events are preserved; the view layer (``apply_compaction``)
+filters them out when building LLM context.
 
-Approach (sliding window with retention):
-  1. Count session events.  If under ``max_events``, do nothing.
-  2. Keep the last ``retention_count`` events as raw (never compact).
-  3. Summarize the older events using the LLM.
-  4. Replace old events with a single compaction event carrying the
-     summary.  The LlmAgent's ``_process_compaction`` reads this
-     when building the LLM context.
+Approach (non-destructive, sliding window):
+  1. Count non-compacted events.  If under ``max_events``, do nothing.
+  2. Identify events not already covered by a prior compaction.
+  3. Summarize the older portion using the LLM.
+  4. Append a compaction event via the session service.  The
+     ``apply_compaction`` filter in ``events.filters`` replaces raw
+     events in the compacted range with the summary at query time.
 
 Example::
 
@@ -47,7 +47,7 @@ class CompactionConfig:
     Attributes
     ----------
     max_events : int
-        Compact when session has more than this many events.
+        Compact when non-compacted events exceed this count.
     retention_count : int
         Always keep the last N events as raw (uncompacted).
     llm : BaseChatModel, optional
@@ -93,12 +93,25 @@ def _events_to_text(events: list[Event]) -> str:
     return "\n".join(lines)
 
 
+def _find_compaction_boundary(events: list[Event]) -> float:
+    """Return the end timestamp of the latest existing compaction, or -1."""
+    boundary: float = -1.0
+    for e in events:
+        if e.actions.compaction is not None:
+            boundary = max(boundary, e.actions.compaction.end_timestamp)
+    return boundary
+
+
 async def compact_session(
     session: Session,
     session_service: BaseSessionService,
     config: CompactionConfig,
 ) -> bool:
     """Compact old session events if the session exceeds the threshold.
+
+    Compaction is non-destructive: a compaction event is appended to the
+    session via the session service. Original events are preserved.  The
+    ``apply_compaction`` filter hides them when building LLM context.
 
     Parameters
     ----------
@@ -115,15 +128,25 @@ async def compact_session(
         True if compaction was performed, False otherwise.
     """
     events = session.events
-    if len(events) <= config.max_events:
+
+    # Find the boundary of the last compaction so we only consider
+    # events that haven't already been compacted.
+    compaction_boundary = _find_compaction_boundary(events)
+
+    candidate_events = [
+        e for e in events
+        if e.timestamp > compaction_boundary and e.actions.compaction is None
+    ]
+
+    if len(candidate_events) <= config.max_events:
         return False
 
-    # Split: old events to compact vs. recent events to keep raw
-    split_idx = len(events) - config.retention_count
+    # Split: old candidates to compact vs. recent ones to keep raw
+    split_idx = len(candidate_events) - config.retention_count
     if split_idx <= 0:
         return False
 
-    old_events = events[:split_idx]
+    old_events = candidate_events[:split_idx]
     if not old_events:
         return False
 
@@ -149,7 +172,6 @@ async def compact_session(
         return False
 
     if config.llm is not None:
-        # LLM-based summarization
         prompt = _SUMMARIZE_PROMPT.format(events_text=events_text)
         try:
             response = await config.llm.ainvoke(prompt)
@@ -158,10 +180,9 @@ async def compact_session(
             logger.warning("Compaction LLM call failed: %s", exc)
             return False
     else:
-        # Fallback: simple text extraction (no LLM)
         summary = events_text[:2000]
 
-    # Create compaction event
+    # Create and append compaction event (non-destructive)
     start_ts = old_events[0].timestamp
     end_ts = old_events[-1].timestamp
 
@@ -180,12 +201,11 @@ async def compact_session(
         ),
     )
 
-    # Replace old events with compaction event
-    session.events = [compaction_event, *events[split_idx:]]
+    await session_service.append_event(session, compaction_event)
 
     logger.info(
         "Compacted %d events into summary (%d chars). "
-        "Session now has %d events.",
+        "Session has %d total events.",
         len(old_events),
         len(summary),
         len(session.events),

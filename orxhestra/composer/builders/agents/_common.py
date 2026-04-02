@@ -55,6 +55,9 @@ async def resolve_llm_kwargs(
         date_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
         kwargs["instructions"] = f"Today's date: {date_str}\n\n{agent_def.instructions}"
 
+    if agent_def.output_key:
+        kwargs["output_key"] = agent_def.output_key
+
     if agent_def.include_contents:
         kwargs["include_contents"] = agent_def.include_contents
 

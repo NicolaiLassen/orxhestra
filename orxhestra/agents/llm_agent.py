@@ -102,6 +102,10 @@ class LlmAgent(BaseAgent):
         System prompt string or callable returning one.
     planner : BasePlanner, optional
         Planner that injects planning instructions before each LLM call.
+    output_key : str, optional
+        When set, the agent's final text answer is automatically saved
+        to ``ctx.state[output_key]``.  This makes the output available
+        to downstream agents via state (and ``{key}`` templating).
     output_schema : type, optional
         Optional Pydantic model for structured final output.
     include_contents : str
@@ -138,6 +142,7 @@ class LlmAgent(BaseAgent):
         instructions: InstructionProvider = _DEFAULT_INSTRUCTIONS,
         description: str = "",
         planner: BasePlanner | None = None,
+        output_key: str | None = None,
         output_schema: type | None = None,
         include_contents: str = "default",
         max_iterations: int = 10,
@@ -166,6 +171,7 @@ class LlmAgent(BaseAgent):
         self._tools: dict[str, BaseTool] = {t.name: t for t in (tools or [])}
         self._instructions = instructions
         self._planner = planner
+        self._output_key = output_key
         self._output_schema = output_schema
         self._include_contents = include_contents
         self.max_iterations = max_iterations
@@ -176,7 +182,11 @@ class LlmAgent(BaseAgent):
         self.after_tool_callback = after_tool_callback
 
     async def _resolve_instructions(self, ctx: InvocationContext) -> str:
-        """Resolve the system prompt from a string or instruction provider."""
+        """Resolve the system prompt from a string or instruction provider.
+
+        Supports ``{key}`` template substitution from ``ctx.state``.
+        Unknown keys are left as-is (no KeyError).
+        """
         if callable(self._instructions):
             result = self._instructions(ctx)
             if asyncio.iscoroutine(result):
@@ -185,6 +195,16 @@ class LlmAgent(BaseAgent):
                 prompt = result
         else:
             prompt = self._instructions
+
+        # Template substitution: replace {key} with values from ctx.state.
+        # Uses safe_substitute so missing keys are left untouched.
+        if ctx.state and "{" in prompt:
+            from string import Template
+
+            # Convert {key} to $key for string.Template
+            import re
+            tmpl_str = re.sub(r"\{(\w+)\}", r"${\1}", prompt)
+            prompt = Template(tmpl_str).safe_substitute(ctx.state)
 
         if self._output_schema is not None:
             parser = PydanticOutputParser(pydantic_object=self._output_schema)
@@ -498,12 +518,22 @@ class LlmAgent(BaseAgent):
                     if structured_output is not None:
                         parts.append(DataPart(data=structured_output.model_dump()))
 
+                # Auto-save final answer to state when output_key is set
+                emit_kwargs: dict[str, Any] = {
+                    "content": Content(parts=parts),
+                    "partial": False,
+                    "llm_response": llm_response,
+                }
+                if self._output_key and answer_text:
+                    ctx.state[self._output_key] = answer_text
+                    emit_kwargs["actions"] = EventActions(
+                        state_delta={self._output_key: answer_text},
+                    )
+
                 yield self._emit_event(
                     ctx,
                     EventType.AGENT_MESSAGE,
-                    content=Content(parts=parts),
-                    partial=False,
-                    llm_response=llm_response,
+                    **emit_kwargs,
                 )
                 return
 

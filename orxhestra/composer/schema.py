@@ -120,6 +120,7 @@ class AgentDef(BaseModel):
     skills: list[str] = Field(default_factory=list)
     agents: list[str] | None = None
     planner: PlannerDef | None = None
+    output_key: str | None = None
     output_schema: str | None = None
     include_contents: str | None = None  # "default" or "none"
     max_iterations: int | None = None

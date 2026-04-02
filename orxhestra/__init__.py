@@ -67,6 +67,7 @@ from orxhestra.models.part import (
 from orxhestra.planners import BasePlanner, PlanReActPlanner, TaskPlanner
 from orxhestra.runner import Runner
 from orxhestra.sessions.base_session_service import BaseSessionService
+from orxhestra.sessions.database_session_service import DatabaseSessionService
 from orxhestra.sessions.in_memory_session_service import InMemorySessionService
 from orxhestra.sessions.session import Session
 
@@ -103,6 +104,7 @@ __all__ = [
     "CallbackContext",
     # Sessions
     "BaseSessionService",
+    "DatabaseSessionService",
     "Session",
     "InMemorySessionService",
     # Composer

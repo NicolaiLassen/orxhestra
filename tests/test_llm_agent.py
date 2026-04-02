@@ -446,3 +446,86 @@ async def test_concurrent_tools_stream_events_interleaved():
         assert child_idx < response_idx, (
             f"Child event for {tool_name} should appear before its tool response"
         )
+
+
+@pytest.mark.asyncio
+async def test_instruction_templating_from_state():
+    """Instructions with {key} should be substituted from ctx.state."""
+    received_messages: list[BaseMessage] = []
+
+    class SpyLlm(FakeChatModel):
+        def _generate(self, messages, stop=None, **kwargs):
+            received_messages.extend(messages)
+            return super()._generate(messages, stop, **kwargs)
+
+    llm = SpyLlm(responses=[AIMessage(content="Hi Alice")])
+    agent = LlmAgent(
+        name="agent",
+        llm=llm,
+        instructions="Hello {user_name}, you are in {city}.",
+    )
+    ctx = _ctx(state={"user_name": "Alice", "city": "Copenhagen"})
+    _ = [e async for e in agent.astream("hi", ctx=ctx)]
+
+    from langchain_core.messages import SystemMessage
+
+    system_msgs = [m for m in received_messages if isinstance(m, SystemMessage)]
+    assert len(system_msgs) == 1
+    assert "Alice" in system_msgs[0].content
+    assert "Copenhagen" in system_msgs[0].content
+    assert "{user_name}" not in system_msgs[0].content
+
+
+@pytest.mark.asyncio
+async def test_instruction_templating_missing_key_left_as_is():
+    """Unknown {key} placeholders should be left untouched."""
+    received_messages: list[BaseMessage] = []
+
+    class SpyLlm(FakeChatModel):
+        def _generate(self, messages, stop=None, **kwargs):
+            received_messages.extend(messages)
+            return super()._generate(messages, stop, **kwargs)
+
+    llm = SpyLlm(responses=[AIMessage(content="ok")])
+    agent = LlmAgent(
+        name="agent",
+        llm=llm,
+        instructions="Hello {user_name}, unknown {missing_key}.",
+    )
+    ctx = _ctx(state={"user_name": "Bob"})
+    _ = [e async for e in agent.astream("hi", ctx=ctx)]
+
+    from langchain_core.messages import SystemMessage
+
+    system_msgs = [m for m in received_messages if isinstance(m, SystemMessage)]
+    assert "Bob" in system_msgs[0].content
+    assert "{missing_key}" in system_msgs[0].content
+
+
+@pytest.mark.asyncio
+async def test_output_key_saves_to_state():
+    """When output_key is set, the final answer should be saved to ctx.state."""
+    llm = _llm("The capital is Copenhagen")
+    agent = LlmAgent(name="agent", llm=llm, output_key="answer")
+
+    ctx = _ctx()
+    events = [e async for e in agent.astream("What is the capital?", ctx=ctx)]
+
+    assert ctx.state["answer"] == "The capital is Copenhagen"
+
+    finals = [e for e in events if e.is_final_response()]
+    assert finals[0].actions.state_delta == {"answer": "The capital is Copenhagen"}
+
+
+@pytest.mark.asyncio
+async def test_output_key_not_set_no_state_delta():
+    """Without output_key, no state_delta should be emitted on final answer."""
+    llm = _llm("Hello")
+    agent = LlmAgent(name="agent", llm=llm)
+
+    ctx = _ctx()
+    events = [e async for e in agent.astream("hi", ctx=ctx)]
+
+    assert "answer" not in ctx.state
+    finals = [e for e in events if e.is_final_response()]
+    assert not finals[0].actions.state_delta

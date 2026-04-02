@@ -197,14 +197,13 @@ class LlmAgent(BaseAgent):
             prompt = self._instructions
 
         # Template substitution: replace {key} with values from ctx.state.
-        # Uses safe_substitute so missing keys are left untouched.
         if ctx.state and "{" in prompt:
-            from string import Template
 
-            # Convert {key} to $key for string.Template
-            import re
-            tmpl_str = re.sub(r"\{(\w+)\}", r"${\1}", prompt)
-            prompt = Template(tmpl_str).safe_substitute(ctx.state)
+            class _DefaultDict(dict):
+                def __missing__(self, key: str) -> str:
+                    return "{" + key + "}"
+
+            prompt = prompt.format_map(_DefaultDict(ctx.state))
 
         if self._output_schema is not None:
             parser = PydanticOutputParser(pydantic_object=self._output_schema)

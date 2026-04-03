@@ -1,11 +1,11 @@
-"""Tests for Memory, MemoryStore, and InMemoryMemoryStore."""
+"""Tests for Memory, BaseMemoryService, and InMemoryMemoryService."""
 
 import pytest
 
 from orxhestra.events.event import Event, EventType
-from orxhestra.memory.in_memory_store import InMemoryMemoryStore
+from orxhestra.memory.base_memory_service import SearchMemoryResponse
+from orxhestra.memory.in_memory_service import InMemoryMemoryService
 from orxhestra.memory.memory import Memory
-from orxhestra.memory.memory_store import SearchMemoryResponse
 from orxhestra.models.part import Content
 from orxhestra.sessions.session import Session
 
@@ -31,11 +31,11 @@ def test_memory_defaults():
 
 @pytest.mark.asyncio
 async def test_add_session_to_memory():
-    store = InMemoryMemoryStore()
+    service = InMemoryMemoryService()
     session = _make_session_with_events()
-    await store.add_session_to_memory(session)
+    await service.add_session_to_memory(session)
 
-    response = await store.search_memory(
+    response = await service.search_memory(
         app_name="app", user_id="u1", query="Paris"
     )
     assert len(response.memories) >= 1
@@ -44,11 +44,11 @@ async def test_add_session_to_memory():
 
 @pytest.mark.asyncio
 async def test_search_memory_no_match():
-    store = InMemoryMemoryStore()
+    service = InMemoryMemoryService()
     session = _make_session_with_events()
-    await store.add_session_to_memory(session)
+    await service.add_session_to_memory(session)
 
-    response = await store.search_memory(
+    response = await service.search_memory(
         app_name="app", user_id="u1", query="Berlin"
     )
     assert len(response.memories) == 0
@@ -56,11 +56,11 @@ async def test_search_memory_no_match():
 
 @pytest.mark.asyncio
 async def test_search_memory_wrong_user():
-    store = InMemoryMemoryStore()
+    service = InMemoryMemoryService()
     session = _make_session_with_events()
-    await store.add_session_to_memory(session)
+    await service.add_session_to_memory(session)
 
-    response = await store.search_memory(
+    response = await service.search_memory(
         app_name="app", user_id="other_user", query="Paris"
     )
     assert len(response.memories) == 0
@@ -68,8 +68,8 @@ async def test_search_memory_wrong_user():
 
 @pytest.mark.asyncio
 async def test_search_memory_response_type():
-    store = InMemoryMemoryStore()
-    response = await store.search_memory(
+    service = InMemoryMemoryService()
+    response = await service.search_memory(
         app_name="app", user_id="u1", query="anything"
     )
     assert isinstance(response, SearchMemoryResponse)

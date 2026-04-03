@@ -1,13 +1,13 @@
-"""InMemoryMemoryStore - simple in-process memory implementation."""
+"""InMemoryMemoryService - simple in-process memory implementation."""
 
 from __future__ import annotations
 
+from orxhestra.memory.base_memory_service import BaseMemoryService, SearchMemoryResponse
 from orxhestra.memory.memory import Memory
-from orxhestra.memory.memory_store import MemoryStore, SearchMemoryResponse
 
 
-class InMemoryMemoryStore(MemoryStore):
-    """Dict-backed memory store.
+class InMemoryMemoryService(BaseMemoryService):
+    """Dict-backed memory service.
 
     Stores memories keyed by (app_name, user_id). Search is naive
     substring matching - swap for a vector store in production.

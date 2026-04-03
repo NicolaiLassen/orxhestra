@@ -1,10 +1,10 @@
-from orxhestra.memory.in_memory_store import InMemoryMemoryStore
+from orxhestra.memory.base_memory_service import BaseMemoryService, SearchMemoryResponse
+from orxhestra.memory.in_memory_service import InMemoryMemoryService
 from orxhestra.memory.memory import Memory
-from orxhestra.memory.memory_store import MemoryStore, SearchMemoryResponse
 
 __all__ = [
+    "BaseMemoryService",
+    "InMemoryMemoryService",
     "Memory",
-    "MemoryStore",
     "SearchMemoryResponse",
-    "InMemoryMemoryStore",
 ]

@@ -1,4 +1,4 @@
-"""Memory store abstraction for agents."""
+"""Base memory service abstraction for agents."""
 
 from __future__ import annotations
 
@@ -24,13 +24,13 @@ class SearchMemoryResponse(BaseModel):
     """A list of memories that relate to the search query."""
 
 
-class MemoryStore(ABC):
-    """Abstract base class for agent memory stores.
+class BaseMemoryService(ABC):
+    """Abstract base class for agent memory services.
 
     Attributes
     ----------
     memories : list[Memory]
-        The list of memories held in this store.
+        The list of memories held in this service.
     """
 
     memories: list[Memory] = []
@@ -40,7 +40,7 @@ class MemoryStore(ABC):
         self,
         session: Any,
     ) -> None:
-        """Add a session to the memory store.
+        """Add a session to the memory service.
 
         A session may be added multiple times during its lifetime.
 
@@ -60,7 +60,7 @@ class MemoryStore(ABC):
         session_id: str | None = None,
         metadata: Mapping[str, object] | None = None,
     ) -> None:
-        """Add an explicit list of events to the memory store.
+        """Add an explicit list of events to the memory service.
 
         Implementations should treat events as an incremental update (delta) and
         must not assume it represents the full session.
@@ -81,10 +81,10 @@ class MemoryStore(ABC):
         Raises
         ------
         NotImplementedError
-            If this memory store does not support adding event deltas.
+            If this memory service does not support adding event deltas.
         """
         raise NotImplementedError(
-            "This memory store does not support adding event deltas. "
+            "This memory service does not support adding event deltas. "
             "Call add_session_to_memory(session) to ingest the full session."
         )
 
@@ -96,7 +96,7 @@ class MemoryStore(ABC):
         memories: Sequence[Memory],
         metadata: Mapping[str, object] | None = None,
     ) -> None:
-        """Add explicit memory items directly to the memory store.
+        """Add explicit memory items directly to the memory service.
 
         Parameters
         ----------
@@ -112,10 +112,10 @@ class MemoryStore(ABC):
         Raises
         ------
         NotImplementedError
-            If this memory store does not support direct memory writes.
+            If this memory service does not support direct memory writes.
         """
         raise NotImplementedError(
-            "This memory store does not support direct memory writes. "
+            "This memory service does not support direct memory writes. "
             "Call add_events_to_memory(...) or add_session_to_memory(session) instead."
         )
 

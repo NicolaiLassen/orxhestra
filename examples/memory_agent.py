@@ -1,7 +1,7 @@
 """Memory agent example - persistent memory across sessions.
 
 Demonstrates:
-  - InMemoryMemoryStore for storing and recalling facts
+  - InMemoryMemoryService for storing and recalling facts
   - Agent remembers information from previous conversations
 """
 
@@ -10,7 +10,7 @@ from __future__ import annotations
 import asyncio
 
 from orxhestra import LlmAgent
-from orxhestra.memory.in_memory_store import InMemoryMemoryStore
+from orxhestra.memory.in_memory_service import InMemoryMemoryService
 from orxhestra.memory.memory import Memory
 
 
@@ -24,11 +24,11 @@ async def main() -> None:
     )
 
     # --- Set up memory ---
-    memory_store = InMemoryMemoryStore()
+    memory_service = InMemoryMemoryService()
 
     # Pre-populate some memories (simulating past conversations)
     key = ("my-app", "user-42")
-    memory_store._store[key] = [
+    memory_service._store[key] = [
         Memory(content="User's name is Alice.", author="agent"),
         Memory(content="Alice is a backend engineer working on microservices.", author="agent"),
         Memory(content="Alice prefers Python over JavaScript.", author="agent"),
@@ -36,7 +36,7 @@ async def main() -> None:
     ]
 
     # Search for relevant memories
-    result = await memory_store.search_memory(
+    result = await memory_service.search_memory(
         app_name="my-app",
         user_id="user-42",
         query="alice",

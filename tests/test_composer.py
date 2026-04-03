@@ -629,6 +629,28 @@ class TestComposerBuild:
         assert isinstance(runner, Runner)
 
     @patch("orxhestra.composer.builders.models._resolve_provider")
+    async def test_build_runner_returns_runner_not_coroutine(self, mock_resolve):
+        """Regression: _build_runner is async and must be awaited."""
+        import inspect
+
+        from orxhestra.composer import Composer
+        from orxhestra.composer.schema import ComposeSpec
+        from orxhestra.runner import Runner
+
+        mock_resolve.return_value = lambda **kw: _mock_llm()
+        spec = ComposeSpec.model_validate(
+            {"agents": {"bot": {"type": "llm"}}, "main_agent": "bot",
+             "runner": {"app_name": "test-app", "session_service": "memory"}}
+        )
+        composer = Composer(spec)
+        root = await composer._build()
+        result = composer._build_runner(root)
+        # _build_runner is async — result must be a coroutine, not a Runner
+        assert inspect.isawaitable(result), "_build_runner must be async"
+        runner = await result
+        assert isinstance(runner, Runner)
+
+    @patch("orxhestra.composer.builders.models._resolve_provider")
     async def test_orchestrator_missing_agents_list(self, mock_resolve, tmp_path):
         mock_resolve.return_value = lambda **kw: _mock_llm()
         yaml_path = _write_yaml(

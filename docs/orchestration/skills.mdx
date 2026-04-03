@@ -1,14 +1,30 @@
 ---
 title: "Skills"
-description: "Reusable instruction blocks agents can discover and load at runtime. InMemorySkillStore with list_skills and load_skill tools."
-keywords: ["skills", "InMemorySkillStore", "dynamic instructions", "skill store", "agent skills"]
+description: "Reusable instruction blocks with progressive disclosure. Supports the Agent Skills Protocol (agentskills.io) with SKILL.md directories, frontmatter, and on-demand resource loading."
+keywords: ["skills", "InMemorySkillStore", "dynamic instructions", "skill store", "agent skills", "SKILL.md", "agentskills.io"]
 ---
 
-Skills are reusable instruction blocks that an agent can load dynamically at runtime.
+Skills are reusable instruction blocks that an agent can discover and load at runtime. orxhestra supports the [Agent Skills Protocol](https://agentskills.io) — the open standard adopted by Claude Code, Cursor, Gemini CLI, and 30+ other tools.
+
+## Progressive Disclosure (3-Tier Model)
+
+Skills use progressive disclosure to minimize token cost:
+
+| Tier | What | Tool | Token Cost |
+|------|------|------|-----------|
+| **L1 — Catalog** | Name + description | `list_skills` | ~50-100 tokens |
+| **L2 — Instructions** | Full SKILL.md body + metadata | `load_skill` | Up to ~5000 tokens |
+| **L3 — Resources** | Scripts, references, assets on demand | `load_skill_resource` | Varies |
+
+The agent browses the catalog (L1), loads instructions when relevant (L2), and fetches resource files only when needed (L3).
+
+## Inline Skills
+
+The simplest way to define skills — no files needed:
 
 ```python
-from orxhestra import Skill, InMemorySkillStore
-from orxhestra.skills.load_skill_tool import make_load_skill_tool, make_list_skills_tool
+from orxhestra.skills import InMemorySkillStore, Skill
+from orxhestra.skills import make_list_skills_tool, make_load_skill_tool
 
 store = InMemorySkillStore([
     Skill(
@@ -27,14 +43,149 @@ agent = LlmAgent(
     name="SkillfulAgent",
     llm=llm,
     tools=[
-        make_list_skills_tool(store),   # lets agent discover available skills
-        make_load_skill_tool(store),    # lets agent load a skill's full content
+        make_list_skills_tool(store),   # L1: discover available skills
+        make_load_skill_tool(store),    # L2: load a skill's instructions
     ],
 )
 ```
 
-The agent calls `list_skills` to discover what's available, then `load_skill("summarization")` to get the full instruction text.
+## Directory Skills (Agent Skills Protocol)
+
+For richer skills with resources, use the standard directory layout:
+
+```
+.agents/skills/
+└── code-review/
+    ├── SKILL.md              # Frontmatter + instructions
+    ├── scripts/
+    │   └── lint.sh           # Executable scripts
+    ├── references/
+    │   └── style-guide.md    # Reference documents
+    └── assets/
+        └── template.json     # Data files
+```
+
+### SKILL.md Format
+
+```markdown
+---
+name: code-review
+description: Reviews code for quality and security
+license: MIT
+compatibility: Python 3.10+
+allowed-tools: bash read_file
+metadata:
+  author: team
+  version: "1.0"
+---
+
+## Instructions
+
+Review all code changes carefully. Check for:
+- Correctness and edge cases
+- Security vulnerabilities (OWASP top 10)
+- Test coverage
+- Code style consistency
+```
+
+### Loading Directory Skills
+
+```python
+from orxhestra.skills import scan_skill_directory, discover_skills
+
+# Load a single skill directory
+skill = scan_skill_directory(Path(".agents/skills/code-review"))
+
+# Auto-discover all skills under .agents/skills/
+skills = discover_skills(Path("."))
+```
+
+### On-Demand Resource Loading (L3)
+
+Directory skills can include resource files that the agent loads on demand:
+
+```python
+from orxhestra.skills import (
+    InMemorySkillStore,
+    make_list_skills_tool,
+    make_load_skill_tool,
+    make_load_skill_resource_tool,
+    discover_skills,
+)
+
+skills = discover_skills(Path("."))
+store = InMemorySkillStore(skills)
+
+agent = LlmAgent(
+    name="SkillfulAgent",
+    llm=llm,
+    tools=[
+        make_list_skills_tool(store),          # L1: catalog
+        make_load_skill_tool(store),           # L2: instructions + resource listing
+        make_load_skill_resource_tool(store),  # L3: load individual resource files
+    ],
+)
+```
+
+When the agent calls `load_skill("code-review")`, it sees:
+- Full instructions from SKILL.md
+- Allowed tools, compatibility info
+- A list of available resources (e.g. `scripts/lint.sh`, `references/style-guide.md`)
+
+It can then call `load_skill_resource("code-review", "scripts/lint.sh")` to fetch a specific file.
+
+<Note>
+Resource loading includes path traversal protection — resolved paths must stay within the skill's base directory.
+</Note>
+
+## Skill Models
+
+### SkillFrontmatter
+
+Parsed from the YAML header in SKILL.md:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `name` | `str` | Skill name |
+| `description` | `str` | Short description |
+| `license` | `str \| None` | License identifier |
+| `compatibility` | `str \| None` | Compatibility requirements |
+| `allowed_tools` | `list[str]` | Tools the skill may use |
+| `metadata` | `dict` | Arbitrary key-value metadata |
+
+### SkillResource
+
+A pointer to a file within the skill directory:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `path` | `str` | Relative path (e.g. `scripts/lint.sh`) |
+| `category` | `str` | `script`, `reference`, or `asset` |
+
+## Composer YAML
+
+Skills can be defined inline, loaded from MCP, or loaded from a directory:
+
+```yaml
+skills:
+  # Inline
+  summarize:
+    name: summarize
+    description: "Summarize text."
+    content: "Extract 3-5 key points."
+
+  # Directory (Agent Skills Protocol)
+  code-review:
+    name: code-review
+    directory: .agents/skills/code-review
+
+  # Remote (FastMCP server)
+  pdf:
+    name: pdf-processing
+    mcp:
+      url: "http://localhost:8001/mcp"
+```
 
 <Tip>
-**Custom backends** - Implement `BaseSkillStore` for any backend (database, file system, API).
+**Custom backends** — Implement `BaseSkillStore` for any backend (database, API, vector store).
 </Tip>

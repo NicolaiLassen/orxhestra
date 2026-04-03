@@ -158,7 +158,7 @@ tools:
 
 Named skill definitions, referenced by agents. Each agent that lists skills gets its own in-memory skill store with `list_skills` and `load_skill` tools.
 
-Skills can be defined inline or loaded from a [FastMCP](https://gofastmcp.com/servers/providers/skills) server.
+Skills can be defined inline, loaded from a directory ([Agent Skills Protocol](https://agentskills.io)), or fetched from a [FastMCP](https://gofastmcp.com/servers/providers/skills) server.
 
 ```yaml
 skills:
@@ -167,6 +167,11 @@ skills:
     name: summarize
     description: "Summarize text into bullet points."
     content: "Extract 3-5 key points. Be concise."
+
+  # Directory skill (Agent Skills Protocol - agentskills.io)
+  code_review:
+    name: code-review
+    directory: .agents/skills/code-review
 
   # Remote skill (loaded from FastMCP server at build time)
   pdf_processing:
@@ -182,6 +187,8 @@ skills:
     mcp:
       server: "myapp.skills.server"  # dotted import path
 ```
+
+Directory skills are loaded via `scan_skill_directory()` and support the full 3-tier progressive disclosure model with `load_skill_resource` for on-demand resource files. See [Skills](/orchestration/skills) for details.
 
 Agents reference skills by name:
 

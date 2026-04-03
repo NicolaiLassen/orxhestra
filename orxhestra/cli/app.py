@@ -158,7 +158,7 @@ async def _build_from_orx(
     _set_human_input_callbacks(root, _human_input_prompt)
 
     if spec.runner is not None:
-        runner = composer._build_runner(root)
+        runner = await composer._build_runner(root)
     else:
         from orxhestra.artifacts.in_memory_artifact_service import InMemoryArtifactService
         from orxhestra.runner import Runner

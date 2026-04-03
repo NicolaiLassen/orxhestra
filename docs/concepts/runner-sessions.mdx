@@ -80,13 +80,17 @@ After each invocation, the Runner checks whether the session exceeds `max_events
 
 1. The last `retention_count` events are kept as-is
 2. Older events are summarized into a single compaction event
-3. The compaction event replaces the originals in the session
+3. The compaction event is **appended** to the session — originals are preserved
+
+Compaction is **non-destructive**. Raw events are never deleted. Instead, `LlmAgent` applies `apply_compaction()` at the view layer to swap compacted ranges for their summaries when building LLM context.
 
 If `llm` is provided, the summary is generated via an LLM call. Otherwise, a simple text extraction fallback is used.
 
 ### Safety
 
-Compaction never runs mid-stream — only after all agent events have been yielded. Events with unresolved tool calls are never compacted.
+- Compaction never runs mid-stream — only after all agent events have been yielded
+- Events with unresolved tool calls are never compacted
+- Re-compaction is guarded by a timestamp boundary — previously compacted events are not re-summarized
 
 ### Compaction events
 
@@ -99,7 +103,7 @@ event.actions.compaction.start_timestamp
 event.actions.compaction.end_timestamp
 ```
 
-`LlmAgent` automatically detects compaction events and includes the summary in the LLM context via `apply_compaction()` from `orxhestra.events.filters`.
+`LlmAgent` automatically detects compaction events and includes the summary in the LLM context via `apply_compaction()` from `orxhestra.events.filters`. This filter replaces raw events in the compacted range with the summary, while preserving all events after the compaction boundary.
 
 ### Composer YAML
 

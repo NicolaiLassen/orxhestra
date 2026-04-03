@@ -28,7 +28,6 @@ from orxhestra.models.llm_response import LlmResponse
 from orxhestra.models.part import Content, ToolCallPart, ToolResponsePart
 
 
-
 class EventType(str, Enum):
     """All possible event types emitted during agent execution."""
 

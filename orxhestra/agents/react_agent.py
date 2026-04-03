@@ -16,7 +16,7 @@ from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import BaseTool
 from pydantic import BaseModel, Field
 
-from orxhestra.agents.invocation_context import InvocationContext
+from orxhestra.agents.invocation_context import InvocationContext as Context
 from orxhestra.agents.llm_agent import LlmAgent
 from orxhestra.events.event import Event, EventType
 from orxhestra.models.part import Content, ToolCallPart, ToolResponsePart

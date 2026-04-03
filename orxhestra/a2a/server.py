@@ -48,7 +48,7 @@ from orxhestra.a2a.types import (
     TaskStatusUpdateEvent,
 )
 from orxhestra.agents.base_agent import BaseAgent
-from orxhestra.agents.invocation_context import InvocationContext
+from orxhestra.agents.invocation_context import InvocationContext as Context
 from orxhestra.sessions.base_session_service import BaseSessionService
 
 

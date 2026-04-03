@@ -5,10 +5,10 @@ import pytest
 sqlalchemy = pytest.importorskip("sqlalchemy")
 pytest.importorskip("aiosqlite")
 
-from orxhestra.events.event import Event, EventType
-from orxhestra.events.event_actions import EventActions
-from orxhestra.models.part import Content
-from orxhestra.sessions.database_session_service import DatabaseSessionService
+from orxhestra.events.event import Event, EventType  # noqa: E402
+from orxhestra.events.event_actions import EventActions  # noqa: E402
+from orxhestra.models.part import Content  # noqa: E402
+from orxhestra.sessions.database_session_service import DatabaseSessionService  # noqa: E402
 
 
 @pytest.fixture

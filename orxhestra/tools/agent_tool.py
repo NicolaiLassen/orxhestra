@@ -18,6 +18,8 @@ from langchain_core.callbacks import AsyncCallbackManagerForToolRun
 from langchain_core.tools import BaseTool
 from pydantic import BaseModel, Field
 
+from orxhestra.agents.invocation_context import InvocationContext as Context  # noqa: TC001
+
 if TYPE_CHECKING:
     from orxhestra.agents.base_agent import BaseAgent
     from orxhestra.agents.invocation_context import InvocationContext

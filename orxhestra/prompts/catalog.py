@@ -23,7 +23,6 @@ from __future__ import annotations
 from orxhestra.prompts.context import PromptContext
 
 
-
 def _skills_block(skills: list[dict]) -> str:
     """Render the available skills section."""
     lines = ["Available skills (call load_skill to access):"] + [

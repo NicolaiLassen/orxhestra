@@ -4,15 +4,18 @@ import pytest
 
 from orxhestra.agents.base_agent import BaseAgent  # noqa: F401
 from orxhestra.agents.invocation_context import InvocationContext as Context
-from orxhestra.artifacts.base_artifact_service import ArtifactVersion, BaseArtifactService  # noqa: F401
+from orxhestra.artifacts.base_artifact_service import (  # noqa: F401
+    ArtifactVersion,
+    BaseArtifactService,
+)
 from orxhestra.artifacts.in_memory_artifact_service import InMemoryArtifactService
 
 Context.model_rebuild()
 
-from orxhestra.events.event_actions import EventActions
-from orxhestra.models.part import DataPart, FilePart, TextPart
-from orxhestra.tools.artifact_tools import make_artifact_tools
-from orxhestra.tools.call_context import CallContext
+from orxhestra.events.event_actions import EventActions  # noqa: E402
+from orxhestra.models.part import DataPart, FilePart, TextPart  # noqa: E402
+from orxhestra.tools.artifact_tools import make_artifact_tools  # noqa: E402
+from orxhestra.tools.call_context import CallContext  # noqa: E402
 
 
 def _make_ctx(

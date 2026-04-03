@@ -7,10 +7,10 @@ from orxhestra.agents.invocation_context import InvocationContext as Context
 from orxhestra.artifacts.base_artifact_service import BaseArtifactService  # noqa: F401
 
 Context.model_rebuild()
-from orxhestra.tools.exit_loop import EXIT_LOOP_SENTINEL, exit_loop_tool
-from orxhestra.tools.function_tool import function_tool
-from orxhestra.tools.call_context import CallContext as ToolContext
-from orxhestra.tools.tool_registry import ToolRegistry
+from orxhestra.tools.call_context import CallContext as ToolContext  # noqa: E402
+from orxhestra.tools.exit_loop import EXIT_LOOP_SENTINEL, exit_loop_tool  # noqa: E402
+from orxhestra.tools.function_tool import function_tool  # noqa: E402
+from orxhestra.tools.tool_registry import ToolRegistry  # noqa: E402
 
 
 def _make_ctx():

@@ -13,7 +13,6 @@ from langchain_core.language_models import BaseChatModel
 
 from orxhestra.composer.errors import ComposerError
 
-
 _REGISTRY: dict[str, type[BaseChatModel]] = {}
 
 # Lazy-import specs: provider name -> (module, class_name)

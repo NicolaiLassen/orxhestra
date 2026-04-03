@@ -47,7 +47,7 @@ from orxhestra.planners.task_board import (
 
 if TYPE_CHECKING:
     from orxhestra.agents.invocation_context import InvocationContext
-    from orxhestra.agents.readonly_context import ReadonlyContext
+    from orxhestra.agents.readonly_context import ReadonlyContext as ReadonlyInvocationContext
     from orxhestra.models.llm_request import LlmRequest
 
 

@@ -36,9 +36,9 @@ from typing import TYPE_CHECKING
 from langchain_core.runnables import RunnableConfig
 
 from orxhestra.agents.invocation_context import InvocationContext
+from orxhestra.artifacts.base_artifact_service import BaseArtifactService
 from orxhestra.events.event import Event, EventType
 from orxhestra.models.part import Content
-from orxhestra.artifacts.base_artifact_service import BaseArtifactService
 from orxhestra.sessions.base_session_service import BaseSessionService
 from orxhestra.sessions.compaction import CompactionConfig, compact_session
 from orxhestra.sessions.session import Session

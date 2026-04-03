@@ -94,7 +94,9 @@ def print_orx_config(orx_path: Path, console: Any) -> None:
 
     pkg_ver: str = orxhestra.__version__
 
-    console.print(f"\n  [bold blue]orx[/bold blue] [dim]v{pkg_ver}[/dim]  [dim]{orx_path.name}[/dim]")
+    console.print(
+        f"\n  [bold blue]orx[/bold blue] [dim]v{pkg_ver}[/dim]  [dim]{orx_path.name}[/dim]"
+    )
     console.print(f"  [dim]model: {model_str}[/dim]")
     if lines:
         console.print()

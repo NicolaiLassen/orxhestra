@@ -12,7 +12,7 @@ from uuid import uuid4
 from langchain_core.runnables import RunnableConfig
 
 from orxhestra.agents.base_agent import BaseAgent
-from orxhestra.agents.invocation_context import InvocationContext
+from orxhestra.agents.invocation_context import InvocationContext as Context
 from orxhestra.events.event import Event, EventType
 
 # A2A v1.0 protocol types (lightweight aliases, no external dep).

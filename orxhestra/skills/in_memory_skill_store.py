@@ -1,3 +1,5 @@
+"""In-memory skill store — dict-backed, for local dev and tests."""
+
 from __future__ import annotations
 
 from orxhestra.skills.skill import Skill
@@ -5,16 +7,26 @@ from orxhestra.skills.skill_store import BaseSkillStore
 
 
 class InMemorySkillStore(BaseSkillStore):
-    """Dict-backed skill store for local dev and tests."""
+    """Dict-backed skill store for local development and testing.
+
+    Parameters
+    ----------
+    skills : list[Skill], optional
+        Initial skills to seed the store with.
+    """
 
     def __init__(self, skills: list[Skill] | None = None) -> None:
         self._by_id: dict[str, Skill] = {}
         self._by_name: dict[str, Skill] = {}
-        for skill in (skills or []):
-            self.add(skill)
+        for skill in skills or []:
+            self._add(skill)
+
+    def _add(self, skill: Skill) -> None:
+        self._by_id[skill.id] = skill
+        self._by_name[skill.name] = skill
 
     def add(self, skill: Skill) -> None:
-        """Register a skill.
+        """Add a skill to the store.
 
         Parameters
         ----------
@@ -27,9 +39,8 @@ class InMemorySkillStore(BaseSkillStore):
             If a skill with the same name is already registered.
         """
         if skill.name in self._by_name:
-            raise ValueError(f"Skill '{skill.name}' already registered.")
-        self._by_id[skill.id] = skill
-        self._by_name[skill.name] = skill
+            raise ValueError(f"Skill '{skill.name}' is already registered")
+        self._add(skill)
 
     async def get_skill(self, skill_id: str) -> Skill | None:
         """Retrieve a skill by its unique ID.
@@ -67,6 +78,6 @@ class InMemorySkillStore(BaseSkillStore):
         Returns
         -------
         list[Skill]
-            All skills in registration order.
+            All registered skills.
         """
-        return list(self._by_name.values())
+        return list(self._by_id.values())

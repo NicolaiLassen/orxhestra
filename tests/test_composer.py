@@ -88,11 +88,11 @@ class TestSchema:
         assert td.transfer.targets == ["A", "B"]
 
     def test_skill_requires_content_or_mcp(self):
-        with pytest.raises(ValueError, match="content.*or.*mcp"):
+        with pytest.raises(ValueError, match="exactly one"):
             SkillItemDef.model_validate({"name": "empty"})
 
     def test_skill_rejects_both_content_and_mcp(self):
-        with pytest.raises(ValueError, match="cannot have both"):
+        with pytest.raises(ValueError, match="exactly one"):
             SkillItemDef.model_validate({
                 "name": "both",
                 "content": "inline",

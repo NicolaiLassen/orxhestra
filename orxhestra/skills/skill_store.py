@@ -1,10 +1,13 @@
-"""Skill store - abstract and in-memory implementations."""
+"""Skill store — abstract base class for skill storage backends."""
 
 from __future__ import annotations
 
+import logging
 from abc import ABC, abstractmethod
 
 from orxhestra.skills.skill import Skill
+
+logger = logging.getLogger(__name__)
 
 
 class BaseSkillStore(ABC):
@@ -53,76 +56,49 @@ class BaseSkillStore(ABC):
         """
         ...
 
+    async def get_skill_resource(self, skill_name: str, resource_path: str) -> str | None:
+        """Read a resource file's content from a skill.
 
-class InMemorySkillStore(BaseSkillStore):
-    """Dict-backed skill store for local development and testing.
-
-    Parameters
-    ----------
-    skills : list[Skill], optional
-        Initial skills to seed the store with.
-    """
-
-    def __init__(self, skills: list[Skill] | None = None) -> None:
-        self._by_id: dict[str, Skill] = {}
-        self._by_name: dict[str, Skill] = {}
-        for skill in (skills or []):
-            self._add(skill)
-
-    def _add(self, skill: Skill) -> None:
-        self._by_id[skill.id] = skill
-        self._by_name[skill.name] = skill
-
-    def add(self, skill: Skill) -> None:
-        """Add a skill to the store.
+        Resolves the resource from the skill's ``base_path`` on disk.
+        Guards against path traversal attacks.
 
         Parameters
         ----------
-        skill : Skill
-            The skill to register.
-
-        Raises
-        ------
-        ValueError
-            If a skill with the same name is already registered.
-        """
-        if skill.name in self._by_name:
-            raise ValueError(f"Skill '{skill.name}' is already registered")
-        self._add(skill)
-
-    async def get_skill(self, skill_id: str) -> Skill | None:
-        """Retrieve a skill by its unique ID.
-
-        Parameters
-        ----------
-        skill_id : str
-            The unique skill identifier.
+        skill_name : str
+            The skill to read the resource from.
+        resource_path : str
+            Relative path within the skill directory.
 
         Returns
         -------
-        Skill or None
+        str or None
+            File content, or None if not found or inaccessible.
         """
-        return self._by_id.get(skill_id)
+        skill = await self.get_by_name(skill_name)
+        if skill is None or skill.base_path is None:
+            return None
 
-    async def get_by_name(self, name: str) -> Skill | None:
-        """Retrieve a skill by its name.
+        # Validate the resource is declared
+        known_paths = {r.path for r in skill.resources}
+        if resource_path not in known_paths:
+            return None
 
-        Parameters
-        ----------
-        name : str
-            The skill name to look up.
+        # Resolve and guard against path traversal
+        base = skill.base_path.resolve()
+        target = (skill.base_path / resource_path).resolve()
+        if not target.is_relative_to(base):
+            logger.warning(
+                "Path traversal attempt blocked: %s in skill %s",
+                resource_path,
+                skill_name,
+            )
+            return None
 
-        Returns
-        -------
-        Skill or None
-        """
-        return self._by_name.get(name)
+        if not target.is_file():
+            return None
 
-    async def list_skills(self) -> list[Skill]:
-        """Return all registered skills.
-
-        Returns
-        -------
-        list[Skill]
-        """
-        return list(self._by_id.values())
+        try:
+            return target.read_text(encoding="utf-8")
+        except Exception as exc:
+            logger.warning("Failed to read resource %s: %s", target, exc)
+            return None

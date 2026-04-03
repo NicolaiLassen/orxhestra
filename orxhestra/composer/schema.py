@@ -81,20 +81,19 @@ class PlannerDef(BaseModel):
 
 
 class SkillItemDef(BaseModel):
-    """A skill definition — either inline ``content`` or remote ``mcp``."""
+    """A skill definition — inline ``content``, remote ``mcp``, or ``directory``."""
 
     name: str
     description: str = ""
     content: str | None = None
     mcp: MCPConfig | None = None
+    directory: str | None = None
 
     @model_validator(mode="after")
-    def _require_content_or_mcp(self) -> SkillItemDef:
-        if not self.content and not self.mcp:
-            msg = "Skill must have either 'content' (inline) or 'mcp' (remote)"
-            raise ValueError(msg)
-        if self.content and self.mcp:
-            msg = "Skill cannot have both 'content' and 'mcp'"
+    def _require_one_source(self) -> SkillItemDef:
+        sources = [s for s in ("content", "mcp", "directory") if getattr(self, s)]
+        if len(sources) != 1:
+            msg = "Skill must have exactly one of 'content', 'mcp', or 'directory'"
             raise ValueError(msg)
         return self
 

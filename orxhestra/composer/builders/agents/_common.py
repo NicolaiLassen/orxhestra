@@ -72,12 +72,15 @@ async def resolve_llm_kwargs(
         kwargs["output_schema"] = import_object(agent_def.output_schema)
 
     if agent_def.skills:
+        from pathlib import Path
+
         from orxhestra.composer.builders.tools import resolve_mcp_skill
         from orxhestra.composer.errors import ComposerError
         from orxhestra.skills import (
             InMemorySkillStore,
             Skill,
             make_list_skills_tool,
+            make_load_skill_resource_tool,
             make_load_skill_tool,
         )
 
@@ -94,20 +97,27 @@ async def resolve_llm_kwargs(
                     url=skill_def.mcp.url,
                     server_path=skill_def.mcp.server,
                 )
+            elif skill_def.directory:
+                from orxhestra.skills.loader import scan_skill_directory
+
+                skill = scan_skill_directory(Path(skill_def.directory))
             else:
                 skill = Skill(
                     name=skill_def.name,
                     description=skill_def.description,
-                    content=skill_def.content,
+                    content=skill_def.content or "",
                 )
             skill_items.append(skill)
         store = InMemorySkillStore(skill_items)
+        has_resources = any(s.resources for s in skill_items)
         existing = kwargs.get("tools") or []
-        kwargs["tools"] = [
-            *existing,
+        skill_tools = [
             make_list_skills_tool(store),
             make_load_skill_tool(store),
         ]
+        if has_resources:
+            skill_tools.append(make_load_skill_resource_tool(store))
+        kwargs["tools"] = [*existing, *skill_tools]
 
     return kwargs
 

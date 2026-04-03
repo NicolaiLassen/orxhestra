@@ -406,11 +406,18 @@ class LlmAgent(BaseAgent):
         # Only filter by branch/invocation when inside a composite agent
         # (indicated by a non-empty branch). Top-level agents need the
         # full session history for multi-turn conversations.
+        #
+        # Exclude the current invocation's events from history — the
+        # Runner already appended the current user message to the session
+        # before calling the agent, so including it here would duplicate
+        # it (we add the current message explicitly below).
         if self._include_contents != "none":
             filtered = ctx.get_events(
                 current_branch=bool(ctx.branch),
                 current_invocation=bool(ctx.branch),
             )
+            inv_id = ctx.invocation_id
+            filtered = [e for e in filtered if e.invocation_id != inv_id]
             if filtered:
                 messages.extend(self._events_to_messages(filtered))
 

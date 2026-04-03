@@ -56,14 +56,16 @@ def apply_compaction(events: list[Event]) -> list[Event]:
     for event in events:
         c = event.actions.compaction
         if c is not None:
+            # Emit as USER_MESSAGE so the LLM sees it as context
+            # injection, not as a prior AI response it never generated.
             result.append(Event(
-                type=EventType.AGENT_MESSAGE,
+                type=EventType.USER_MESSAGE,
                 session_id=event.session_id,
                 agent_name=event.agent_name,
                 branch=event.branch,
                 invocation_id=event.invocation_id,
                 content=Content.from_text(
-                    f"[Compacted summary of {c.event_count} events]\n\n"
+                    f"[Compacted summary of {c.event_count} previous events]\n\n"
                     f"{c.summary}"
                 ),
             ))

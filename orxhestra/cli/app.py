@@ -162,6 +162,7 @@ async def _build_from_orx(
     else:
         from orxhestra.artifacts.in_memory_artifact_service import InMemoryArtifactService
         from orxhestra.runner import Runner
+        from orxhestra.sessions.compaction import CompactionConfig
         from orxhestra.sessions.in_memory_session_service import InMemorySessionService
 
         runner = Runner(
@@ -169,6 +170,11 @@ async def _build_from_orx(
             app_name=APP_NAME,
             session_service=InMemorySessionService(),
             artifact_service=InMemoryArtifactService(),
+            compaction_config=CompactionConfig(
+                char_threshold=40_000,
+                retention_chars=8_000,
+                llm=llm,
+            ),
         )
 
     session_id: str = str(uuid4())
@@ -201,12 +207,19 @@ def _inject_context(
 
 
 _HELP_TEXT: str = """[bold]Commands:[/bold]
-  /model <name>  Switch model
+  /model <name>  Switch model (preserves history)
   /clear         Clear session
   /compact       Summarize old messages to free context
   /todos         Show current task list
+  /session       Show session info
+  /undo          Remove last turn
+  /retry         Re-run last message
+  /copy          Copy last response to clipboard
   /exit          Exit
-  /help          Show this help"""
+  /help          Show this help
+
+[bold]Multi-line input:[/bold]
+  Start with \\"\\"\\" or ''' and end with the same delimiter."""
 
 
 async def _handle_slash_command(
@@ -262,12 +275,25 @@ async def _handle_slash_command(
     if cmd == "/model":
         if cmd_arg:
             try:
-                runner, session_id, todo_list, llm = await _build_from_orx(
+                # Save old session events before rebuilding
+                old_session = await runner.get_or_create_session(
+                    user_id=DEFAULT_USER_ID, session_id=session_id
+                )
+                old_events = list(old_session.events)
+
+                runner, _new_sid, todo_list, llm = await _build_from_orx(
                     orx_path, cmd_arg, workspace
                 )
                 model_name = cmd_arg
+
+                # Restore events into new runner's session (keep old session_id)
+                new_session = await runner.get_or_create_session(
+                    user_id=DEFAULT_USER_ID, session_id=session_id
+                )
+                new_session.events.extend(old_events)
+
                 turn_count = 0
-                console.print(f"[dim]Switched to {model_name}[/dim]")
+                console.print(f"[dim]Switched to {model_name} (history preserved)[/dim]")
             except Exception as e:
                 console.print(f"[red]Error: {e}[/red]")
         else:
@@ -281,6 +307,92 @@ async def _handle_slash_command(
                 console.print("[dim]No tasks.[/dim]")
         else:
             console.print("[dim]No tasks.[/dim]")
+        return runner, session_id, todo_list, llm, model_name, turn_count, True
+
+    if cmd == "/session":
+        session = await runner.get_or_create_session(
+            user_id=DEFAULT_USER_ID, session_id=session_id
+        )
+        event_count: int = len(session.events)
+        from orxhestra.sessions.compaction import _estimate_event_chars
+
+        total_chars: int = sum(_estimate_event_chars(e) for e in session.events)
+        console.print(f"  [dim]session:  {session_id}[/dim]")
+        console.print(f"  [dim]events:   {event_count}[/dim]")
+        console.print(f"  [dim]chars:    {total_chars:,} (~{total_chars // 4:,} tokens)[/dim]")
+        console.print(f"  [dim]turns:    {turn_count}[/dim]")
+        return runner, session_id, todo_list, llm, model_name, turn_count, True
+
+    if cmd == "/undo":
+        session = await runner.get_or_create_session(
+            user_id=DEFAULT_USER_ID, session_id=session_id
+        )
+        from orxhestra.events.event import EventType as _ET
+
+        # Find the last user message and remove everything from it onwards
+        last_user_idx: int = -1
+        for i in range(len(session.events) - 1, -1, -1):
+            if session.events[i].type == _ET.USER_MESSAGE:
+                last_user_idx = i
+                break
+        if last_user_idx >= 0:
+            removed: int = len(session.events) - last_user_idx
+            session.events[:] = session.events[:last_user_idx]
+            turn_count = max(0, turn_count - 1)
+            console.print(f"[dim]Removed last turn ({removed} events).[/dim]")
+        else:
+            console.print("[dim]Nothing to undo.[/dim]")
+        return runner, session_id, todo_list, llm, model_name, turn_count, True
+
+    if cmd == "/retry":
+        session = await runner.get_or_create_session(
+            user_id=DEFAULT_USER_ID, session_id=session_id
+        )
+        from orxhestra.events.event import EventType as _ET
+
+        # Find the last user message, save it, remove the turn
+        last_msg: str | None = None
+        last_user_idx = -1
+        for i in range(len(session.events) - 1, -1, -1):
+            if session.events[i].type == _ET.USER_MESSAGE:
+                last_msg = session.events[i].text
+                last_user_idx = i
+                break
+        if last_msg and last_user_idx >= 0:
+            session.events[:] = session.events[:last_user_idx]
+            turn_count = max(0, turn_count - 1)
+            console.print(f"[dim]Retrying: {last_msg[:60]}[/dim]")
+            # Store retry message on runner for the REPL to pick up
+            runner._retry_message = last_msg
+        else:
+            console.print("[dim]Nothing to retry.[/dim]")
+        return runner, session_id, todo_list, llm, model_name, turn_count, True
+
+    if cmd == "/copy":
+        session = await runner.get_or_create_session(
+            user_id=DEFAULT_USER_ID, session_id=session_id
+        )
+        from orxhestra.events.event import EventType as _ET
+
+        # Find last agent response
+        last_response: str | None = None
+        for i in range(len(session.events) - 1, -1, -1):
+            e = session.events[i]
+            if e.type == _ET.AGENT_MESSAGE and e.text and not e.partial:
+                last_response = e.text
+                break
+        if last_response:
+            try:
+                import subprocess
+
+                subprocess.run(
+                    ["pbcopy"], input=last_response.encode(), check=True,
+                )
+                console.print("[dim]Copied to clipboard.[/dim]")
+            except Exception:
+                console.print("[dim]Clipboard not available.[/dim]")
+        else:
+            console.print("[dim]No response to copy.[/dim]")
         return runner, session_id, todo_list, llm, model_name, turn_count, True
 
     if cmd == "/help":
@@ -312,14 +424,13 @@ async def _repl(
         print("Error: rich is required. Install with: pip install orxhestra[cli]")
         sys.exit(1)
 
-    from orxhestra.cli.render import print_orx_config
+    from orxhestra.cli.render import print_banner
     from orxhestra.cli.stream import stream_response
 
     console = Console()
 
     # Welcome banner
-    print_orx_config(orx_path, console)
-    console.print(f"  [dim]workspace: {workspace}[/dim]")
+    print_banner(orx_path, model_name, workspace, console)
     console.print("  [dim]type /help for commands, Ctrl+D to exit[/dim]\n")
 
     # Try prompt_toolkit for history support
@@ -349,6 +460,26 @@ async def _repl(
         if not user_input:
             continue
 
+        # Multi-line input: triple-quote delimiters
+        if user_input.startswith('"""') or user_input.startswith("'''"):
+            delimiter: str = user_input[:3]
+            ml_lines: list[str] = [user_input[3:]]
+            while True:
+                try:
+                    if prompt_session:
+                        ml_line: str = await prompt_session.prompt_async("... ")
+                    else:
+                        ml_line = input("... ")
+                except (EOFError, KeyboardInterrupt):
+                    break
+                if ml_line.rstrip().endswith(delimiter):
+                    ml_lines.append(ml_line.rstrip().removesuffix(delimiter))
+                    break
+                ml_lines.append(ml_line)
+            user_input = "\n".join(ml_lines).strip()
+            if not user_input:
+                continue
+
         # Slash commands
         if user_input.startswith("/"):
             cmd_parts: list[str] = user_input.split(maxsplit=1)
@@ -371,22 +502,14 @@ async def _repl(
             )
             if not should_continue:
                 break
-            continue
-
-        # Auto-summarize every 20 turns
-        if llm is not None and turn_count > 0 and turn_count % 20 == 0:
-            from orxhestra.cli.summarization import summarize_session
-
-            try:
-                session = await runner.get_or_create_session(
-                    user_id=DEFAULT_USER_ID, session_id=session_id
-                )
-                result = await summarize_session(llm, session.events)
-                if result is not None:
-                    session.events[:] = result
-                    console.print("[dim](conversation auto-compacted)[/dim]")
-            except Exception:
-                pass
+            # Check if /retry set a message to re-send
+            retry_msg: str | None = getattr(runner, "_retry_message", None)
+            if retry_msg:
+                runner._retry_message = None
+                user_input = retry_msg
+                # Fall through to stream_response below
+            else:
+                continue
 
         auto_approve = await stream_response(
             runner,

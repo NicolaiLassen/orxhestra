@@ -3,11 +3,17 @@
 from __future__ import annotations
 
 import sys
+import time
 from typing import Any
 
 from orxhestra.cli.approval import APPROVE_REQUIRED, format_approval_prompt
 from orxhestra.cli.config import DEFAULT_USER_ID
-from orxhestra.cli.render import render_todos, render_tool_call, render_tool_response
+from orxhestra.cli.render import (
+    render_todos,
+    render_tool_call,
+    render_tool_response,
+    render_turn_summary,
+)
 from orxhestra.events.event import EventType
 
 
@@ -52,6 +58,11 @@ async def stream_response(
     buffer: str = ""
     in_stream: bool = False
     live: Any = None
+    status: Any = None
+    tool_start: float = 0.0
+    turn_start: float = time.monotonic()
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
 
     try:
         from rich.live import Live
@@ -59,13 +70,31 @@ async def stream_response(
         Live = None
 
     try:
+        from rich.status import Status
+    except ImportError:
+        Status = None
+
+    def _stop_status() -> None:
+        nonlocal status
+        if status is not None:
+            status.stop()
+            status = None
+
+    try:
         async for event in runner.astream(
             user_id=DEFAULT_USER_ID,
             session_id=session_id,
             new_message=message,
         ):
+            # Extract token usage from event metadata
+            usage: dict = event.metadata.get("usage", {})
+            if usage:
+                prompt_tokens += usage.get("prompt_tokens", 0) or 0
+                completion_tokens += usage.get("completion_tokens", 0) or 0
+
             # Streaming partial tokens
             if event.partial and event.type == EventType.AGENT_MESSAGE and event.text:
+                _stop_status()
                 buffer += event.text
                 if Live is not None:
                     if not in_stream:
@@ -86,6 +115,7 @@ async def stream_response(
 
             # Tool call — with approval for destructive tools
             if event.has_tool_calls:
+                _stop_status()
                 if in_stream and live:
                     live.stop()
                     in_stream = False
@@ -102,11 +132,27 @@ async def stream_response(
                         )
                         if not approved:
                             console.print("  [dim]Denied.[/dim]")
+
+                # Start spinner while waiting for tool response
+                tool_start = time.monotonic()
+                if Status is not None:
+                    last_tool: str = event.tool_calls[-1].tool_name
+                    status = Status(
+                        f"  Running {last_tool}...",
+                        console=console,
+                        spinner="dots",
+                    )
+                    status.start()
                 continue
 
             # Tool response
             if event.type == EventType.TOOL_RESPONSE:
-                render_tool_response(event, console)
+                _stop_status()
+                elapsed: float | None = None
+                if tool_start > 0:
+                    elapsed = time.monotonic() - tool_start
+                    tool_start = 0.0
+                render_tool_response(event, console, elapsed=elapsed)
 
                 if event.tool_name == "write_todos" and todo_list is not None:
                     render_todos(todo_list, console)
@@ -114,6 +160,7 @@ async def stream_response(
 
             # Final response
             if event.is_final_response():
+                _stop_status()
                 was_streaming: bool = in_stream
                 if in_stream and live:
                     live.stop()
@@ -132,6 +179,7 @@ async def stream_response(
 
             # Error events
             if event.metadata.get("error") and event.text:
+                _stop_status()
                 if in_stream and live:
                     live.stop()
                     in_stream = False
@@ -140,13 +188,24 @@ async def stream_response(
                 continue
 
     except KeyboardInterrupt:
+        _stop_status()
         if in_stream and live:
             live.stop()
         console.print("\n[dim]Interrupted.[/dim]")
     finally:
+        _stop_status()
         if in_stream and live:
             live.stop()
             if buffer:
                 console.print(Markdown(buffer))
+
+    # Turn summary line
+    turn_elapsed: float = time.monotonic() - turn_start
+    render_turn_summary(
+        turn_elapsed,
+        console,
+        prompt_tokens=prompt_tokens,
+        completion_tokens=completion_tokens,
+    )
 
     return auto_approve

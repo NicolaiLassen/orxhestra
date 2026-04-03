@@ -5,42 +5,77 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+# Tool categories for color-coding
+_READ_TOOLS: frozenset[str] = frozenset({
+    "read_file", "ls", "glob", "grep", "list_artifacts", "load_artifact",
+    "list_skills", "load_skill",
+})
+_WRITE_TOOLS: frozenset[str] = frozenset({
+    "write_file", "edit_file", "mkdir", "save_artifact",
+})
+_SHELL_TOOLS: frozenset[str] = frozenset({
+    "shell_exec", "shell_exec_background",
+})
+
+
+def _tool_style(tool_name: str) -> str:
+    """Return a Rich style string based on tool category."""
+    if tool_name in _READ_TOOLS:
+        return "dim"
+    if tool_name in _WRITE_TOOLS:
+        return "yellow"
+    if tool_name in _SHELL_TOOLS:
+        return "bold"
+    return "dim"
+
+
+def _tool_arg_summary(tool_name: str, args: dict) -> str:
+    """Build a concise summary of tool call arguments."""
+    if "path" in args:
+        return args["path"]
+    if "command" in args:
+        cmd: str = args["command"]
+        return cmd[:80] + ("..." if len(cmd) > 80 else "")
+    if "pattern" in args:
+        return args["pattern"]
+    if "description" in args:
+        desc: str = args["description"]
+        return desc[:60] + ("..." if len(desc) > 60 else "")
+    if "todos" in args:
+        return "(task list update)"
+    return ", ".join(
+        f"{k}={repr(v)[:40]}" for k, v in list(args.items())[:3]
+    )
+
 
 def render_tool_call(event: Any, console: Any) -> None:
-    """Print a tool call event."""
+    """Print a tool call event with boxed format."""
     for tc in event.tool_calls:
         args: dict = tc.args or {}
-        args_summary: str = ""
-
-        if "path" in args:
-            args_summary = args["path"]
-        elif "command" in args:
-            cmd: str = args["command"]
-            args_summary = cmd[:80] + ("..." if len(cmd) > 80 else "")
-        elif "pattern" in args:
-            args_summary = args["pattern"]
-        elif "description" in args:
-            desc: str = args["description"]
-            args_summary = desc[:60] + ("..." if len(desc) > 60 else "")
-        elif "todos" in args:
-            args_summary = "(task list update)"
-        else:
-            args_summary = ", ".join(
-                f"{k}={repr(v)[:40]}" for k, v in list(args.items())[:3]
-            )
-
-        console.print(f"  [dim]> {tc.tool_name}({args_summary})[/dim]")
+        summary: str = _tool_arg_summary(tc.tool_name, args)
+        style: str = _tool_style(tc.tool_name)
+        console.print(f"  [{style}]\u250c {tc.tool_name}[/{style}]")
+        if summary:
+            console.print(f"  [{style}]\u2502 {summary}[/{style}]")
 
 
-def render_tool_response(event: Any, console: Any) -> None:
-    """Print a truncated tool response."""
+def render_tool_response(
+    event: Any,
+    console: Any,
+    *,
+    elapsed: float | None = None,
+) -> None:
+    """Print a truncated tool response with optional timing."""
     text: str = (event.text or "")[:300]
+    elapsed_str: str = f" ({elapsed:.1f}s)" if elapsed is not None else ""
     if text:
         lines: list[str] = text.splitlines()
-        preview: str = "\n    ".join(lines[:5])
-        if len(lines) > 5:
-            preview += f"\n    ... ({len(lines)} lines total)"
-        console.print(f"    [dim]{preview}[/dim]")
+        first_line: str = lines[0][:120]
+        if len(lines) > 1:
+            first_line += f"  ({len(lines)} lines)"
+        console.print(f"  [dim]\u2514 {first_line}{elapsed_str}[/dim]")
+    elif elapsed_str:
+        console.print(f"  [dim]\u2514 done{elapsed_str}[/dim]")
 
 
 def render_todos(todo_list: Any, console: Any) -> None:
@@ -52,53 +87,60 @@ def render_todos(todo_list: Any, console: Any) -> None:
         console.print(f"\n[bold]Tasks:[/bold]\n{rendered}")
 
 
-def print_orx_config(orx_path: Path, console: Any) -> None:
-    """Pretty-print the orx.yaml agent configuration on startup."""
-    try:
-        import yaml
-    except ImportError:
-        return
+def render_turn_summary(
+    elapsed: float,
+    console: Any,
+    *,
+    prompt_tokens: int = 0,
+    completion_tokens: int = 0,
+) -> None:
+    """Print a concise summary line after each agent turn."""
+    parts: list[str] = [f"{elapsed:.1f}s"]
+    total: int = prompt_tokens + completion_tokens
+    if total > 0:
+        parts.append(f"{total:,} tokens ({prompt_tokens:,}\u2191 {completion_tokens:,}\u2193)")
+    sep: str = " \u00b7 "
+    summary: str = sep.join(parts)
+    console.print(f"  [dim]\u27e1 {summary}[/dim]")
 
-    try:
-        with open(orx_path) as f:
-            raw: dict = yaml.safe_load(f)
-    except Exception:
-        return
 
-    agents: dict = raw.get("agents", {})
-    main_agent: str = raw.get("main_agent", "")
-    model_cfg: dict = raw.get("defaults", {}).get("model", {})
-    model_str: str = model_cfg.get("name", "?")
-
-    lines: list[str] = []
-    for name, agent_def in agents.items():
-        agent_type: str = agent_def.get("type", "llm")
-        desc: str = agent_def.get("description", "")
-        marker: str = "[bold cyan]*[/bold cyan] " if name == main_agent else "  "
-        tools: list = agent_def.get("tools", [])
-        tool_names: str = ", ".join(str(t) for t in tools) if tools else ""
-
-        type_badge: str = f"[dim]({agent_type})[/dim]"
-        line: str = f"  {marker}[bold]{name}[/bold] {type_badge}"
-        if desc:
-            line += f"  [dim]{desc}[/dim]"
-        lines.append(line)
-        if tool_names:
-            lines.append(f"      [dim]tools: {tool_names}[/dim]")
-
-        sub_agents: list | None = agent_def.get("agents")
-        if sub_agents:
-            lines.append(f"      [dim]agents: {' -> '.join(sub_agents)}[/dim]")
-
+def print_banner(
+    orx_path: Path,
+    model_name: str,
+    workspace: str,
+    console: Any,
+) -> None:
+    """Print a styled welcome banner."""
     import orxhestra
 
-    pkg_ver: str = orxhestra.__version__
+    try:
+        from rich.panel import Panel
+    except ImportError:
+        console.print(f"\n  orx v{orxhestra.__version__}  model: {model_name}")
+        return
 
-    console.print(
-        f"\n  [bold blue]orx[/bold blue] [dim]v{pkg_ver}[/dim]  [dim]{orx_path.name}[/dim]"
+    try:
+        import yaml
+
+        with open(orx_path) as f:
+            raw: dict = yaml.safe_load(f)
+        agents: dict = raw.get("agents", {})
+        agent_names: str = ", ".join(agents.keys()) if agents else "default"
+    except Exception:
+        agent_names = "default"
+
+    # Shorten workspace path
+    ws_display: str = str(workspace)
+    home: str = str(Path.home())
+    if ws_display.startswith(home):
+        ws_display = "~" + ws_display[len(home):]
+
+    content: str = (
+        f"[bold blue]orx[/bold blue] [dim]v{orxhestra.__version__}[/dim]\n"
+        f"[dim]model:[/dim]     {model_name}\n"
+        f"[dim]workspace:[/dim] {ws_display}\n"
+        f"[dim]agents:[/dim]    {agent_names}"
     )
-    console.print(f"  [dim]model: {model_str}[/dim]")
-    if lines:
-        console.print()
-        for line in lines:
-            console.print(line)
+
+    console.print()
+    console.print(Panel(content, border_style="dim", padding=(0, 2)))

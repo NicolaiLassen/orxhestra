@@ -262,13 +262,14 @@ async def test_multi_turn_history_from_session():
     ctx = _ctx(session=session)
     _ = [e async for e in agent.astream("What is my name?", ctx=ctx)]
 
-    # Should have: SystemMessage, HumanMessage("My name is Alice"),
+    # Should have: SystemMessage, [agent] said context, HumanMessage("My name is Alice"),
     # AIMessage("Hello Alice!"), HumanMessage("What is my name?")
     human_msgs = [m for m in received_messages if isinstance(m, HumanMessage)]
     ai_msgs = [m for m in received_messages if isinstance(m, AIMessage)]
-    assert len(human_msgs) == 2  # previous + current
-    assert human_msgs[0].content == "My name is Alice"
-    assert human_msgs[1].content == "What is my name?"
+    assert len(human_msgs) == 3  # prev context + previous + current
+    assert "Hello Alice!" in human_msgs[0].content  # [agent] said: ...
+    assert human_msgs[1].content == "My name is Alice"
+    assert human_msgs[2].content == "What is my name?"
     assert len(ai_msgs) == 1
     assert ai_msgs[0].content == "Hello Alice!"
 

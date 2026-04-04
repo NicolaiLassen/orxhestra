@@ -35,6 +35,7 @@ Context management:
 from __future__ import annotations
 
 import asyncio
+import logging
 from collections.abc import AsyncIterator, Awaitable, Callable
 from functools import reduce
 from typing import TYPE_CHECKING, Any
@@ -73,6 +74,8 @@ from orxhestra.tools.transfer_tool import TRANSFER_SENTINEL
 if TYPE_CHECKING:
     from orxhestra.planners.base_planner import BasePlanner
 
+logger: logging.Logger = logging.getLogger(__name__)
+
 # Type alias for instruction providers - either a static string or a callable
 # that receives the current Context and returns a string.
 InstructionProvider = str | Callable[[InvocationContext], str | Awaitable[str]]
@@ -82,6 +85,75 @@ You are a helpful assistant. Answer the user's questions clearly and concisely.
 When you have enough information to answer, provide a direct response.
 Only use tools when necessary to complete the task.
 """
+
+_PREV_CONTEXT_MAX_CHARS = 2000
+_PREV_CONTEXT_TOTAL_MAX_CHARS = 6000
+
+# Maximum characters per tool response kept in the message history.
+_TOOL_RESPONSE_MAX_CHARS = 30_000
+
+
+def _build_previous_context(
+    events: list,
+) -> list[HumanMessage]:
+    """Build context messages from previous invocations' final responses.
+
+    Deduplicates by agent name (keeps only the latest response per agent)
+    and truncates long responses to prevent token explosion.
+
+    Parameters
+    ----------
+    events : list[Event]
+        Final response events from previous invocations
+        (from ``ctx.get_previous_final_responses()``).
+
+    Returns
+    -------
+    list[HumanMessage]
+        Context messages formatted as ``[agent] said: ...``.
+    """
+    from orxhestra.tools.output import truncate_output
+
+    if not events:
+        return []
+
+    # Deduplicate: keep only the LAST final response per agent
+    latest_by_agent: dict[str, Any] = {}
+    for event in events:
+        agent = event.agent_name or "agent"
+        latest_by_agent[agent] = event
+
+    # Build messages, truncating each and respecting total budget
+    messages: list[HumanMessage] = []
+    total_chars = 0
+
+    for agent, event in latest_by_agent.items():
+        if total_chars >= _PREV_CONTEXT_TOTAL_MAX_CHARS:
+            break
+
+        remaining = _PREV_CONTEXT_TOTAL_MAX_CHARS - total_chars
+        max_chars = min(_PREV_CONTEXT_MAX_CHARS, remaining)
+        text = truncate_output(event.text, max_chars)
+
+        content = f"[{agent}] said: {text}"
+        messages.append(HumanMessage(content=content))
+        total_chars += len(content)
+
+    return messages
+
+
+def _truncate_tool_message(msg: ToolMessage) -> ToolMessage:
+    """Truncate a ToolMessage if its content exceeds the limit."""
+    content = msg.content
+    if isinstance(content, str) and len(content) > _TOOL_RESPONSE_MAX_CHARS:
+        from orxhestra.tools.output import truncate_output
+
+        content = truncate_output(content, _TOOL_RESPONSE_MAX_CHARS)
+        return ToolMessage(
+            content=content,
+            tool_call_id=msg.tool_call_id,
+        )
+    return msg
 
 
 class LlmAgent(BaseAgent):
@@ -181,6 +253,8 @@ class LlmAgent(BaseAgent):
         self.before_tool_callback = before_tool_callback
         self.after_tool_callback = after_tool_callback
 
+    # ── Prompt & history helpers ─────────────────────────────────
+
     async def _resolve_instructions(self, ctx: InvocationContext) -> str:
         """Resolve the system prompt from a string or instruction provider.
 
@@ -210,6 +284,47 @@ class LlmAgent(BaseAgent):
             prompt = f"{prompt}\n\n{parser.get_format_instructions()}"
 
         return prompt
+
+    async def _build_conversation_history(
+        self, ctx: InvocationContext, input: str,
+    ) -> tuple[str, list[BaseMessage]]:
+        """Build the system prompt and full message list for the LLM.
+
+        Parameters
+        ----------
+        ctx : InvocationContext
+            The current invocation context.
+        input : str
+            The user message or task description.
+
+        Returns
+        -------
+        tuple[str, list[BaseMessage]]
+            Resolved system prompt and the conversation messages.
+        """
+        system_prompt = await self._resolve_instructions(ctx)
+        messages: list[BaseMessage] = []
+        if system_prompt:
+            messages.append(SystemMessage(content=system_prompt))
+
+        if self._include_contents != "none":
+            prev_responses = ctx.get_previous_final_responses()
+            prev_messages = _build_previous_context(prev_responses)
+            messages.extend(prev_messages)
+
+            filtered = ctx.get_events(
+                current_branch=bool(ctx.branch),
+                current_invocation=bool(ctx.branch),
+            )
+            inv_id = ctx.invocation_id
+            filtered = [e for e in filtered if e.invocation_id != inv_id]
+            if filtered:
+                messages.extend(self._events_to_messages(filtered))
+
+        messages.append(HumanMessage(content=input))
+        return system_prompt, messages
+
+    # ── LLM helpers ──────────────────────────────────────────────
 
     def _build_bound_llm(self) -> BaseChatModel:
         """Return the LLM with tools bound."""
@@ -316,6 +431,8 @@ class LlmAgent(BaseAgent):
 
         return messages
 
+    # ── LLM call with streaming ──────────────────────────────────
+
     async def _call_llm(
         self,
         llm: BaseChatModel,
@@ -367,6 +484,259 @@ class LlmAgent(BaseAgent):
 
         yield reduce(lambda x, y: x + y, chunks)
 
+    async def _call_llm_with_recovery(
+        self,
+        llm: BaseChatModel,
+        messages: list[BaseMessage],
+        ctx: InvocationContext,
+        request: LlmRequest,
+    ) -> AsyncIterator[Event | AIMessage | None]:
+        """Call the LLM with error recovery, yielding partial events.
+
+        Yields partial ``Event`` objects during streaming, then yields the
+        final ``AIMessage`` as the last item. Yields ``None`` as the last
+        item if an unrecoverable error occurred (caller should return).
+        """
+        try:
+            async for item in self._call_llm(llm, messages, ctx):
+                yield item
+        except Exception as exc:
+            recovered = await self._handle_llm_error(ctx, request, exc)
+            if recovered is not None:
+                yield recovered
+            else:
+                yield None
+
+    async def _handle_llm_error(
+        self,
+        ctx: InvocationContext,
+        request: LlmRequest,
+        exc: Exception,
+    ) -> AIMessage | None:
+        """Handle an LLM call error, returning a recovery message or None."""
+        if self.on_model_error_callback:
+            recovery = await self.on_model_error_callback(ctx, request, exc)
+            if recovery is not None:
+                return AIMessage(content=recovery.text or "")
+        return None
+
+    # ── Final response handling ──────────────────────────────────
+
+    async def _handle_final_response(
+        self,
+        ctx: InvocationContext,
+        messages: list[BaseMessage],
+        llm_response: LlmResponse,
+    ) -> Event | None:
+        """Build the final response event, or None to continue the loop.
+
+        Checks the planner for pending tasks (returns None to continue),
+        parses structured output if configured, saves to output_key,
+        and builds the final event.
+
+        Parameters
+        ----------
+        ctx : InvocationContext
+            The current invocation context.
+        messages : list[BaseMessage]
+            Conversation messages (mutated if planner continues).
+        llm_response : LlmResponse
+            The LLM response with no tool calls.
+
+        Returns
+        -------
+        Event or None
+            The final response event, or None if the planner wants
+            the loop to continue.
+        """
+        # Check if planner has pending tasks — continue the loop.
+        if self._planner is not None:
+            from orxhestra.agents.readonly_context import ReadonlyContext
+
+            readonly = ReadonlyContext(ctx)
+            if self._planner.has_pending_tasks(readonly):
+                messages.append(
+                    HumanMessage(
+                        content=(
+                            "You still have pending tasks on the task board. "
+                            "Continue working on the next task — call the "
+                            "appropriate tools to make progress."
+                        )
+                    )
+                )
+                return None
+
+        answer_text = llm_response.text
+        parts: list[TextPart | DataPart] = []
+        if answer_text:
+            parts.append(TextPart(text=answer_text))
+
+        # Parse structured output if schema is set.
+        if self._output_schema is not None:
+            structured = await self._parse_structured_output(
+                answer_text, messages, ctx
+            )
+            if structured is not None:
+                parts.append(DataPart(data=structured.model_dump()))
+
+        # Auto-save final answer to state when output_key is set.
+        emit_kwargs: dict[str, Any] = {
+            "content": Content(parts=parts),
+            "partial": False,
+            "llm_response": llm_response,
+        }
+        if self._output_key and answer_text:
+            ctx.state[self._output_key] = answer_text
+            emit_kwargs["actions"] = EventActions(
+                state_delta={self._output_key: answer_text},
+            )
+
+        return self._emit_event(ctx, EventType.AGENT_MESSAGE, **emit_kwargs)
+
+    async def _parse_structured_output(
+        self,
+        answer_text: str | None,
+        messages: list[BaseMessage],
+        ctx: InvocationContext,
+    ) -> Any:
+        """Try to parse structured output from the answer text."""
+        parser = PydanticOutputParser(pydantic_object=self._output_schema)
+        if answer_text:
+            try:
+                return parser.parse(answer_text)
+            except Exception:
+                pass
+        structured_llm = self._build_structured_llm()
+        if structured_llm is not None:
+            try:
+                return await structured_llm.ainvoke(
+                    messages, config=ctx.run_config,
+                )
+            except Exception:
+                pass
+        return None
+
+    # ── Tool execution ───────────────────────────────────────────
+
+    async def _execute_tool_calls(
+        self,
+        ctx: InvocationContext,
+        llm_response: LlmResponse,
+    ) -> AsyncIterator[Event | tuple[Event, ToolMessage]]:
+        """Execute tool calls in parallel, yielding events as they complete.
+
+        Yields
+        ------
+        Event
+            The initial tool call event and intermediate child events.
+        tuple[Event, ToolMessage]
+            Tool response event paired with its ToolMessage for history.
+        """
+        event_queue: asyncio.Queue[Event | None] = asyncio.Queue()
+
+        tool_ctx = ctx.model_copy(
+            update={"event_callback": event_queue.put_nowait}
+        )
+
+        # Yield the tool call event.
+        yield self._emit_event(
+            ctx,
+            EventType.AGENT_MESSAGE,
+            content=Content(parts=[
+                ToolCallPart(
+                    tool_call_id=tc["id"],
+                    tool_name=tc["name"],
+                    args=tc["args"],
+                    metadata={"interactive": True}
+                    if getattr(
+                        self._tools.get(tc["name"]), "interactive", False
+                    )
+                    else {},
+                )
+                for tc in llm_response.tool_calls
+            ]),
+            llm_response=llm_response,
+        )
+
+        async def _execute_one(tool_call: dict) -> tuple[Event, ToolMessage]:
+            """Execute a single tool call and return response event + message."""
+            t_name = tool_call["name"]
+            t_args = tool_call["args"]
+            t_id = tool_call["id"]
+
+            tool = self._tools.get(t_name)
+            if tool is None:
+                return self._tool_response(
+                    ctx, t_id, t_name,
+                    error=f"Tool '{t_name}' not found. "
+                    f"Available: {list(self._tools)}",
+                )
+
+            if hasattr(tool, "inject_context"):
+                tool.inject_context(tool_ctx)
+            if self.before_tool_callback:
+                await self.before_tool_callback(ctx, t_name, t_args)
+
+            try:
+                result = await tool.ainvoke(t_args, config=ctx.run_config)
+                if self.after_tool_callback:
+                    await self.after_tool_callback(ctx, t_name, result)
+                return self._tool_response(ctx, t_id, t_name, result=str(result))
+            except Exception as exc:
+                if self.after_tool_callback:
+                    await self.after_tool_callback(ctx, t_name, None)
+                return self._tool_response(ctx, t_id, t_name, error=str(exc))
+
+        # Run all tool calls concurrently, streaming intermediate events.
+        async for item in gather_with_event_queue(
+            [_execute_one(tc) for tc in llm_response.tool_calls],
+            event_queue,
+        ):
+            if isinstance(item, Event):
+                yield item
+            else:
+                yield item  # tuple[Event, ToolMessage]
+
+    def _tool_response(
+        self,
+        ctx: InvocationContext,
+        t_id: str,
+        t_name: str,
+        *,
+        result: str | None = None,
+        error: str | None = None,
+    ) -> tuple[Event, ToolMessage]:
+        """Build a tool response event and ToolMessage pair."""
+        part = ToolResponsePart(
+            tool_call_id=t_id,
+            tool_name=t_name,
+            result=result or "",
+            error=error,
+        )
+        actions = EventActions()
+        content_str = result or error or ""
+        if result and result.startswith(TRANSFER_SENTINEL):
+            actions = EventActions(
+                transfer_to_agent=result.removeprefix(TRANSFER_SENTINEL).strip()
+            )
+        elif result == EXIT_LOOP_SENTINEL:
+            actions = EventActions(escalate=True)
+        event = self._emit_event(
+            ctx,
+            EventType.TOOL_RESPONSE,
+            content=Content(parts=[part]),
+            actions=actions,
+        )
+        msg_kwargs = {"status": "error"} if error else {}
+        msg = ToolMessage(
+            content=content_str,
+            tool_call_id=t_id,
+            **msg_kwargs,
+        )
+        return (event, msg)
+
+    # ── Main loop ────────────────────────────────────────────────
+
     async def astream(
         self,
         input: str,
@@ -395,91 +765,51 @@ class LlmAgent(BaseAgent):
             tokens, tool call/response events, and the final answer.
         """
         ctx = self._ensure_ctx(config, ctx)
-
-        system_prompt = await self._resolve_instructions(ctx)
-        messages: list[BaseMessage] = []
-        if system_prompt:
-            messages.append(SystemMessage(content=system_prompt))
-
-        # Rebuild conversation history from session events (multi-turn).
-        # ctx.state is always shared (not affected by event filters).
-        # Only filter by branch/invocation when inside a composite agent
-        # (indicated by a non-empty branch). Top-level agents need the
-        # full session history for multi-turn conversations.
-        #
-        # Exclude the current invocation's events from history — the
-        # Runner already appended the current user message to the session
-        # before calling the agent, so including it here would duplicate
-        # it (we add the current message explicitly below).
-        if self._include_contents != "none":
-            filtered = ctx.get_events(
-                current_branch=bool(ctx.branch),
-                current_invocation=bool(ctx.branch),
-            )
-            inv_id = ctx.invocation_id
-            filtered = [e for e in filtered if e.invocation_id != inv_id]
-            if filtered:
-                messages.extend(self._events_to_messages(filtered))
-
-        messages.append(HumanMessage(content=input))
-
+        system_prompt, messages = await self._build_conversation_history(
+            ctx, input
+        )
         llm = self._build_bound_llm()
 
         for _ in range(self.max_iterations):
             if ctx.end_invocation:
                 return
-            request = self._build_request(system_prompt, messages)
 
-            # Apply planner instruction
+            # Build request and apply planner instruction.
+            request = self._build_request(system_prompt, messages)
             effective_prompt = self._apply_planner_instruction(
                 system_prompt, ctx, request
             )
-            prompt_changed = effective_prompt != system_prompt
-            if prompt_changed and messages and isinstance(messages[0], SystemMessage):
-                messages[0] = SystemMessage(content=effective_prompt)
+            if effective_prompt != system_prompt:
+                if messages and isinstance(messages[0], SystemMessage):
+                    messages[0] = SystemMessage(content=effective_prompt)
 
             if self.before_model_callback:
                 await self.before_model_callback(ctx, request)
 
-            # Call LLM — yields partial events + final AIMessage
+            # Call LLM with error recovery.
             raw_response: AIMessage | None = None
-            try:
-                async for item in self._call_llm(llm, messages, ctx):
-                    if isinstance(item, AIMessage):
-                        raw_response = item
-                    else:
-                        yield item  # partial event
-            except Exception as exc:
-                if self.on_model_error_callback:
-                    recovery = await self.on_model_error_callback(ctx, request, exc)
-                    if recovery is not None:
-                        raw_response = AIMessage(content=recovery.text or "")
-                    else:
-                        yield self._emit_event(
-                            ctx,
-                            EventType.AGENT_MESSAGE,
-                            content=Content.from_text(str(exc)),
-                            metadata={
-                                "error": True,
-                                "exception_type": type(exc).__name__,
-                            },
-                        )
-                        return
-                else:
+            async for item in self._call_llm_with_recovery(
+                llm, messages, ctx, request
+            ):
+                if isinstance(item, AIMessage):
+                    raw_response = item
+                elif item is None:
+                    # Unrecoverable error — emit error event and stop.
                     yield self._emit_event(
                         ctx,
                         EventType.AGENT_MESSAGE,
-                        content=Content.from_text(str(exc)),
-                        metadata={
-                            "error": True,
-                            "exception_type": type(exc).__name__,
-                        },
+                        content=Content.from_text("LLM call failed."),
+                        metadata={"error": True},
                     )
                     return
+                else:
+                    yield item  # partial event
 
+            if raw_response is None:
+                return
+
+            # Post-process response.
             llm_response = LlmResponse.from_ai_message(raw_response)
-
-            # Let the planner post-process the response
             if self._planner is not None:
                 from orxhestra.agents.readonly_context import ReadonlyContext
 
@@ -495,177 +825,25 @@ class LlmAgent(BaseAgent):
 
             messages.append(raw_response)
 
-            # No tool calls -> check if planner has pending tasks
+            # No tool calls → final answer or planner continuation.
             if not llm_response.has_tool_calls:
-                # If a planner has pending tasks, treat text as interim and
-                # continue the loop so the agent keeps working.
-                if self._planner is not None:
-                    from orxhestra.agents.readonly_context import ReadonlyContext
-
-                    readonly = ReadonlyContext(ctx)
-                    if self._planner.has_pending_tasks(readonly):
-                        # Add a nudge so the LLM knows to keep going
-                        messages.append(
-                            HumanMessage(
-                                content=(
-                                    "You still have pending tasks on the task board. "
-                                    "Continue working on the next task — call the "
-                                    "appropriate tools to make progress."
-                                )
-                            )
-                        )
-                        continue
-
-                answer_text = llm_response.text
-                parts: list[TextPart | DataPart] = []
-                if answer_text:
-                    parts.append(TextPart(text=answer_text))
-
-                # Parse structured output if schema is set
-                if self._output_schema is not None:
-                    structured_output = None
-                    parser = PydanticOutputParser(pydantic_object=self._output_schema)
-                    if answer_text:
-                        try:
-                            structured_output = parser.parse(answer_text)
-                        except Exception:
-                            pass
-                    if structured_output is None:
-                        structured_llm = self._build_structured_llm()
-                        if structured_llm is not None:
-                            try:
-                                structured_output = await structured_llm.ainvoke(
-                                    messages,
-                                    config=ctx.run_config,
-                                )
-                            except Exception:
-                                pass
-                    if structured_output is not None:
-                        parts.append(DataPart(data=structured_output.model_dump()))
-
-                # Auto-save final answer to state when output_key is set
-                emit_kwargs: dict[str, Any] = {
-                    "content": Content(parts=parts),
-                    "partial": False,
-                    "llm_response": llm_response,
-                }
-                if self._output_key and answer_text:
-                    ctx.state[self._output_key] = answer_text
-                    emit_kwargs["actions"] = EventActions(
-                        state_delta={self._output_key: answer_text},
-                    )
-
-                yield self._emit_event(
-                    ctx,
-                    EventType.AGENT_MESSAGE,
-                    **emit_kwargs,
+                final_event = await self._handle_final_response(
+                    ctx, messages, llm_response
                 )
+                if final_event is None:
+                    continue
+                yield final_event
                 return
 
-            # Execute all tool calls in parallel
+            # Execute tool calls and collect ToolMessages.
             tool_messages: list[ToolMessage] = []
-            event_queue: asyncio.Queue[Event | None] = asyncio.Queue()
-
-            # Inject event_callback so tools (e.g. AgentTool) can push
-            # events in real-time while they run.
-            tool_ctx = ctx.model_copy(
-                update={"event_callback": event_queue.put_nowait}
-            )
-
-            def _tool_response(
-                t_id: str, t_name: str, *, result: str | None = None, error: str | None = None,
-            ) -> tuple[Event, ToolMessage]:
-                """Build a tool response event and ToolMessage pair."""
-                part = ToolResponsePart(
-                    tool_call_id=t_id,
-                    tool_name=t_name,
-                    result=result or "",
-                    error=error,
-                )
-                actions = EventActions()
-                content_str = result or error or ""
-                if result and result.startswith(TRANSFER_SENTINEL):
-                    actions = EventActions(
-                        transfer_to_agent=result.removeprefix(
-                            TRANSFER_SENTINEL
-                        ).strip()
-                    )
-                elif result == EXIT_LOOP_SENTINEL:
-                    actions = EventActions(escalate=True)
-                event = self._emit_event(
-                    ctx,
-                    EventType.TOOL_RESPONSE,
-                    content=Content(parts=[part]),
-                    actions=actions,
-                )
-                msg_kwargs = {"status": "error"} if error else {}
-                msg = ToolMessage(
-                    content=content_str,
-                    tool_call_id=t_id,
-                    **msg_kwargs,
-                )
-                return (event, msg)
-
-            async def _execute_tool(tool_call: dict) -> tuple[Event, ToolMessage]:
-                """Execute a single tool call and return response event + message."""
-                t_name, t_args, t_id = tool_call["name"], tool_call["args"], tool_call["id"]
-
-                tool = self._tools.get(t_name)
-                if tool is None:
-                    return _tool_response(
-                        t_id,
-                        t_name,
-                        error=f"Tool '{t_name}' not found. "
-                        f"Available: {list(self._tools)}",
-                    )
-
-                if hasattr(tool, "inject_context"):
-                    tool.inject_context(tool_ctx)
-                if self.before_tool_callback:
-                    await self.before_tool_callback(ctx, t_name, t_args)
-
-                try:
-                    result = await tool.ainvoke(t_args, config=ctx.run_config)
-                    if self.after_tool_callback:
-                        await self.after_tool_callback(ctx, t_name, result)
-                    return _tool_response(t_id, t_name, result=str(result))
-                except Exception as exc:
-                    if self.after_tool_callback:
-                        await self.after_tool_callback(ctx, t_name, None)
-                    return _tool_response(t_id, t_name, error=str(exc))
-
-            # Yield a single event with all tool calls
-            yield self._emit_event(
-                ctx,
-                EventType.AGENT_MESSAGE,
-                content=Content(parts=[
-                    ToolCallPart(
-                        tool_call_id=tool_call["id"],
-                        tool_name=tool_call["name"],
-                        args=tool_call["args"],
-                        metadata={"interactive": True}
-                        if getattr(
-                            self._tools.get(tool_call["name"]), "interactive", False
-                        )
-                        else {},
-                    )
-                    for tool_call in llm_response.tool_calls
-                ]),
-                llm_response=llm_response,
-            )
-
-            # Run all tool calls concurrently, streaming intermediate
-            # events (e.g. from AgentTool) in real time via the queue.
-            async for item in gather_with_event_queue(
-                [_execute_tool(tc) for tc in llm_response.tool_calls],
-                event_queue,
-            ):
-                if isinstance(item, Event):
-                    yield item  # intermediate event from child agent
+            async for item in self._execute_tool_calls(ctx, llm_response):
+                if isinstance(item, tuple):
+                    event, tool_msg = item
+                    yield event
+                    tool_messages.append(_truncate_tool_message(tool_msg))
                 else:
-                    response_event, tool_msg = item
-                    yield response_event
-                    tool_messages.append(tool_msg)
+                    yield item
 
             messages.extend(tool_messages)
 
@@ -673,7 +851,8 @@ class LlmAgent(BaseAgent):
             ctx,
             EventType.AGENT_MESSAGE,
             content=Content.from_text(
-                f"Max iterations ({self.max_iterations}) reached without a final answer."
+                f"Max iterations ({self.max_iterations}) reached "
+                f"without a final answer."
             ),
             metadata={"error": True},
         )

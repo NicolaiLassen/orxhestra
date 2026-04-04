@@ -86,8 +86,8 @@ When you have enough information to answer, provide a direct response.
 Only use tools when necessary to complete the task.
 """
 
-_PREV_CONTEXT_MAX_CHARS = 2000
-_PREV_CONTEXT_TOTAL_MAX_CHARS = 6000
+_PREV_CONTEXT_MAX_CHARS = 5000
+_PREV_CONTEXT_TOTAL_MAX_CHARS = 10_000
 
 # Maximum characters per tool response kept in the message history.
 _TOOL_RESPONSE_MAX_CHARS = 30_000
@@ -95,6 +95,8 @@ _TOOL_RESPONSE_MAX_CHARS = 30_000
 
 def _build_previous_context(
     events: list,
+    max_chars: int = _PREV_CONTEXT_MAX_CHARS,
+    total_max_chars: int = _PREV_CONTEXT_TOTAL_MAX_CHARS,
 ) -> list[HumanMessage]:
     """Build context messages from previous invocations' final responses.
 
@@ -128,11 +130,11 @@ def _build_previous_context(
     total_chars = 0
 
     for agent, event in latest_by_agent.items():
-        if total_chars >= _PREV_CONTEXT_TOTAL_MAX_CHARS:
+        if total_chars >= total_max_chars:
             break
 
-        remaining = _PREV_CONTEXT_TOTAL_MAX_CHARS - total_chars
-        max_chars = min(_PREV_CONTEXT_MAX_CHARS, remaining)
+        remaining = total_max_chars - total_chars
+        max_chars = min(max_chars, remaining)
         text = truncate_output(event.text, max_chars)
 
         content = f"[{agent}] said: {text}"
@@ -142,13 +144,15 @@ def _build_previous_context(
     return messages
 
 
-def _truncate_tool_message(msg: ToolMessage) -> ToolMessage:
+def _truncate_tool_message(
+    msg: ToolMessage, max_chars: int = _TOOL_RESPONSE_MAX_CHARS,
+) -> ToolMessage:
     """Truncate a ToolMessage if its content exceeds the limit."""
     content = msg.content
-    if isinstance(content, str) and len(content) > _TOOL_RESPONSE_MAX_CHARS:
+    if isinstance(content, str) and len(content) > max_chars:
         from orxhestra.tools.output import truncate_output
 
-        content = truncate_output(content, _TOOL_RESPONSE_MAX_CHARS)
+        content = truncate_output(content, max_chars)
         return ToolMessage(
             content=content,
             tool_call_id=msg.tool_call_id,
@@ -203,6 +207,15 @@ class LlmAgent(BaseAgent):
         Called with ``(ctx, tool_name, tool_args)`` before each tool execution.
     after_tool_callback : callable, optional
         Called with ``(ctx, tool_name, result)`` after each tool execution.
+    tool_response_max_chars : int
+        Max characters kept per tool response in message history.
+        Default 30,000 (~7.5k tokens).
+    context_max_chars : int
+        Max characters per previous agent response in context.
+        Default 5,000 (~1.25k tokens).
+    context_total_max_chars : int
+        Total character budget for all previous agent responses.
+        Default 10,000 (~2.5k tokens).
     """
 
     def __init__(
@@ -237,6 +250,9 @@ class LlmAgent(BaseAgent):
         after_tool_callback: (
             Callable[[InvocationContext, str, Any], Awaitable[None]] | None
         ) = None,
+        tool_response_max_chars: int = _TOOL_RESPONSE_MAX_CHARS,
+        context_max_chars: int = _PREV_CONTEXT_MAX_CHARS,
+        context_total_max_chars: int = _PREV_CONTEXT_TOTAL_MAX_CHARS,
     ) -> None:
         super().__init__(name=name, description=description)
         self._llm = llm
@@ -247,6 +263,9 @@ class LlmAgent(BaseAgent):
         self._output_schema = output_schema
         self._include_contents = include_contents
         self.max_iterations = max_iterations
+        self.tool_response_max_chars = tool_response_max_chars
+        self.context_max_chars = context_max_chars
+        self.context_total_max_chars = context_total_max_chars
         self.before_model_callback = before_model_callback
         self.after_model_callback = after_model_callback
         self.on_model_error_callback = on_model_error_callback
@@ -309,7 +328,11 @@ class LlmAgent(BaseAgent):
 
         if self._include_contents != "none":
             prev_responses = ctx.get_previous_final_responses()
-            prev_messages = _build_previous_context(prev_responses)
+            prev_messages = _build_previous_context(
+                prev_responses,
+                max_chars=self.context_max_chars,
+                total_max_chars=self.context_total_max_chars,
+            )
             messages.extend(prev_messages)
 
             filtered = ctx.get_events(
@@ -379,8 +402,7 @@ class LlmAgent(BaseAgent):
             return f"{base_prompt}\n\n{instruction}"
         return base_prompt
 
-    @staticmethod
-    def _events_to_messages(events: list[Event]) -> list[BaseMessage]:
+    def _events_to_messages(self, events: list[Event]) -> list[BaseMessage]:
         """Convert session events to LangChain messages for multi-turn context.
 
         Applies visibility filtering, compaction processing, and drops
@@ -428,7 +450,9 @@ class LlmAgent(BaseAgent):
                     messages.append(event.to_langchain_message())
             elif event.type == EventType.TOOL_RESPONSE:
                 msg = event.to_langchain_message()
-                messages.append(_truncate_tool_message(msg))
+                messages.append(
+                    _truncate_tool_message(msg, self.tool_response_max_chars)
+                )
 
         return messages
 
@@ -852,7 +876,11 @@ class LlmAgent(BaseAgent):
                 if isinstance(item, tuple):
                     event, tool_msg = item
                     yield event
-                    tool_messages.append(_truncate_tool_message(tool_msg))
+                    tool_messages.append(
+                        _truncate_tool_message(
+                            tool_msg, self.tool_response_max_chars
+                        )
+                    )
                 else:
                     yield item
 

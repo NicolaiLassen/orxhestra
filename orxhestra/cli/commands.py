@@ -28,6 +28,7 @@ _HELP_TEXT: str = (
     f"  [{_CMD}]/undo[/{_CMD}]          [{_DESC}]Remove last turn[/{_DESC}]\n"
     f"  [{_CMD}]/retry[/{_CMD}]         [{_DESC}]Re-run last message[/{_DESC}]\n"
     f"  [{_CMD}]/copy[/{_CMD}]          [{_DESC}]Copy last response[/{_DESC}]\n"
+    f"  [{_CMD}]/memory[/{_CMD}]        [{_DESC}]List saved memories[/{_DESC}]\n"
     f"  [{_CMD}]/theme[/{_CMD}]         [{_DESC}]Switch theme (dark/light)[/{_DESC}]\n"
     f"  [{_CMD}]/exit[/{_CMD}]          [{_DESC}]Exit[/{_DESC}]\n"
     f"  [{_CMD}]/help[/{_CMD}]          [{_DESC}]Show this help[/{_DESC}]\n"
@@ -285,6 +286,60 @@ async def _cmd_copy(
         console.print("[orx.status]No response to copy.[/orx.status]")
 
 
+async def _cmd_memory(
+    _state: ReplState,
+    cmd_arg: str | None,
+    *,
+    console: Console,
+    workspace: str,
+    **_kw: object,
+) -> None:
+    """List or clear saved memories."""
+    from orxhestra.memory.file_memory_service import (
+        get_memory_dir,
+        scan_memory_files,
+    )
+
+    mem_dir = get_memory_dir(workspace)
+
+    if cmd_arg and cmd_arg.strip().lower() == "clear":
+        headers = scan_memory_files(mem_dir)
+        if not headers:
+            console.print("[orx.status]No memories to clear.[/orx.status]")
+            return
+        try:
+            confirm = input(
+                f"  Delete {len(headers)} memories? [y/n]: "
+            ).strip().lower()
+        except (EOFError, KeyboardInterrupt):
+            return
+        if confirm not in ("y", "yes"):
+            console.print("[orx.status]Cancelled.[/orx.status]")
+            return
+        for h in headers:
+            h.filepath.unlink(missing_ok=True)
+        index_path = mem_dir / "MEMORY.md"
+        index_path.unlink(missing_ok=True)
+        console.print(
+            f"[orx.success]Deleted {len(headers)} memories.[/orx.success]"
+        )
+        return
+
+    headers = scan_memory_files(mem_dir)
+    if not headers:
+        console.print(
+            "[orx.status]No memories saved. The agent can use "
+            "save_memory to persist learnings.[/orx.status]"
+        )
+        return
+
+    console.print(f"[orx.accent]{len(headers)} memories:[/orx.accent]")
+    for h in headers:
+        type_tag = f"[{h.memory_type}]" if h.memory_type else "[?]"
+        desc = f" — {h.description}" if h.description else ""
+        console.print(f"  [orx.muted]{type_tag}[/orx.muted] {h.name}{desc}")
+
+
 async def _cmd_theme(
     _state: ReplState,
     cmd_arg: str | None,
@@ -333,6 +388,7 @@ _DISPATCH: dict[str, Callable[..., object]] = {
     "/undo": _cmd_undo,
     "/retry": _cmd_retry,
     "/copy": _cmd_copy,
+    "/memory": _cmd_memory,
     "/theme": _cmd_theme,
     "/help": _cmd_help,
 }

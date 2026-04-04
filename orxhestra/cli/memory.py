@@ -158,6 +158,14 @@ def load_agents_md(workspace: str) -> str:
     if windsurfrules:
         sections.append(f"## Windsurf Rules\n{windsurfrules}")
 
+    # ── Auto-memory (persistent per-project memories) ────────────
+    from orxhestra.memory.file_memory_service import get_memory_dir
+
+    mem_dir = get_memory_dir(workspace)
+    mem_index: str | None = _load_file(mem_dir / "MEMORY.md")
+    if mem_index:
+        sections.append(f"## Auto Memory\n{mem_index}")
+
     if not sections:
         return ""
 
@@ -174,39 +182,35 @@ def get_memory_instructions() -> str:
     """
     return """\
 # Memory System
-You have access to persistent memory via AGENTS.md files and rules:
 
-**User-level** (personal preferences):
-- **~/.orx/AGENTS.md** — your global preferences
-- **~/.orx/rules/*.md** — modular user rules by topic
+You have two memory systems: **context files** (loaded at startup) and
+**auto-memory** (persistent memories you save with the `save_memory` tool).
 
-**Project-level** (shared with team):
-- **.orx/AGENTS.md** — project context (architecture, conventions)
-- **.orx/rules/*.md** — modular project rules by topic
-- **AGENTS.md** — project root context
+## Auto-Memory (use save_memory tool)
 
-**Local overrides** (gitignored, personal):
-- **.orx/AGENTS.local.md** — personal project notes
-- **AGENTS.local.md** — personal root notes
+Save memories that will be useful in **future** sessions. There are 4 types:
 
-**Third-party context** (auto-loaded, read-only):
-- **CLAUDE.md** — Claude Code instructions
-- **.cursorrules** / **.cursor/rules/*.md** — Cursor IDE rules
-- **.windsurfrules** / **.windsurf/rules/*.md** — Windsurf rules
-- **.clinerules** — Cline rules (file or directory)
-- **.github/copilot-instructions.md** — GitHub Copilot instructions
-- **CONVENTIONS.md** — coding conventions (Aider / general)
-- **codex.md** — OpenAI Codex CLI instructions
+- **user** — the user's role, preferences, knowledge level
+- **feedback** — corrections and confirmations about how to work
+- **project** — ongoing work, goals, deadlines, decisions
+- **reference** — pointers to external systems (Linear, Slack, Grafana)
 
-When you learn something important about the project (build commands, code
-conventions, architecture decisions, user preferences), update the appropriate
-orx-native file using write_file or edit_file. This persists across sessions.
+When to save: user corrections, confirmed approaches, project decisions,
+external system references. Include **Why:** and **How to apply:** lines.
 
-For modular rules, create topic-specific files in .orx/rules/:
-  .orx/rules/code-style.md
-  .orx/rules/testing.md
-  .orx/rules/api.md
+What NOT to save: code patterns (derivable from code), git history
+(use git log), debugging recipes (the fix is in the code), ephemeral
+task state, API keys or secrets.
 
-What to save: build/test commands, code style, architecture notes, tool preferences.
-What NOT to save: API keys, passwords, ephemeral task state.
+Memory records can become stale. Before recommending from a memory,
+verify the file/function/flag still exists. Trust current code over
+old memories.
+
+## Context Files (loaded at startup, read-only)
+
+- **AGENTS.md** files — project context at various paths
+- **CLAUDE.md**, **.cursorrules**, etc. — third-party AI tool conventions
+
+To persist project conventions, use `save_memory` with type "feedback"
+or "project" instead of editing AGENTS.md directly.
 """

@@ -118,7 +118,17 @@ def _register_defaults() -> None:
 
             return make_sleep_tool()
 
+        def _memory() -> list[BaseTool]:
+            import os
+
+            from orxhestra.memory.file_memory_service import get_memory_dir
+            from orxhestra.tools.memory_tools import make_memory_tools
+
+            ws = os.environ.get("AGENT_WORKSPACE", os.getcwd())
+            return make_memory_tools(get_memory_dir(ws))
+
         _BUILTIN_REGISTRY["exit_loop"] = _exit_loop
+        _BUILTIN_REGISTRY["memory"] = _memory
         _BUILTIN_REGISTRY["filesystem"] = _filesystem
         _BUILTIN_REGISTRY["shell"] = _shell
         _BUILTIN_REGISTRY["artifacts"] = _artifacts

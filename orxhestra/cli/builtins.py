@@ -43,6 +43,16 @@ def register_cli_builtins(
 
     register_builtin("write_todos", _todo_factory)
 
+    # Memory tools — always available.
+    def _memory_factory() -> list:
+        """Create the memory tools."""
+        from orxhestra.memory.file_memory_service import get_memory_dir
+        from orxhestra.tools.memory_tools import make_memory_tools
+
+        return make_memory_tools(get_memory_dir(workspace))
+
+    register_builtin("memory", _memory_factory)
+
     # Sleep tool — always available.
     def _sleep_factory() -> list:
         """Create the sleep tool."""

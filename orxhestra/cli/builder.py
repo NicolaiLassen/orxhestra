@@ -109,12 +109,22 @@ async def build_from_orx(
     with open(orx_path) as f:
         raw: dict = yaml.safe_load(f)
 
-    if "defaults" not in raw:
-        raw["defaults"] = {}
-    raw["defaults"]["model"] = {
-        "provider": detect_provider(model_name),
-        "name": model_name,
-    }
+    # Only inject CLI model if the YAML doesn't already define one.
+    defaults: dict = raw.get("defaults", {})
+    if "model" not in defaults:
+        if "defaults" not in raw:
+            raw["defaults"] = {}
+        raw["defaults"]["model"] = {
+            "provider": detect_provider(model_name),
+            "name": model_name,
+        }
+    else:
+        # Use the YAML model name for the banner display.
+        yaml_model = defaults["model"]
+        if isinstance(yaml_model, dict):
+            model_name = yaml_model.get("name", model_name)
+        elif isinstance(yaml_model, str):
+            model_name = yaml_model
 
     memory_content: str = load_agents_md(workspace)
     local_context: str = await collect_local_context(workspace)

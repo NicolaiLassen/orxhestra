@@ -36,6 +36,9 @@ htmlcov/
 Thumbs.db
 site/
 
+# Demo files (may contain credentials)
+demos/
+
 # Web
 web/
 .netlify/

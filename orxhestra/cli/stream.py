@@ -270,6 +270,17 @@ async def stream_response(
 
                 if event.tool_name == "write_todos" and todo_list is not None:
                     render_todos(todo_list, console)
+
+                # Restart thinking spinner while LLM processes tool results.
+                if Status is not None and s.status is None:
+                    phrase = random.choice(_THINKING_PHRASES)
+                    s.status = Status(
+                        f"  [orx.accent]{phrase}...[/orx.accent]",
+                        console=console,
+                        spinner="dots",
+                        spinner_style=ACCENT,
+                    )
+                    s.status.start()
                 continue
 
             if event.is_final_response():

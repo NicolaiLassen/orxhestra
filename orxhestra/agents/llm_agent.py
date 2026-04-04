@@ -427,7 +427,8 @@ class LlmAgent(BaseAgent):
                 elif event.text:
                     messages.append(event.to_langchain_message())
             elif event.type == EventType.TOOL_RESPONSE:
-                messages.append(event.to_langchain_message())
+                msg = event.to_langchain_message()
+                messages.append(_truncate_tool_message(msg))
 
         return messages
 
@@ -785,6 +786,16 @@ class LlmAgent(BaseAgent):
 
             if self.before_model_callback:
                 await self.before_model_callback(ctx, request)
+
+            # Warn if message context is approaching model limits.
+            total_chars = sum(len(str(m.content)) for m in messages)
+            if total_chars > 200_000:
+                logger.warning(
+                    "Message context is %d chars (~%dk tokens). "
+                    "Consider reducing tool output size.",
+                    total_chars,
+                    total_chars // 4000,
+                )
 
             # Call LLM with error recovery.
             raw_response: AIMessage | None = None

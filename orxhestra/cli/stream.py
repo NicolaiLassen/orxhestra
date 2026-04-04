@@ -9,13 +9,13 @@ from typing import TYPE_CHECKING, Any
 
 from orxhestra.cli.approval import APPROVE_REQUIRED, format_approval_prompt
 from orxhestra.cli.config import DEFAULT_USER_ID
-from orxhestra.cli.theme import ACCENT
 from orxhestra.cli.render import (
     render_todos,
     render_tool_call,
     render_tool_response,
     render_turn_summary,
 )
+from orxhestra.cli.theme import ACCENT
 from orxhestra.events.event import EventType
 
 if TYPE_CHECKING:

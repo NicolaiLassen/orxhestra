@@ -1,0 +1,59 @@
+---
+title: "Themes"
+description: "Dark and light theme support for the orx CLI."
+---
+
+## Theme Support
+
+The orx CLI supports dark and light themes with auto-detection.
+
+## Auto-Detection
+
+The CLI checks these sources in order:
+
+1. `$ORX_THEME` environment variable (`dark` or `light`)
+2. `$COLORFGBG` terminal variable (set by iTerm2, xterm, etc.)
+3. Falls back to `dark`
+
+## Switching Themes
+
+### Via command
+
+```
+/theme          # Toggle current theme
+/theme dark     # Switch to dark
+/theme light    # Switch to light
+```
+
+### Via environment variable
+
+```bash
+export ORX_THEME=light
+orx
+```
+
+## Color Palette
+
+### Dark Theme (default)
+
+| Token | Color | Usage |
+|-------|-------|-------|
+| Accent | `#6C8EBF` | Headings, bullets, links, spinner |
+| Muted | `#6c6c6c` | Tool responses, timestamps |
+| Success | `#98C379` | Completed tasks |
+| Warning | `#E5C07B` | In-progress tasks, approval prompts |
+| Error | `#E06C75` | Errors, dangerous commands |
+
+### Light Theme
+
+| Token | Color | Usage |
+|-------|-------|-------|
+| Accent | `#2563EB` | Headings, bullets, links, spinner |
+| Muted | `#737373` | Tool responses, timestamps |
+| Success | `#16A34A` | Completed tasks |
+| Warning | `#CA8A04` | In-progress tasks |
+| Error | `#DC2626` | Errors |
+
+## Markdown Styling
+
+Rich Markdown elements (blockquotes, bullets, headings, links) use the theme accent color instead of terminal defaults.

@@ -1,0 +1,53 @@
+---
+title: "Commands"
+description: "All slash commands available in the orx CLI."
+---
+
+## Command Reference
+
+| Command | Description |
+|---------|-------------|
+| `/model <name>` | Switch LLM model mid-session |
+| `/clear` | Reset conversation and clear todos |
+| `/compact` | Summarize old messages to free context |
+| `/todos` | Show current task list |
+| `/session` | Show session info (ID, events, tokens, turns) |
+| `/undo` | Remove last user message and agent response |
+| `/retry` | Re-run the last user message |
+| `/copy` | Copy last agent response to clipboard |
+| `/memory` | List saved persistent memories |
+| `/memory clear` | Delete all memories (with confirmation) |
+| `/theme` | Toggle dark/light theme |
+| `/theme dark` | Switch to dark theme |
+| `/theme light` | Switch to light theme |
+| `/help` | Show help text |
+| `/exit` | Exit the REPL |
+
+## Multi-line Input
+
+Start and end with triple quotes:
+
+```
+orx> """
+... Write a function that:
+... 1. Reads a CSV file
+... 2. Filters rows by date
+... 3. Returns a summary
+... """
+```
+
+## Single-shot Mode
+
+Run a prompt and exit:
+
+```bash
+orx -c "fix the failing tests"
+```
+
+## Auto-approve Mode
+
+Skip approval prompts for destructive tools:
+
+```bash
+orx --auto-approve
+```

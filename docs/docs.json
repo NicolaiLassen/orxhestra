@@ -30,7 +30,7 @@
           {
             "group": "Tools",
             "icon": "wrench",
-            "pages": ["tools/overview", "tools/long-running", "tools/confirmation"]
+            "pages": ["tools/overview", "tools/filesystem", "tools/long-running", "tools/confirmation"]
           },
           {
             "group": "Orchestration",
@@ -40,12 +40,12 @@
           {
             "group": "Runtime",
             "icon": "bolt",
-            "pages": ["runtime/streaming", "runtime/callbacks", "runtime/tracing", "runtime/structured-output", "runtime/human-in-the-loop"]
+            "pages": ["runtime/streaming", "runtime/providers", "runtime/callbacks", "runtime/tracing", "runtime/structured-output", "runtime/human-in-the-loop"]
           },
           {
             "group": "CLI",
             "icon": "terminal",
-            "pages": ["cli/overview"]
+            "pages": ["cli/overview", "cli/commands", "cli/memory", "cli/themes"]
           },
           {
             "group": "Composer",

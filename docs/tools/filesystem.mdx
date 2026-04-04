@@ -1,0 +1,99 @@
+---
+title: "Filesystem Tools"
+description: "File read with offset/limit, grep with context lines, and more."
+---
+
+## Overview
+
+The filesystem tools provide sandboxed file access within the agent's workspace. All paths are validated against the workspace root to prevent directory traversal.
+
+## Tools
+
+### read_file
+
+Reads a file with line numbers (`cat -n` style). Supports pagination via `offset` and `limit`.
+
+```python
+# Read first 100 lines
+read_file("src/main.py", offset=0, limit=100)
+
+# Read lines 200-300
+read_file("src/main.py", offset=200, limit=100)
+```
+
+**Output format:**
+```
+Lines 1-100 of 450 (use offset=100 to read more)
+1	import asyncio
+2	from pathlib import Path
+3	...
+```
+
+**Size guard:** Files larger than 256 KB require explicit `offset` and `limit` parameters. Without them, the tool returns an error message directing the agent to use pagination.
+
+### grep
+
+Search file contents with context lines, case-insensitive matching, and result limits.
+
+```python
+# Basic search
+grep("def process", path="src/")
+
+# With context lines (like grep -C 3)
+grep("TODO", context=3)
+
+# Case-insensitive with glob filter
+grep("error", glob_filter="*.py", case_insensitive=True)
+
+# Before/after context (like grep -B 2 -A 5)
+grep("raise ValueError", before=2, after=5)
+```
+
+**Parameters:**
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `pattern` | required | Text to search for |
+| `path` | `"."` | Directory to search |
+| `glob_filter` | `"*"` | File glob filter |
+| `context` | `0` | Lines before and after (`-C`) |
+| `before` | `0` | Lines before match (`-B`) |
+| `after` | `0` | Lines after match (`-A`) |
+| `case_insensitive` | `False` | Case-insensitive matching |
+| `max_results` | `50` | Maximum matches returned |
+
+### edit_file
+
+Replaces text and shows a unified diff:
+
+```
+Edited src/main.py (line 42):
+- old_function()
++ new_function()
+(1 lines removed, 1 lines added)
+```
+
+### glob
+
+Find files matching a pattern. Capped at 100 results.
+
+```python
+glob("**/*.py")           # All Python files
+glob("src/**/*.test.ts")  # All test files in src/
+```
+
+### ls, write_file, mkdir
+
+Standard file operations, all workspace-scoped.
+
+## Workspace Isolation
+
+All paths are resolved relative to the workspace root (set via `$AGENT_WORKSPACE` or the CLI's `--workspace` flag). Path traversal attempts (`../../../etc/passwd`) are blocked.
+
+## YAML Configuration
+
+```yaml
+tools:
+  fs:
+    builtin: "filesystem"
+```

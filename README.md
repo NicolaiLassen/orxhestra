@@ -51,12 +51,15 @@ orx> add error handling to the API routes
 
 ### Features
 
-- **Any LLM** — OpenAI, Anthropic, Google via `--model gpt-5.4` / `claude-sonnet-4-6` / `gemini-2.0-flash`
+- **29 LLM providers** — OpenAI, Azure OpenAI, Anthropic, Google, Mistral, Cohere, Groq, DeepSeek, Ollama, and 20 more via `--model`
 - **Streaming** — real-time token rendering with Markdown formatting
 - **Tool approval** — prompts before destructive operations (write, edit, shell)
 - **Task planning** — structured todo lists visible in the terminal
 - **Sub-agent delegation** — spawn isolated agents for complex subtasks
-- **AGENTS.md memory** — persistent project context across sessions
+- **Auto-memory** — persistent per-project memories across sessions (4 types: user, feedback, project, reference)
+- **Dark/light theme** — auto-detects terminal, toggle with `/theme`
+- **Background tasks** — spawn and monitor async sub-agent tasks
+- **Smart file reading** — offset/limit pagination with line numbers, 256KB size guard
 - **Local context injection** — auto-detects language, git state, package manager, project tree
 - **Context summarization** — auto-compacts long conversations, `/compact` command
 - **Orx YAML** — run any orx.yaml agent team: `orx my-agents.yaml`
@@ -80,6 +83,12 @@ orx orx.yaml --serve -p 9000      # start as A2A server
 | `/clear` | Reset conversation |
 | `/compact` | Summarize old messages to free context |
 | `/todos` | Show current task list |
+| `/memory` | List saved memories |
+| `/theme` | Switch dark/light theme |
+| `/session` | Session info |
+| `/undo` | Remove last turn |
+| `/retry` | Re-run last message |
+| `/copy` | Copy last response |
 | `/help` | Show all commands |
 | `/exit` | Exit |
 
@@ -118,6 +127,7 @@ for event in response:
 ## Features
 
 - **Agent ensemble** - LLM, ReAct, Sequential, Parallel, and Loop agents
+- **29 LLM providers** - OpenAI, Azure OpenAI, Anthropic, Google, Mistral, Cohere, Groq, DeepSeek, Ollama, and 20 more
 - **Event streaming** - Async event-driven architecture with real-time streaming
 - **Composer** - Conduct entire agent orchestras declaratively with YAML
 - **Tools** - Function tools, filesystem tools, agent-as-tool, shell, and long-running tool support
@@ -125,7 +135,9 @@ for event in response:
 - **Skills** - Reusable, composable agent repertoires
 - **MCP** - Model Context Protocol integration for tool servers
 - **A2A** - Agent-to-Agent protocol for cross-service harmonization
-- **Memory** - Pluggable memory stores for persistent agent context
+- **Auto-memory** - Persistent memories with save_memory tool (user, feedback, project, reference)
+- **Background tasks** - Async sub-agent task lifecycle with spawn and monitor
+- **Deprecation decorators** - `@deprecated` and `@deprecated_param` for clean API evolution
 - **Tracing** - Built-in support for Langfuse, LangSmith, and custom callbacks
 
 ## Agents at a glance

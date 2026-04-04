@@ -1,0 +1,87 @@
+---
+title: "Auto-Memory"
+description: "Persistent per-project memories that survive across sessions."
+---
+
+## Overview
+
+The auto-memory system lets agents save and recall information across sessions. Memories are stored as individual markdown files with YAML frontmatter in `~/.orx/projects/<workspace>/memory/`.
+
+## Memory Types
+
+| Type | What to save | Example |
+|------|-------------|---------|
+| `user` | User's role, preferences, knowledge level | "Senior Python developer, prefers concise responses" |
+| `feedback` | Corrections and confirmed approaches | "Don't mock the database in tests — use real DB" |
+| `project` | Ongoing work, goals, deadlines | "Merge freeze starts 2026-04-10 for release" |
+| `reference` | Pointers to external systems | "Bugs tracked in Linear project INGEST" |
+
+## Memory Tools
+
+The agent has three tools for managing memories:
+
+### save_memory
+
+```
+save_memory(
+    name="testing policy",
+    content="Integration tests must hit a real database.\n\n**Why:** Mocks masked a broken migration.\n**How to apply:** Never use unittest.mock for DB tests.",
+    memory_type="feedback",
+    description="Use real DB in integration tests, not mocks"
+)
+```
+
+### list_memories
+
+Lists all saved memories with type and description.
+
+### delete_memory
+
+Removes a memory by name.
+
+## Storage Format
+
+Each memory is a markdown file with YAML frontmatter:
+
+```markdown
+---
+name: testing policy
+description: Use real DB in integration tests, not mocks
+type: feedback
+created: 2026-04-05T12:00:00Z
+---
+
+Integration tests must hit a real database.
+
+**Why:** Mocks masked a broken migration.
+**How to apply:** Never use unittest.mock for DB tests.
+```
+
+## Memory Index
+
+`MEMORY.md` is auto-maintained as an index of all memories (capped at 200 lines). It's loaded into the agent's context at startup.
+
+## CLI Commands
+
+```bash
+/memory          # List all saved memories
+/memory clear    # Delete all memories
+```
+
+## What NOT to Save
+
+- Code patterns or architecture (derivable from the code)
+- Git history (use `git log`)
+- Debugging recipes (the fix is in the code)
+- API keys or secrets
+- Ephemeral task state
+
+## YAML Configuration
+
+Add memory tools to any agent via the `memory` builtin:
+
+```yaml
+tools:
+  memory:
+    builtin: "memory"
+```

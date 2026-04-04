@@ -1,0 +1,125 @@
+---
+title: "LLM Providers"
+description: "29 supported LLM providers with auto-detection."
+---
+
+## Supported Providers
+
+orxhestra supports all major LLM providers via LangChain integrations.
+
+| Provider | Name | Package | Install |
+|----------|------|---------|---------|
+| OpenAI | `openai` | `langchain-openai` | `pip install orxhestra[openai]` |
+| Azure OpenAI | `azure_openai` | `langchain-openai` | `pip install orxhestra[openai]` |
+| Azure AI | `azure_ai` | `langchain-azure-ai` | `pip install langchain-azure-ai` |
+| Anthropic | `anthropic` | `langchain-anthropic` | `pip install orxhestra[anthropic]` |
+| Anthropic Bedrock | `anthropic_bedrock` | `langchain-aws` | `pip install langchain-aws` |
+| Google GenAI | `google` | `langchain-google-genai` | `pip install orxhestra[google]` |
+| Google Vertex AI | `google_vertexai` | `langchain-google-vertexai` | `pip install langchain-google-vertexai` |
+| AWS Bedrock | `bedrock_converse` | `langchain-aws` | `pip install langchain-aws` |
+| Mistral | `mistralai` | `langchain-mistralai` | `pip install langchain-mistralai` |
+| Cohere | `cohere` | `langchain-cohere` | `pip install langchain-cohere` |
+| Fireworks | `fireworks` | `langchain-fireworks` | `pip install langchain-fireworks` |
+| Together | `together` | `langchain-together` | `pip install langchain-together` |
+| Groq | `groq` | `langchain-groq` | `pip install langchain-groq` |
+| NVIDIA NIM | `nvidia` | `langchain-nvidia-ai-endpoints` | `pip install langchain-nvidia-ai-endpoints` |
+| HuggingFace | `huggingface` | `langchain-huggingface` | `pip install langchain-huggingface` |
+| DeepSeek | `deepseek` | `langchain-deepseek` | `pip install langchain-deepseek` |
+| Ollama | `ollama` | `langchain-ollama` | `pip install langchain-ollama` |
+| xAI (Grok) | `xai` | `langchain-xai` | `pip install langchain-xai` |
+| IBM watsonx | `ibm` | `langchain-ibm` | `pip install langchain-ibm` |
+| Perplexity | `perplexity` | `langchain-perplexity` | `pip install langchain-perplexity` |
+| OpenRouter | `openrouter` | `langchain-openrouter` | `pip install langchain-openrouter` |
+| Upstage | `upstage` | `langchain-upstage` | `pip install langchain-upstage` |
+
+## CLI Auto-Detection
+
+The CLI automatically detects the provider from the model name:
+
+```bash
+orx --model gpt-4o           # → openai
+orx --model claude-sonnet-4-6 # → anthropic
+orx --model gemini-2.0-flash  # → google
+orx --model mistral-large     # → mistralai
+orx --model deepseek-chat     # → deepseek
+orx --model grok-2            # → xai
+orx --model command-r-plus    # → cohere
+```
+
+## YAML Configuration
+
+```yaml
+defaults:
+  model:
+    provider: anthropic
+    name: claude-sonnet-4-6
+    temperature: 0.7
+
+# Or use named models
+models:
+  fast:
+    provider: groq
+    name: llama-3.3-70b-versatile
+  smart:
+    provider: anthropic
+    name: claude-opus-4-6
+
+agents:
+  researcher:
+    model: fast
+  writer:
+    model: smart
+```
+
+## Azure OpenAI
+
+Azure OpenAI requires explicit provider since model names overlap with OpenAI:
+
+```yaml
+defaults:
+  model:
+    provider: azure_openai
+    name: gpt-4o
+    azure_endpoint: https://my-resource.openai.azure.com/
+    api_version: "2024-12-01-preview"
+    azure_deployment: gpt-4o
+```
+
+## Custom Providers
+
+Register a custom provider or use a dotted import path:
+
+```python
+from orxhestra.composer.builders.models import register
+
+register("my_provider", MyCustomChatModel)
+```
+
+Or in YAML:
+
+```yaml
+defaults:
+  model:
+    provider: my_module.MyCustomChatModel
+    name: my-model
+```
+
+## Environment Variables
+
+| Provider | Env Var |
+|----------|---------|
+| OpenAI | `OPENAI_API_KEY` |
+| Azure OpenAI | `AZURE_OPENAI_API_KEY` |
+| Anthropic | `ANTHROPIC_API_KEY` |
+| Google | `GOOGLE_API_KEY` |
+| Mistral | `MISTRAL_API_KEY` |
+| Groq | `GROQ_API_KEY` |
+| DeepSeek | `DEEPSEEK_API_KEY` |
+| xAI | `XAI_API_KEY` |
+| Cohere | `COHERE_API_KEY` |
+| Together | `TOGETHER_API_KEY` |
+| Fireworks | `FIREWORKS_API_KEY` |
+| NVIDIA | `NVIDIA_API_KEY` |
+| Perplexity | `PPLX_API_KEY` |
+| OpenRouter | `OPENROUTER_API_KEY` |
+| Upstage | `UPSTAGE_API_KEY` |

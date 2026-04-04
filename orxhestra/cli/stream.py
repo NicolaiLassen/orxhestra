@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import random
 import time
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 from orxhestra.cli.approval import APPROVE_REQUIRED, format_approval_prompt
 from orxhestra.cli.config import DEFAULT_USER_ID
+from orxhestra.cli.theme import ACCENT
 from orxhestra.cli.render import (
     render_todos,
     render_tool_call,
@@ -22,6 +24,28 @@ if TYPE_CHECKING:
     from orxhestra.cli.todo_tool import TodoList
     from orxhestra.events.event import Event
     from orxhestra.runner import Runner
+
+
+_THINKING_PHRASES: list[str] = [
+    "Thinking",
+    "Reasoning",
+    "Pondering",
+    "Analyzing",
+    "Considering",
+    "Processing",
+    "Reflecting",
+    "Evaluating",
+    "Examining",
+    "Contemplating",
+    "Synthesizing",
+    "Interpreting",
+    "Formulating",
+    "Deliberating",
+    "Connecting dots",
+    "Piecing together",
+    "Working through it",
+    "Mapping it out",
+]
 
 
 @dataclass
@@ -154,6 +178,17 @@ async def stream_response(
     except ImportError:
         Status = None
 
+    # Show a thinking spinner immediately while waiting for the first event.
+    if Status is not None:
+        phrase: str = random.choice(_THINKING_PHRASES)
+        s.status = Status(
+            f"  [orx.accent]{phrase}...[/orx.accent]",
+            console=console,
+            spinner="dots",
+            spinner_style=ACCENT,
+        )
+        s.status.start()
+
     try:
         async for event in runner.astream(
             user_id=DEFAULT_USER_ID,
@@ -210,9 +245,10 @@ async def stream_response(
                 if Status is not None and not has_interactive:
                     last_tool: str = event.tool_calls[-1].tool_name
                     s.status = Status(
-                        f"  Running {last_tool}...",
+                        f"  [orx.accent]Running {last_tool}...[/orx.accent]",
                         console=console,
                         spinner="dots",
+                        spinner_style=ACCENT,
                     )
                     s.status.start()
                 continue

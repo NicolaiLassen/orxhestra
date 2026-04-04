@@ -28,6 +28,7 @@ _HELP_TEXT: str = (
     f"  [{_CMD}]/undo[/{_CMD}]          [{_DESC}]Remove last turn[/{_DESC}]\n"
     f"  [{_CMD}]/retry[/{_CMD}]         [{_DESC}]Re-run last message[/{_DESC}]\n"
     f"  [{_CMD}]/copy[/{_CMD}]          [{_DESC}]Copy last response[/{_DESC}]\n"
+    f"  [{_CMD}]/theme[/{_CMD}]         [{_DESC}]Switch theme (dark/light)[/{_DESC}]\n"
     f"  [{_CMD}]/exit[/{_CMD}]          [{_DESC}]Exit[/{_DESC}]\n"
     f"  [{_CMD}]/help[/{_CMD}]          [{_DESC}]Show this help[/{_DESC}]\n"
     f"\n[{_CMD}]Multi-line input:[/{_CMD}]\n"
@@ -284,6 +285,32 @@ async def _cmd_copy(
         console.print("[orx.status]No response to copy.[/orx.status]")
 
 
+async def _cmd_theme(
+    _state: ReplState,
+    cmd_arg: str | None,
+    *,
+    console: Console,
+    **_kw: object,
+) -> None:
+    """Switch between dark and light themes."""
+    if cmd_arg and cmd_arg.lower() in ("dark", "light"):
+        new_theme = cmd_arg.lower()
+    else:
+        # Toggle current theme.
+        import os
+
+        current = os.environ.get("ORX_THEME", "dark")
+        new_theme = "light" if current == "dark" else "dark"
+
+    import os
+
+    os.environ["ORX_THEME"] = new_theme
+    console.print(
+        f"[orx.status]Theme set to {new_theme}. "
+        f"Restart orx to apply fully.[/orx.status]"
+    )
+
+
 async def _cmd_help(
     _state: ReplState,
     _cmd_arg: str | None,
@@ -306,6 +333,7 @@ _DISPATCH: dict[str, Callable[..., object]] = {
     "/undo": _cmd_undo,
     "/retry": _cmd_retry,
     "/copy": _cmd_copy,
+    "/theme": _cmd_theme,
     "/help": _cmd_help,
 }
 

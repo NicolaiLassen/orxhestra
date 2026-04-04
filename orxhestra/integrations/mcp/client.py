@@ -18,7 +18,7 @@ class MCPClient:
     Parameters
     ----------
     transport : str or FastMCP server
-        Either an HTTP URL (e.g. "http://localhost:8001/mcp")
+        Either an HTTP URL (e.g. "http://localhost:8080/mcp")
         or a FastMCP server object for in-memory usage.
     """
 

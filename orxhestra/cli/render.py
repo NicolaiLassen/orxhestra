@@ -3,9 +3,15 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING
 
 from orxhestra.cli.theme import SEP, TOOL_BOT, TOOL_MID, TOOL_TOP, TURN_DOT
+
+if TYPE_CHECKING:
+    from rich.console import Console
+
+    from orxhestra.cli.todo_tool import TodoList
+    from orxhestra.events.event import Event
 
 _READ_TOOLS: frozenset[str] = frozenset({
     "read_file", "ls", "glob", "grep", "list_artifacts", "load_artifact",
@@ -49,7 +55,7 @@ def _tool_arg_summary(tool_name: str, args: dict) -> str:
     )
 
 
-def render_tool_call(event: Any, console: Any) -> None:
+def render_tool_call(event: Event, console: Console) -> None:
     """Render tool calls with boxed format and category coloring."""
     for tc in event.tool_calls:
         if tc.metadata.get("interactive"):
@@ -63,8 +69,8 @@ def render_tool_call(event: Any, console: Any) -> None:
 
 
 def render_tool_response(
-    event: Any,
-    console: Any,
+    event: Event,
+    console: Console,
     *,
     elapsed: float | None = None,
 ) -> None:
@@ -76,12 +82,16 @@ def render_tool_response(
         first_line: str = lines[0][:120]
         if len(lines) > 1:
             first_line += f"  ({len(lines)} lines)"
-        console.print(f"  [orx.muted]{TOOL_BOT} {first_line}{elapsed_str}[/orx.muted]")
+        console.print(
+            f"  [orx.muted]{TOOL_BOT} {first_line}{elapsed_str}[/orx.muted]"
+        )
     elif elapsed_str:
-        console.print(f"  [orx.muted]{TOOL_BOT} done{elapsed_str}[/orx.muted]")
+        console.print(
+            f"  [orx.muted]{TOOL_BOT} done{elapsed_str}[/orx.muted]"
+        )
 
 
-def render_todos(todo_list: Any, console: Any) -> None:
+def render_todos(todo_list: TodoList, console: Console) -> None:
     """Render the todo list if it has items."""
     if todo_list is None or not todo_list.todos:
         return
@@ -92,7 +102,7 @@ def render_todos(todo_list: Any, console: Any) -> None:
 
 def render_turn_summary(
     elapsed: float,
-    console: Any,
+    console: Console,
     *,
     prompt_tokens: int = 0,
     completion_tokens: int = 0,
@@ -112,7 +122,7 @@ def print_banner(
     orx_path: Path,
     model_name: str,
     workspace: str,
-    console: Any,
+    console: Console,
 ) -> None:
     """Print a styled welcome banner."""
     import orxhestra
@@ -120,7 +130,9 @@ def print_banner(
     try:
         from rich.panel import Panel
     except ImportError:
-        console.print(f"\n  orx v{orxhestra.__version__}  model: {model_name}")
+        console.print(
+            f"\n  orx v{orxhestra.__version__}  model: {model_name}"
+        )
         return
 
     try:
@@ -129,8 +141,10 @@ def print_banner(
         with open(orx_path) as f:
             raw: dict = yaml.safe_load(f)
         agents: dict = raw.get("agents", {})
-        agent_names: str = ", ".join(agents.keys()) if agents else "default"
-    except Exception:
+        agent_names: str = (
+            ", ".join(agents.keys()) if agents else "default"
+        )
+    except (OSError, yaml.YAMLError):
         agent_names = "default"
 
     ws_display: str = str(workspace)
@@ -138,7 +152,9 @@ def print_banner(
     if ws_display.startswith(home):
         ws_display = "~" + ws_display[len(home):]
 
-    ver: str = f"[orx.banner.version]v{orxhestra.__version__}[/orx.banner.version]"
+    ver: str = (
+        f"[orx.banner.version]v{orxhestra.__version__}[/orx.banner.version]"
+    )
     lbl: str = "orx.banner.label"
     content: str = (
         f"[orx.accent]orx[/orx.accent] {ver}\n"
@@ -148,4 +164,6 @@ def print_banner(
     )
 
     console.print()
-    console.print(Panel(content, border_style="orx.subtle", padding=(0, 2)))
+    console.print(
+        Panel(content, border_style="orx.subtle", padding=(0, 2))
+    )

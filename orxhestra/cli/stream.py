@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import time
-from typing import Any
+from dataclasses import dataclass, field
+from typing import TYPE_CHECKING, Any
 
 from orxhestra.cli.approval import APPROVE_REQUIRED, format_approval_prompt
 from orxhestra.cli.config import DEFAULT_USER_ID
@@ -15,11 +16,57 @@ from orxhestra.cli.render import (
 )
 from orxhestra.events.event import EventType
 
+if TYPE_CHECKING:
+    from rich.console import Console
+
+    from orxhestra.cli.todo_tool import TodoList
+    from orxhestra.events.event import Event
+    from orxhestra.runner import Runner
+
+
+@dataclass
+class _StreamState:
+    """Mutable state tracked during a single streaming turn."""
+
+    buffer: str = ""
+    in_stream: bool = False
+    live: Any = None
+    status: Any = None
+    tool_start: float = 0.0
+    turn_start: float = field(default_factory=time.monotonic)
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+    interactive_tool_ids: set[str] = field(default_factory=set)
+
+    def stop_status(self) -> None:
+        """Stop and clear the spinner."""
+        if self.status is not None:
+            self.status.stop()
+            self.status = None
+
+    def end_stream(self, console: Console, markdown_cls: type) -> None:
+        """Stop live preview, render final Markdown, clear buffer."""
+        if self.in_stream:
+            if self.live is not None:
+                self.live.stop()
+                self.live = None
+            if self.buffer:
+                console.print(markdown_cls(self.buffer))
+            self.in_stream = False
+            self.buffer = ""
+
+    def accumulate_usage(self, event: Event) -> None:
+        """Extract token usage from event metadata."""
+        usage: dict = event.metadata.get("usage", {})
+        if usage:
+            self.prompt_tokens += usage.get("prompt_tokens", 0) or 0
+            self.completion_tokens += usage.get("completion_tokens", 0) or 0
+
 
 async def prompt_approval(
     tool_name: str,
     args: dict[str, Any],
-    console: Any,
+    console: Console,
     auto_approve: bool,
 ) -> bool:
     """Ask the user to approve a destructive tool call."""
@@ -41,33 +88,24 @@ async def prompt_approval(
 
 
 async def stream_response(
-    runner: Any,
+    runner: Runner,
     session_id: str,
     message: str,
-    console: Any,
-    Markdown: type,
+    console: Console,
+    markdown_cls: type,
     *,
-    todo_list: Any = None,
+    todo_list: TodoList | None = None,
     auto_approve: bool = False,
 ) -> bool:
     """Stream a single agent turn, rendering events in real time.
 
-    Streaming uses Rich Live with transient=True: the live display shows
-    a Markdown preview during streaming, then disappears and is replaced
-    by a final static Markdown render. This avoids the duplication bug
-    while preserving formatted output.
+    Uses Rich Live with ``transient=True``: the live display shows a
+    Markdown preview during streaming, then disappears and is replaced
+    by a final static Markdown render.
 
-    Returns updated auto_approve value (may change if user selects 'all').
+    Returns updated *auto_approve* value.
     """
-    buffer: str = ""
-    in_stream: bool = False
-    live: Any = None
-    status: Any = None
-    tool_start: float = 0.0
-    turn_start: float = time.monotonic()
-    prompt_tokens: int = 0
-    completion_tokens: int = 0
-    interactive_tool_ids: set[str] = set()
+    s = _StreamState()
 
     try:
         from rich.live import Live
@@ -79,71 +117,46 @@ async def stream_response(
     except ImportError:
         Status = None
 
-    def _stop_status() -> None:
-        nonlocal status
-        if status is not None:
-            status.stop()
-            status = None
-
-    def _end_stream() -> None:
-        """Stop live preview, render final Markdown, clear buffer."""
-        nonlocal buffer, in_stream, live
-        if in_stream:
-            if live is not None:
-                live.stop()
-                live = None
-            if buffer:
-                console.print(Markdown(buffer))
-            in_stream = False
-            buffer = ""
-
     try:
         async for event in runner.astream(
             user_id=DEFAULT_USER_ID,
             session_id=session_id,
             new_message=message,
         ):
-            # Extract token usage from event metadata
-            usage: dict = event.metadata.get("usage", {})
-            if usage:
-                prompt_tokens += usage.get("prompt_tokens", 0) or 0
-                completion_tokens += usage.get("completion_tokens", 0) or 0
+            s.accumulate_usage(event)
 
-            # Streaming partial tokens — live Markdown preview
             if event.partial and event.type == EventType.AGENT_MESSAGE and event.text:
-                _stop_status()
-                buffer += event.text
+                s.stop_status()
+                s.buffer += event.text
                 if Live is not None:
-                    if not in_stream:
-                        in_stream = True
-                        live = Live(
-                            Markdown(buffer),
+                    if not s.in_stream:
+                        s.in_stream = True
+                        s.live = Live(
+                            markdown_cls(s.buffer),
                             console=console,
                             refresh_per_second=8,
                             transient=True,
                         )
-                        live.start()
+                        s.live.start()
                     else:
-                        live.update(Markdown(buffer))
+                        s.live.update(markdown_cls(s.buffer))
                 else:
-                    if not in_stream:
-                        in_stream = True
+                    if not s.in_stream:
+                        s.in_stream = True
                     import sys
 
                     sys.stdout.write(event.text)
                     sys.stdout.flush()
                 continue
 
-            # Tool call — with approval for destructive tools
             if event.has_tool_calls:
-                _stop_status()
-                _end_stream()
+                s.stop_status()
+                s.end_stream(console, markdown_cls)
 
-                # Track interactive tool calls
                 has_interactive: bool = False
                 for tc in event.tool_calls:
                     if tc.metadata.get("interactive"):
-                        interactive_tool_ids.add(tc.tool_call_id)
+                        s.interactive_tool_ids.add(tc.tool_call_id)
                         has_interactive = True
 
                 render_tool_call(event, console)
@@ -156,44 +169,40 @@ async def stream_response(
                         if not approved:
                             console.print("  [orx.denied]Denied.[/orx.denied]")
 
-                # Start spinner while waiting for tool response (skip for interactive)
-                tool_start = time.monotonic()
+                s.tool_start = time.monotonic()
                 if Status is not None and not has_interactive:
                     last_tool: str = event.tool_calls[-1].tool_name
-                    status = Status(
+                    s.status = Status(
                         f"  Running {last_tool}...",
                         console=console,
                         spinner="dots",
                     )
-                    status.start()
+                    s.status.start()
                 continue
 
-            # Tool response
             if event.type == EventType.TOOL_RESPONSE:
-                _stop_status()
-                # Skip rendering for interactive tool responses
+                s.stop_status()
                 tool_call_id: str = ""
                 if event.content.tool_responses:
                     tool_call_id = event.content.tool_responses[0].tool_call_id
-                if tool_call_id in interactive_tool_ids:
-                    interactive_tool_ids.discard(tool_call_id)
-                    tool_start = 0.0
+                if tool_call_id in s.interactive_tool_ids:
+                    s.interactive_tool_ids.discard(tool_call_id)
+                    s.tool_start = 0.0
                     continue
                 elapsed: float | None = None
-                if tool_start > 0:
-                    elapsed = time.monotonic() - tool_start
-                    tool_start = 0.0
+                if s.tool_start > 0:
+                    elapsed = time.monotonic() - s.tool_start
+                    s.tool_start = 0.0
                 render_tool_response(event, console, elapsed=elapsed)
 
                 if event.tool_name == "write_todos" and todo_list is not None:
                     render_todos(todo_list, console)
                 continue
 
-            # Final response
             if event.is_final_response():
-                _stop_status()
-                was_streaming: bool = in_stream
-                _end_stream()
+                s.stop_status()
+                was_streaming: bool = s.in_stream
+                s.end_stream(console, markdown_cls)
                 if not was_streaming and event.text:
                     agent_label: str = (
                         f"[{event.agent_name}] "
@@ -202,32 +211,30 @@ async def stream_response(
                     )
                     if agent_label:
                         console.print(f"\n[orx.agent]{agent_label}[/orx.agent]")
-                    console.print(Markdown(event.text))
+                    console.print(markdown_cls(event.text))
                 continue
 
-            # Error events
             if event.metadata.get("error") and event.text:
-                _stop_status()
-                _end_stream()
+                s.stop_status()
+                s.end_stream(console, markdown_cls)
                 console.print(f"[orx.error]Error:[/orx.error] {event.text}")
                 continue
 
     except KeyboardInterrupt:
-        _stop_status()
-        _end_stream()
+        s.stop_status()
+        s.end_stream(console, markdown_cls)
         console.print("\n[orx.interrupted]Interrupted.[/orx.interrupted]")
     finally:
-        _stop_status()
-        if in_stream:
-            _end_stream()
+        s.stop_status()
+        if s.in_stream:
+            s.end_stream(console, markdown_cls)
 
-    # Turn summary line
-    turn_elapsed: float = time.monotonic() - turn_start
+    turn_elapsed: float = time.monotonic() - s.turn_start
     render_turn_summary(
         turn_elapsed,
         console,
-        prompt_tokens=prompt_tokens,
-        completion_tokens=completion_tokens,
+        prompt_tokens=s.prompt_tokens,
+        completion_tokens=s.completion_tokens,
     )
 
     return auto_approve

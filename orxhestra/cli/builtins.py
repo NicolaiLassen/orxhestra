@@ -35,6 +35,7 @@ def register_cli_builtins(
     todo_list = _shared_todo_list
 
     def _todo_factory() -> list:
+        """Create the write_todos tool list."""
         return [make_todo_tool(todo_list)]
 
     register_builtin("write_todos", _todo_factory)
@@ -44,6 +45,7 @@ def register_cli_builtins(
         _ws = workspace
 
         def _task_factory() -> list:
+            """Create the task delegation tool list."""
             from orxhestra.cli.task_tool import make_task_tool
             from orxhestra.tools.filesystem import make_filesystem_tools
             from orxhestra.tools.shell import make_shell_tools

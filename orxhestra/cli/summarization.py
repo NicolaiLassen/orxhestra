@@ -127,6 +127,11 @@ async def summarize_session(
             else str(response.content)
         )
     except Exception:
+        import logging
+
+        logging.getLogger(__name__).debug(
+            "Summarization failed", exc_info=True
+        )
         return None
 
     # Create a summary event to replace old events

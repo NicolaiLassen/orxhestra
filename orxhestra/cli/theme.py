@@ -31,7 +31,7 @@ ORX_THEME = Theme(
         "orx.agent": f"bold {ACCENT}",
         "orx.prompt": f"bold {ACCENT}",
         "orx.prompt.input": "bold",
-        "orx.help.cmd": "bold",
+        "orx.help.cmd": f"bold {ACCENT}",
         "orx.help.desc": MUTED,
         "orx.banner.version": MUTED,
         "orx.banner.label": MUTED,

@@ -200,6 +200,22 @@ def make_todo_tool(
         for c in removed:
             lines.append(f"  - {c}")
 
+        # Verification nudge: when all tasks are completed, remind the
+        # agent to verify its work before responding to the user.
+        if total > 0 and completed == total:
+            has_verify_step: bool = any(
+                "verify" in t["content"].lower()
+                or "test" in t["content"].lower()
+                or "check" in t["content"].lower()
+                for t in parsed
+            )
+            if not has_verify_step:
+                lines.append(
+                    "\nAll tasks completed. Before responding, verify "
+                    "your work — run tests, check files, or review "
+                    "changes to confirm everything is correct."
+                )
+
         return "\n".join(lines)
 
     return StructuredTool.from_function(
@@ -210,6 +226,13 @@ def make_todo_tool(
             "Pass a JSON array with 'content' (what to do), "
             "'status' (pending/in_progress/completed/blocked), and "
             "optionally 'description' and 'required' (bool). "
-            "Sends the full list each time (replaces previous)."
+            "Sends the full list each time (replaces previous).\n\n"
+            "WHEN TO USE: complex multi-step tasks (3+ steps), "
+            "user provides multiple tasks, non-trivial work.\n"
+            "WHEN TO SKIP: single trivial task, purely conversational, "
+            "can be done in fewer than 3 steps.\n"
+            "RULES: mark tasks in_progress BEFORE starting work. "
+            "Only one task should be in_progress at a time. "
+            "Mark completed IMMEDIATELY after finishing."
         ),
     )

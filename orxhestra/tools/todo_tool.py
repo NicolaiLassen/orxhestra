@@ -116,10 +116,35 @@ def make_todo_tool(todo_list: TodoList) -> BaseTool:
             if item["status"] not in ("pending", "in_progress", "completed"):
                 return "Error: status must be 'pending', 'in_progress', or 'completed'"
 
+        old_todos: list[dict[str, str]] = list(todo_list.todos)
         todo_list.update(parsed)
+
         completed: int = sum(1 for t in parsed if t["status"] == "completed")
         total: int = len(parsed)
-        return f"Updated todo list: {completed}/{total} completed"
+
+        # Build a diff so the LLM sees what changed.
+        lines: list[str] = [f"Updated todo list: {completed}/{total} completed"]
+
+        old_contents: set[str] = {t.get("content", "") for t in old_todos}
+        old_statuses: dict[str, str] = {
+            t.get("content", ""): t.get("status", "") for t in old_todos
+        }
+        for t in parsed:
+            content: str = t["content"]
+            status: str = t["status"]
+            old_status: str | None = old_statuses.get(content)
+            if content not in old_contents:
+                lines.append(f"  + {content} [{status}]")
+            elif old_status and old_status != status:
+                lines.append(f"  ~ {content} [{old_status} -> {status}]")
+
+        removed: list[str] = [
+            c for c in old_contents if c not in {t["content"] for t in parsed}
+        ]
+        for c in removed:
+            lines.append(f"  - {c}")
+
+        return "\n".join(lines)
 
     return StructuredTool.from_function(
         coroutine=write_todos,

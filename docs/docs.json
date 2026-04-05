@@ -7,7 +7,10 @@
     "light": "#93C5FD",
     "dark": "#1D4ED8"
   },
-  "logo": "/images/logo_text_side.svg",
+  "logo": {
+    "light": "/images/logo_text_side.svg",
+    "dark": "/images/logo_text_side.svg"
+  },
   "favicon": "/assets/icon.svg",
   "appearance": {
     "default": "dark"

@@ -10,8 +10,8 @@ from orxhestra.cli.theme import SEP, TOOL_BOT, TOOL_MID, TOOL_TOP, TURN_DOT
 if TYPE_CHECKING:
     from rich.console import Console
 
-    from orxhestra.cli.todo_tool import TodoList
     from orxhestra.events.event import Event
+    from orxhestra.tools.todo_tool import TodoList
 
 _READ_TOOLS: frozenset[str] = frozenset({
     "read_file", "ls", "glob", "grep", "list_artifacts", "load_artifact",

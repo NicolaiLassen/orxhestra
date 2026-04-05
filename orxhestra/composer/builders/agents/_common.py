@@ -81,8 +81,13 @@ async def resolve_llm_kwargs(
         planner = _build_planner(agent_def.planner)
         kwargs["planner"] = planner
         if agent_def.planner.type == "task":
+            # Wire up a shared TodoList + write_todos tool for the planner.
+            from orxhestra.tools.todo_tool import TodoList, make_todo_tool
+
+            todo_list = TodoList()
+            planner.set_todo_list(todo_list)
             existing = kwargs.get("tools") or []
-            kwargs["tools"] = [*existing, planner.get_manage_tasks_tool()]
+            kwargs["tools"] = [*existing, make_todo_tool(todo_list)]
 
     if agent_def.output_schema:
         kwargs["output_schema"] = import_object(agent_def.output_schema)

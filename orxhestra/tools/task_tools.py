@@ -1,8 +1,14 @@
-"""Background task tools — create, list, get, update, stop, and read output.
+"""Task tools — blocking delegation and background task lifecycle.
 
-Provides a full task lifecycle for agents that need to run subtasks
-in the background and check on them later. Tasks run as asyncio
-coroutines and store their output for retrieval.
+Two patterns for sub-agent delegation:
+
+- **Blocking** (``make_task_tool``): spawns a sub-agent, waits for
+  it to finish, returns the result. Use when the main agent needs
+  the answer before continuing.
+
+- **Background** (``make_background_task_tools``): spawns a sub-agent
+  in the background and returns a task ID immediately. The main agent
+  can check status and read output later. Use for parallel work.
 """
 
 from __future__ import annotations
@@ -56,7 +62,70 @@ class TaskStore:
         self._tasks.pop(task_id, None)
 
 
-def make_task_tools(
+def make_task_tool(
+    llm: Any,
+    tools: list[BaseTool],
+    workspace: str,
+) -> BaseTool:
+    """Create a blocking task delegation tool.
+
+    Spawns an ephemeral sub-agent with isolated context, waits for
+    it to finish, and returns the result.
+
+    Parameters
+    ----------
+    llm : BaseChatModel
+        LLM for the sub-agent.
+    tools : list[BaseTool]
+        Tools available to the sub-agent.
+    workspace : str
+        Workspace directory path.
+
+    Returns
+    -------
+    BaseTool
+        A ``task`` structured tool.
+    """
+
+    async def task(description: str) -> str:
+        """Delegate a subtask to a fresh agent with isolated context.
+
+        Args:
+            description: Detailed description of the subtask.
+        """
+        from orxhestra.agents.llm_agent import LlmAgent
+
+        sub_agent = LlmAgent(
+            name="sub-task",
+            llm=llm,
+            tools=list(tools),
+            instructions=(
+                f"You are a sub-agent handling a specific task. "
+                f"Workspace: {workspace}\n\n"
+                f"Complete the task and return a concise summary."
+            ),
+            max_iterations=15,
+        )
+
+        final_answer: str = ""
+        async for event in sub_agent.astream(description):
+            if event.is_final_response() and event.text:
+                final_answer = event.text
+
+        return final_answer or "Completed without producing a summary."
+
+    return StructuredTool.from_function(
+        coroutine=task,
+        name="task",
+        description=(
+            "Delegate a subtask to a fresh agent with isolated context. "
+            "The sub-agent has the same tools but a clean conversation. "
+            "Blocks until the sub-agent finishes and returns the result."
+        ),
+    )
+
+
+def make_background_task_tools(
     llm: Any,
     tools: list[BaseTool],
     workspace: str,

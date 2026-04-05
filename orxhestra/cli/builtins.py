@@ -12,8 +12,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from orxhestra.cli.todo_tool import TodoList, make_todo_tool
 from orxhestra.composer.builders.tools import register_builtin
+from orxhestra.tools.todo_tool import TodoList, make_todo_tool
 
 if TYPE_CHECKING:
     from langchain_core.language_models import BaseChatModel
@@ -67,10 +67,10 @@ def register_cli_builtins(
         _ws = workspace
 
         def _task_factory() -> list:
-            """Create the task delegation tool list."""
-            from orxhestra.cli.task_tool import make_task_tool
+            """Create the blocking task delegation tool."""
             from orxhestra.tools.filesystem import make_filesystem_tools
             from orxhestra.tools.shell import make_shell_tools
+            from orxhestra.tools.task_tools import make_task_tool
 
             fs = make_filesystem_tools(workspace=_ws)
             sh = make_shell_tools(
@@ -84,13 +84,13 @@ def register_cli_builtins(
             """Create background task lifecycle tools."""
             from orxhestra.tools.filesystem import make_filesystem_tools
             from orxhestra.tools.shell import make_shell_tools
-            from orxhestra.tools.task_tools import make_task_tools
+            from orxhestra.tools.task_tools import make_background_task_tools
 
             fs = make_filesystem_tools(workspace=_ws)
             sh = make_shell_tools(
                 workspace=_ws, timeout=120, max_output_bytes=200_000,
             )
-            return make_task_tools(_llm, [*fs, *sh], _ws)
+            return make_background_task_tools(_llm, [*fs, *sh], _ws)
 
         register_builtin("background_tasks", _bg_tasks_factory)
 

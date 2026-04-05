@@ -91,7 +91,9 @@
 
     /* ── Nav ── */
     nav {
-      position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+      position: fixed; top: 12px; left: 50%; transform: translateX(-50%);
+      z-index: 100;
+      width: min(calc(100% - 32px), 1100px);
       background: linear-gradient(
         135deg,
         rgba(59, 130, 246, 0.08) 0%,
@@ -100,8 +102,10 @@
       );
       -webkit-backdrop-filter: blur(24px) saturate(1.4);
       backdrop-filter: blur(24px) saturate(1.4);
-      border-bottom: 1px solid rgba(59, 130, 246, 0.15);
-      box-shadow: 0 1px 12px rgba(59, 130, 246, 0.06);
+      border: 1px solid rgba(59, 130, 246, 0.15);
+      border-radius: 16px;
+      box-shadow: 0 4px 24px rgba(0, 0, 0, 0.2),
+                  0 1px 12px rgba(59, 130, 246, 0.06);
     }
     nav .container {
       display: flex; align-items: center; justify-content: space-between;

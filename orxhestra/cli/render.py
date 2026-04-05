@@ -2,10 +2,17 @@
 
 from __future__ import annotations
 
+import time
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from orxhestra.cli.theme import SEP, TOOL_BOT, TOOL_MID, TOOL_TOP, TURN_DOT
+from orxhestra.cli.theme import (
+    SEP,
+    TOOL_BOT,
+    TOOL_MID,
+    TOOL_TOP,
+    TURN_DOT,
+)
 
 if TYPE_CHECKING:
     from rich.console import Console
@@ -55,23 +62,41 @@ def _tool_arg_summary(tool_name: str, args: dict) -> str:
     )
 
 
-def render_tool_call(event: Event, console: Console) -> None:
-    """Render tool calls with boxed format and category coloring.
+def _timestamp() -> str:
+    """Return current time as HH:MM for message timestamps."""
+    return time.strftime("%H:%M")
 
-    Parameters
-    ----------
-    event : Event
-        Event containing one or more tool calls.
-    console : Console
-        Rich console for output.
-    """
+
+def render_tool_call(event: Event, console: Console) -> None:
+    """Render tool calls with boxed format and category coloring."""
+    # Collapse consecutive read tools into one line.
+    read_tools: list[str] = []
+    other_tools: list[tuple[str, str, str]] = []
+
     for tc in event.tool_calls:
         if tc.metadata.get("interactive"):
             continue
         args: dict = tc.args or {}
         summary: str = _tool_arg_summary(tc.tool_name, args)
         style: str = _tool_style(tc.tool_name)
-        console.print(f"  [{style}]{TOOL_TOP} {tc.tool_name}[/{style}]")
+
+        if tc.tool_name in _READ_TOOLS and len(event.tool_calls) > 1:
+            read_tools.append(f"{tc.tool_name}({summary})" if summary else tc.tool_name)
+        else:
+            other_tools.append((tc.tool_name, summary, style))
+
+    # Render collapsed read group.
+    if read_tools:
+        collapsed: str = ", ".join(read_tools[:4])
+        if len(read_tools) > 4:
+            collapsed += f" +{len(read_tools) - 4} more"
+        console.print(
+            f"  [orx.tool.read]{TOOL_TOP} {collapsed}[/orx.tool.read]"
+        )
+
+    # Render other tools normally.
+    for tool_name, summary, style in other_tools:
+        console.print(f"  [{style}]{TOOL_TOP} {tool_name}[/{style}]")
         if summary:
             console.print(f"  [{style}]{TOOL_MID} {summary}[/{style}]")
 
@@ -82,17 +107,7 @@ def render_tool_response(
     *,
     elapsed: float | None = None,
 ) -> None:
-    """Render a truncated tool response with optional timing.
-
-    Parameters
-    ----------
-    event : Event
-        Event containing the tool response text.
-    console : Console
-        Rich console for output.
-    elapsed : float or None
-        Wall-clock seconds the tool call took, or None if unavailable.
-    """
+    """Render a truncated tool response with optional timing."""
     text: str = (event.text or "")[:300]
     elapsed_str: str = f" ({elapsed:.1f}s)" if elapsed is not None else ""
     if text:
@@ -110,15 +125,7 @@ def render_tool_response(
 
 
 def render_todos(todo_list: TodoList, console: Console) -> None:
-    """Render the todo list if it has items.
-
-    Parameters
-    ----------
-    todo_list : TodoList
-        The todo list instance to render.
-    console : Console
-        Rich console for output.
-    """
+    """Render the todo list if it has items."""
     if todo_list is None or not todo_list.todos:
         return
     rendered: str = todo_list.render()
@@ -133,27 +140,20 @@ def render_turn_summary(
     prompt_tokens: int = 0,
     completion_tokens: int = 0,
 ) -> None:
-    """Print a concise summary line after each agent turn.
-
-    Parameters
-    ----------
-    elapsed : float
-        Wall-clock seconds for the turn.
-    console : Console
-        Rich console for output.
-    prompt_tokens : int
-        Number of prompt tokens used.
-    completion_tokens : int
-        Number of completion tokens used.
-    """
+    """Print a concise summary line after each agent turn."""
+    ts: str = _timestamp()
     parts: list[str] = [f"{elapsed:.1f}s"]
     total: int = prompt_tokens + completion_tokens
     if total > 0:
         parts.append(
-            f"{total:,} tokens ({prompt_tokens:,}\u2191 {completion_tokens:,}\u2193)"
+            f"{total:,} tokens"
+            f" ({prompt_tokens:,}\u2191 {completion_tokens:,}\u2193)"
         )
     summary: str = SEP.join(parts)
-    console.print(f"  [orx.summary]{TURN_DOT} {summary}[/orx.summary]")
+    console.print(
+        f"  [orx.summary]{TURN_DOT} {summary}"
+        f"  [orx.muted]{ts}[/orx.muted][/orx.summary]"
+    )
 
 
 def print_banner(
@@ -162,19 +162,7 @@ def print_banner(
     workspace: str,
     console: Console,
 ) -> None:
-    """Print a styled welcome banner.
-
-    Parameters
-    ----------
-    orx_path : Path
-        Path to the orx YAML file.
-    model_name : str
-        Name of the active LLM model.
-    workspace : str
-        Workspace directory path.
-    console : Console
-        Rich console for output.
-    """
+    """Print a styled welcome banner."""
     import orxhestra
 
     try:
@@ -203,7 +191,9 @@ def print_banner(
         ws_display = "~" + ws_display[len(home):]
 
     ver: str = (
-        f"[orx.banner.version]v{orxhestra.__version__}[/orx.banner.version]"
+        f"[orx.banner.version]"
+        f"v{orxhestra.__version__}"
+        f"[/orx.banner.version]"
     )
     lbl: str = "orx.banner.label"
     content: str = (
@@ -215,5 +205,9 @@ def print_banner(
 
     console.print()
     console.print(
-        Panel(content, border_style="orx.subtle", padding=(0, 2))
+        Panel(
+            content,
+            border_style="orx.accent",
+            padding=(0, 2),
+        )
     )

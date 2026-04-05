@@ -126,21 +126,27 @@ async def _repl(
     )
 
     prompt_session: Any = None
+    prompt_style: Any = None
     try:
         from prompt_toolkit import PromptSession
+        from prompt_toolkit.formatted_text import ANSI
         from prompt_toolkit.history import FileHistory
 
         HISTORY_DIR.mkdir(parents=True, exist_ok=True)
         prompt_session = PromptSession(
             history=FileHistory(str(HISTORY_FILE))
         )
+        # Colored prompt using ANSI escape codes.
+        prompt_style = ANSI("\033[38;5;67morx\033[0m\033[90m>\033[0m ")
     except ImportError:
         pass
 
     while True:
         try:
             if prompt_session:
-                user_input: str = await prompt_session.prompt_async("orx> ")
+                user_input: str = await prompt_session.prompt_async(
+                    prompt_style or "orx> "
+                )
             else:
                 user_input = input("orx> ")
         except (EOFError, KeyboardInterrupt):

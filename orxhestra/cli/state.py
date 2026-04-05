@@ -3,8 +3,8 @@
 from langchain_core.language_models import BaseChatModel
 from pydantic import BaseModel, ConfigDict, Field
 
-from orxhestra.cli.todo_tool import TodoList
 from orxhestra.runner import Runner
+from orxhestra.tools.todo_tool import TodoList
 
 
 class ReplState(BaseModel):

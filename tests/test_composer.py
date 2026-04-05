@@ -729,8 +729,8 @@ class TestComposerBuild:
 
         agent = await Composer.from_yaml_async(yaml_path)
         assert isinstance(agent._planner, TaskPlanner)
-        # Task planner should auto-add manage_tasks tool
-        assert "manage_tasks" in agent._tools
+        # Task planner should auto-add write_todos tool
+        assert "write_todos" in agent._tools
 
     @patch("orxhestra.composer.builders.models._resolve_provider")
     async def test_skills_auto_inject_tools(self, mock_resolve, tmp_path):

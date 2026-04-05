@@ -811,12 +811,11 @@ class LlmAgent(BaseAgent):
             if self.before_model_callback:
                 await self.before_model_callback(ctx, request)
 
-            # Warn if message context is approaching model limits.
+            # Log context size at debug level only.
             total_chars = sum(len(str(m.content)) for m in messages)
             if total_chars > 200_000:
-                logger.warning(
-                    "Message context is %d chars (~%dk tokens). "
-                    "Consider reducing tool output size.",
+                logger.debug(
+                    "Message context is %d chars (~%dk tokens).",
                     total_chars,
                     total_chars // 4000,
                 )

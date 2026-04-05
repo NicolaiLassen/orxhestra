@@ -173,19 +173,19 @@
       justify-content: center;
     }
     .install-tab {
-      background: none; border: none; color: var(--text-dim);
+      background: none; color: var(--text-dim);
       padding: 8px 20px; font-size: 13px; font-weight: 600;
       cursor: pointer; transition: all 0.2s;
       font-family: 'Inter', sans-serif;
-      position: relative;
-      border-top: 2px solid transparent;
+      border: 1px solid var(--border);
     }
-    .install-tab:first-child { border-radius: 8px 0 0 0; }
-    .install-tab:last-child { border-radius: 0 8px 0 0; }
+    .install-tab:first-child { border-radius: 8px 0 0 8px; }
+    .install-tab:last-child { border-radius: 0 8px 8px 0; border-left: none; }
     .install-tab:hover { color: var(--text); }
     .install-tab.active {
       color: var(--text);
-      border-top: 2px solid var(--blue);
+      border-color: var(--blue);
+      background: rgba(59,130,246,0.08);
     }
 
     /* ── Scroll Reveal ── */

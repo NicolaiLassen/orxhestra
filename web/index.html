@@ -173,16 +173,19 @@
       justify-content: center;
     }
     .install-tab {
-      background: none; border: 1px solid var(--border); color: var(--text-dim);
+      background: none; border: none; color: var(--text-dim);
       padding: 8px 20px; font-size: 13px; font-weight: 600;
       cursor: pointer; transition: all 0.2s;
       font-family: 'Inter', sans-serif;
+      position: relative;
+      border-top: 2px solid transparent;
     }
-    .install-tab:first-child { border-radius: 8px 0 0 8px; }
-    .install-tab:last-child { border-radius: 0 8px 8px 0; border-left: none; }
+    .install-tab:first-child { border-radius: 8px 0 0 0; }
+    .install-tab:last-child { border-radius: 0 8px 0 0; }
+    .install-tab:hover { color: var(--text); }
     .install-tab.active {
-      background: var(--bg-card); color: var(--text);
-      border-color: #333;
+      color: var(--text);
+      border-top: 2px solid var(--blue);
     }
 
     /* ── Scroll Reveal ── */

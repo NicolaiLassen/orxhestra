@@ -100,5 +100,5 @@ class BaseSkillStore(ABC):
         try:
             return target.read_text(encoding="utf-8")
         except Exception as exc:
-            logger.warning("Failed to read resource %s: %s", target, exc)
+            logger.debug("Failed to read resource %s: %s", target, exc)
             return None

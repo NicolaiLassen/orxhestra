@@ -212,7 +212,7 @@ async def compact_session(
             response = await config.llm.ainvoke(prompt)
             summary = response.content if hasattr(response, "content") else str(response)
         except Exception as exc:
-            logger.warning("Compaction LLM call failed: %s", exc)
+            logger.debug("Compaction LLM call failed: %s", exc)
             return False
     else:
         summary = events_text[:2000]
@@ -238,7 +238,7 @@ async def compact_session(
 
     await session_service.append_event(session, compaction_event)
 
-    logger.info(
+    logger.debug(
         "Compacted %d events (%d chars) into summary (%d chars). "
         "Session has %d total events.",
         len(old_events),

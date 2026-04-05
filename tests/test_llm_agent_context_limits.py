@@ -231,7 +231,7 @@ async def test_context_budget_warning(caplog):
         instructions="x" * 250_000,
     )
 
-    with caplog.at_level(logging.WARNING, logger="orxhestra.agents.llm_agent"):
+    with caplog.at_level(logging.DEBUG, logger="orxhestra.agents.llm_agent"):
         _ = [e async for e in agent.astream("hi", ctx=_ctx())]
 
     assert any("Message context is" in r.message for r in caplog.records)

@@ -53,7 +53,7 @@ def parse_skill_md(text: str) -> tuple[SkillFrontmatter | None, str]:
     try:
         data: dict[str, Any] = yaml.safe_load(yaml_block) or {}
     except yaml.YAMLError:
-        logger.warning("Failed to parse SKILL.md frontmatter as YAML")
+        logger.debug("Failed to parse SKILL.md frontmatter as YAML")
         return None, stripped
 
     # Map kebab-case keys to snake_case for Pydantic
@@ -144,5 +144,5 @@ def discover_skills(root: Path) -> list[Skill]:
             skill = scan_skill_directory(skill_md.parent)
             skills.append(skill)
         except Exception as exc:
-            logger.warning("Failed to load skill from %s: %s", skill_md.parent, exc)
+            logger.debug("Failed to load skill from %s: %s", skill_md.parent, exc)
     return skills

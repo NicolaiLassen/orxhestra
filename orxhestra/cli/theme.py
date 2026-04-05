@@ -93,6 +93,15 @@ TOOL_MID: str = "\u2502"
 TOOL_BOT: str = "\u2514"
 TURN_DOT: str = "\u27e1"
 SEP: str = " \u00b7 "
+RESPONSE_CONNECTOR: str = "\u23bf"  # ⎿
+BLOCKQUOTE_BAR: str = "\u258e"  # ▎
+
+# Custom spinner for the orxhestra CLI.
+ORX_SPINNER: dict = {
+    "interval": 200,
+    "frames": ["\u2669", "\u266a", "\u266b", "\u266c", "\u266b", "\u266a"],
+    # ♩ ♪ ♫ ♬ ♫ ♪
+}
 
 
 def detect_terminal_theme() -> str:

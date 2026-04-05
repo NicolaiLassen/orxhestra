@@ -15,7 +15,7 @@ from orxhestra.cli.render import (
     render_tool_response,
     render_turn_summary,
 )
-from orxhestra.cli.theme import ACCENT
+from orxhestra.cli.theme import ACCENT, RESPONSE_CONNECTOR
 from orxhestra.events.event import EventType
 
 if TYPE_CHECKING:
@@ -85,6 +85,10 @@ class _StreamState:
                 self.live.stop()
                 self.live = None
             if self.buffer:
+                console.print(
+                    f"[orx.muted]{RESPONSE_CONNECTOR}[/orx.muted] ",
+                    end="",
+                )
                 console.print(markdown_cls(self.buffer))
             self.in_stream = False
             self.buffer = ""
@@ -184,9 +188,17 @@ async def stream_response(
         Live = None
 
     try:
+        from rich.spinner import SPINNERS
         from rich.status import Status
     except ImportError:
+        SPINNERS = None
         Status = None
+
+    # Register the custom orxhestra spinner.
+    if SPINNERS is not None:
+        from orxhestra.cli.theme import ORX_SPINNER
+
+        SPINNERS["orx_music"] = ORX_SPINNER
 
     # Show a thinking spinner immediately while waiting for the first event.
     if Status is not None:
@@ -194,7 +206,7 @@ async def stream_response(
         s.status = Status(
             f"  [orx.accent]{phrase}...[/orx.accent]",
             console=console,
-            spinner="dots",
+            spinner="orx_music",
             spinner_style=ACCENT,
         )
         s.status.start()
@@ -257,7 +269,7 @@ async def stream_response(
                     s.status = Status(
                         f"  [orx.accent]Running {last_tool}...[/orx.accent]",
                         console=console,
-                        spinner="dots",
+                        spinner="orx_music",
                         spinner_style=ACCENT,
                     )
                     s.status.start()
@@ -287,7 +299,7 @@ async def stream_response(
                     s.status = Status(
                         f"  [orx.accent]{phrase}...[/orx.accent]",
                         console=console,
-                        spinner="dots",
+                        spinner="orx_music",
                         spinner_style=ACCENT,
                     )
                     s.status.start()
@@ -304,7 +316,13 @@ async def stream_response(
                         else ""
                     )
                     if agent_label:
-                        console.print(f"\n[orx.agent]{agent_label}[/orx.agent]")
+                        console.print(
+                            f"\n[orx.agent]{agent_label}[/orx.agent]"
+                        )
+                    console.print(
+                        f"[orx.muted]{RESPONSE_CONNECTOR}[/orx.muted] ",
+                        end="",
+                    )
                     console.print(markdown_cls(event.text))
                 continue
 

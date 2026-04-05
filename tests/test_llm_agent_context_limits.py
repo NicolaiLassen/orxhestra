@@ -8,8 +8,8 @@ from langchain_core.messages import AIMessage, BaseMessage, ToolMessage
 from langchain_core.outputs import ChatGeneration, ChatResult
 
 from orxhestra.agents.invocation_context import InvocationContext as Context
-from orxhestra.agents.llm_agent import (
-    LlmAgent,
+from orxhestra.agents.llm_agent import LlmAgent
+from orxhestra.agents.message_builder import (
     _build_previous_context,
     _truncate_tool_message,
 )

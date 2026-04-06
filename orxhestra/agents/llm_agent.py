@@ -158,8 +158,15 @@ class LlmAgent(BaseAgent):
         tool_response_max_chars: int = 30_000,
         context_max_chars: int = 5_000,
         context_total_max_chars: int = 10_000,
+        signing_key: Any | None = None,
+        signing_did: str = "",
     ) -> None:
-        super().__init__(name=name, description=description)
+        super().__init__(
+            name=name,
+            description=description,
+            signing_key=signing_key,
+            signing_did=signing_did,
+        )
 
         self._llm = llm
         self._tools: dict[str, BaseTool] = {t.name: t for t in (tools or [])}

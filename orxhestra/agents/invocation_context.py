@@ -79,29 +79,100 @@ class InvocationContext(BaseModel):
         Optional memory service for long-term recall.
     event_callback : callable, optional
         Callback for real-time event streaming to parent agents.
+    signing_key : Ed25519PrivateKey, optional
+        Ed25519 private key for signing events.  When set, every event
+        emitted by ``BaseAgent._emit_event`` is signed automatically.
+        Install ``orxhestra[auth]`` to use this feature.
+    signing_did : str
+        The ``did:key`` identifier corresponding to ``signing_key``.
+        Attached to each signed event so verifiers can look up the
+        public key.
     """
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    invocation_id: str = Field(default_factory=lambda: str(uuid4()))
-    session_id: str
-    user_id: str = ""
-    app_name: str = ""
-    agent_name: str
-    branch: str = ""
-    state: dict[str, Any] = Field(default_factory=dict)
-    agent_states: dict[str, dict[str, Any]] = Field(default_factory=dict)
-    end_of_agents: dict[str, bool] = Field(default_factory=dict)
-    end_invocation: bool = False
-    is_resumable: bool = False
-    long_running_tool_ids: set[str] = Field(default_factory=set)
-    input_content: str | None = None
-    session: Any | None = None
-    run_config: dict[str, Any] = Field(default_factory=dict)
-    current_agent: BaseAgent | None = None
-    artifact_service: BaseArtifactService | None = None
-    memory_service: Any | None = None
-    event_callback: Callable[[Any], None] | None = None
+    invocation_id: str = Field(
+        default_factory=lambda: str(uuid4()),
+        description="Unique ID for this specific invocation.",
+    )
+    session_id: str = Field(
+        description="The session this invocation belongs to.",
+    )
+    user_id: str = Field(
+        default="",
+        description="The user who initiated the session.",
+    )
+    app_name: str = Field(
+        default="",
+        description="The application running the agent.",
+    )
+    agent_name: str = Field(
+        description="The name of the currently executing agent.",
+    )
+    branch: str = Field(
+        default="",
+        description="Dot-separated path for nested execution (e.g. 'root.child').",
+    )
+    state: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Mutable key-value store for cross-agent state within one run.",
+    )
+    agent_states: dict[str, dict[str, Any]] = Field(
+        default_factory=dict,
+        description="Per-agent execution state for composite agents.",
+    )
+    end_of_agents: dict[str, bool] = Field(
+        default_factory=dict,
+        description="Tracks which agents have finished their turn.",
+    )
+    end_invocation: bool = Field(
+        default=False,
+        description="Kill switch to force-stop the entire invocation.",
+    )
+    is_resumable: bool = Field(
+        default=False,
+        description="When True, enables pause/resume for long-running tools.",
+    )
+    long_running_tool_ids: set[str] = Field(
+        default_factory=set,
+        description="Tool call IDs that should trigger invocation pause.",
+    )
+    input_content: str | None = Field(
+        default=None,
+        description="The input that initiated this invocation, preserved for resumption.",
+    )
+    session: Any | None = Field(
+        default=None,
+        description="The session object this invocation belongs to.",
+    )
+    run_config: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Per-run configuration (LangChain RunnableConfig / AgentConfig).",
+    )
+    current_agent: BaseAgent | None = Field(
+        default=None,
+        description="Reference to the current agent instance.",
+    )
+    artifact_service: BaseArtifactService | None = Field(
+        default=None,
+        description="Service for storing and retrieving file artifacts.",
+    )
+    memory_service: Any | None = Field(
+        default=None,
+        description="Optional memory service for long-term recall.",
+    )
+    event_callback: Callable[[Any], None] | None = Field(
+        default=None,
+        description="Callback for real-time event streaming to parent agents.",
+    )
+    signing_key: Any | None = Field(
+        default=None,
+        description="Ed25519 private key for signing events. Requires orxhestra[auth].",
+    )
+    signing_did: str = Field(
+        default="",
+        description="The did:key identifier corresponding to signing_key.",
+    )
 
     def derive(
         self,
@@ -144,6 +215,8 @@ class InvocationContext(BaseModel):
                 "artifact_service": self.artifact_service,
                 "memory_service": self.memory_service,
                 "event_callback": self.event_callback,
+                "signing_key": self.signing_key,
+                "signing_did": self.signing_did,
             }
         )
 

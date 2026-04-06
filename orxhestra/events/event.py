@@ -77,6 +77,15 @@ class Event(BaseModel):
         Arbitrary extra metadata (react_step, error, scratchpad, etc.).
     llm_response : LlmResponse, optional
         The raw LLM response (internal use).
+    signature : str, optional
+        Base64url-encoded Ed25519 signature over the canonical JSON
+        representation of the event's signable fields (id, type,
+        timestamp, agent_name, content text).  Set automatically
+        when the emitting agent has a signing key.
+    signer_did : str
+        The ``did:key`` identifier of the signing agent.  Verifiers
+        use this to resolve the public key via
+        ``orxhestra.auth.did_key_to_public_key()``.
     """
 
     id: str = Field(default_factory=lambda: str(uuid4()))
@@ -95,6 +104,8 @@ class Event(BaseModel):
     actions: EventActions = Field(default_factory=EventActions)
     metadata: dict[str, Any] = Field(default_factory=dict)
     llm_response: LlmResponse | None = None
+    signature: str | None = None
+    signer_did: str = ""
 
     @property
     def text(self) -> str:
@@ -240,6 +251,65 @@ class Event(BaseModel):
         if self.metadata.get("error"):
             return self.text
         return None
+
+    def signable_payload(self) -> dict[str, Any]:
+        """Return the canonical dict of fields included in the signature.
+
+        Returns
+        -------
+        dict[str, Any]
+            Deterministic subset of event fields used for signing
+            and verification.
+        """
+        return {
+            "id": self.id,
+            "type": self.type.value,
+            "timestamp": self.timestamp,
+            "agent_name": self.agent_name or "",
+            "branch": self.branch,
+            "content_text": self.text,
+        }
+
+    @property
+    def is_signed(self) -> bool:
+        """Return ``True`` if this event carries a signature."""
+        return self.signature is not None and bool(self.signer_did)
+
+    def verify_signature(self) -> bool:
+        """Verify this event's signature using the signer's DID.
+
+        Resolves the public key from ``signer_did`` via
+        ``orxhestra.auth.did_key_to_public_key()`` and verifies the
+        signature over :meth:`signable_payload`.
+
+        Returns
+        -------
+        bool
+            ``True`` if the signature is valid.  ``False`` if the
+            event is unsigned, the DID is invalid, or verification
+            fails.
+
+        Raises
+        ------
+        ImportError
+            If ``orxhestra[auth]`` is not installed.
+        """
+        if not self.is_signed:
+            return False
+
+        from orxhestra.auth.crypto import (
+            did_key_to_public_key,
+            verify_json_signature,
+        )
+
+        try:
+            public_key = did_key_to_public_key(self.signer_did)
+        except ValueError:
+            return False
+
+        return verify_json_signature(
+            public_key, self.signable_payload(), self.signature,
+        )
 
     @staticmethod
     def new_id() -> str:

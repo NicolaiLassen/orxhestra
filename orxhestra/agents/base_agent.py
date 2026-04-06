@@ -41,13 +41,29 @@ class BaseAgent(ABC):
         Child agents registered under this agent.
     parent_agent : BaseAgent, optional
         The parent agent (set automatically on registration).
+    signing_key : Ed25519PrivateKey, optional
+        Ed25519 private key giving this agent its own identity.
+        When set, events emitted by this agent are signed with
+        this key (takes priority over the context-level key).
+        Requires ``orxhestra[auth]``.
+    signing_did : str
+        The ``did:key`` identifier for ``signing_key``.
     """
 
-    def __init__(self, name: str, description: str = "") -> None:
+    def __init__(
+        self,
+        name: str,
+        description: str = "",
+        *,
+        signing_key: Any | None = None,
+        signing_did: str = "",
+    ) -> None:
         self.name = name
         self.description = description
         self.sub_agents: list[BaseAgent] = []
         self.parent_agent: BaseAgent | None = None
+        self.signing_key: Any | None = signing_key
+        self.signing_did: str = signing_did
 
     def _ensure_ctx(
         self,
@@ -88,7 +104,7 @@ class BaseAgent(ABC):
             A new Event with branch, session_id, and agent_name set.
         """
         kwargs.setdefault("author", self.name)
-        return Event(
+        event = Event(
             type=type,
             session_id=ctx.session_id,
             invocation_id=ctx.invocation_id,
@@ -96,6 +112,19 @@ class BaseAgent(ABC):
             branch=ctx.branch,
             **kwargs,
         )
+        key = self.signing_key or ctx.signing_key
+        did = self.signing_did or ctx.signing_did
+        if key is not None and did:
+            try:
+                from orxhestra.auth.crypto import sign_json_payload
+
+                event.signature = sign_json_payload(
+                    key, event.signable_payload(),
+                )
+                event.signer_did = did
+            except ImportError:
+                pass
+        return event
 
 
     @abstractmethod

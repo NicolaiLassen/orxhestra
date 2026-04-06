@@ -61,6 +61,7 @@ from orxhestra.agents.message_builder import (
 from orxhestra.agents.planner_adapter import PlannerAdapter
 from orxhestra.agents.structured_output import StructuredOutputParser
 from orxhestra.agents.tool_executor import ToolExecutor
+from orxhestra.agents.tracing import end_agent_span, error_agent_span, start_agent_span
 from orxhestra.events.event import Event, EventType
 from orxhestra.events.event_actions import EventActions
 from orxhestra.models.llm_request import LlmRequest
@@ -210,7 +211,6 @@ class LlmAgent(BaseAgent):
             else None
         )
 
-    # ── Backward-compatible callback properties ─────────────────
 
     @property
     def before_model_callback(self) -> Callable[..., Any] | None:
@@ -237,7 +237,6 @@ class LlmAgent(BaseAgent):
         """After-tool callback."""
         return self._callbacks.after_tool
 
-    # ── Instruction resolution (kept for subclass access) ───────
 
     async def _resolve_instructions(self, ctx: InvocationContext) -> str:
         """Resolve the system prompt.
@@ -257,7 +256,6 @@ class LlmAgent(BaseAgent):
         """
         return await self._message_builder.resolve_instructions(ctx)
 
-    # ── LLM helpers ─────────────────────────────────────────────
 
     def _build_bound_llm(self) -> BaseChatModel:
         """Return the LLM with tools bound."""
@@ -282,7 +280,6 @@ class LlmAgent(BaseAgent):
             output_schema=self._output_schema,
         )
 
-    # ── LLM call with streaming ─────────────────────────────────
 
     async def _call_llm(
         self,
@@ -374,7 +371,6 @@ class LlmAgent(BaseAgent):
                 return AIMessage(content=recovery.text or "")
         return None
 
-    # ── Final response handling ─────────────────────────────────
 
     async def _handle_final_response(
         self,
@@ -434,7 +430,6 @@ class LlmAgent(BaseAgent):
 
         return self._emit_event(ctx, EventType.AGENT_MESSAGE, **emit_kwargs)
 
-    # ── Main loop ───────────────────────────────────────────────
 
     async def astream(
         self,
@@ -464,102 +459,112 @@ class LlmAgent(BaseAgent):
             tokens, tool call/response events, and the final answer.
         """
         ctx = self._ensure_ctx(config, ctx)
-        system_prompt, messages = (
-            await self._message_builder.build_conversation_history(ctx, input)
+        ctx, _run_mgr = await start_agent_span(
+            ctx, self.name, "LlmAgent", {"input": input},
         )
-        llm: BaseChatModel = self._build_bound_llm()
 
-        for _ in range(self.max_iterations):
-            if ctx.end_invocation:
-                return
+        try:
+            system_prompt, messages = (
+                await self._message_builder.build_conversation_history(ctx, input)
+            )
+            llm: BaseChatModel = self._build_bound_llm()
 
-            # Build request and apply planner instruction.
-            request: LlmRequest = self._build_request(system_prompt, messages)
-            if self._planner_adapter is not None:
-                effective_prompt: str = self._planner_adapter.enrich_prompt(
-                    ctx, system_prompt, request
-                )
-                if effective_prompt != system_prompt:
-                    if messages and isinstance(messages[0], SystemMessage):
-                        messages[0] = SystemMessage(content=effective_prompt)
-
-            if self._callbacks.before_model:
-                await self._callbacks.before_model(ctx, request)
-
-            # Log context size at debug level only.
-            total_chars: int = sum(len(str(m.content)) for m in messages)
-            if total_chars > 200_000:
-                logger.debug(
-                    "Message context is %d chars (~%dk tokens).",
-                    total_chars,
-                    total_chars // 4000,
-                )
-
-            # Call LLM with error recovery.
-            raw_response: AIMessage | None = None
-            async for item in self._call_llm_with_recovery(
-                llm, messages, ctx, request
-            ):
-                if isinstance(item, AIMessage):
-                    raw_response = item
-                elif item is None:
-                    yield self._emit_event(
-                        ctx,
-                        EventType.AGENT_MESSAGE,
-                        content=Content.from_text("LLM call failed."),
-                        metadata={"error": True},
-                    )
+            for _ in range(self.max_iterations):
+                if ctx.end_invocation:
                     return
-                else:
-                    yield item  # partial event
 
-            if raw_response is None:
-                return
-
-            # Post-process response.
-            llm_response: LlmResponse = LlmResponse.from_ai_message(raw_response)
-            if self._planner_adapter is not None:
-                llm_response = self._planner_adapter.process_response(
-                    ctx, llm_response
-                )
-
-            if self._callbacks.after_model:
-                await self._callbacks.after_model(ctx, llm_response)
-
-            messages.append(raw_response)
-
-            # No tool calls → final answer or planner continuation.
-            if not llm_response.has_tool_calls:
-                final_event: Event | None = await self._handle_final_response(
-                    ctx, messages, llm_response
-                )
-                if final_event is None:
-                    continue
-                yield final_event
-                return
-
-            # Execute tool calls and collect ToolMessages.
-            tool_messages: list[ToolMessage] = []
-            async for item in self._tool_executor.execute(ctx, llm_response):
-                if isinstance(item, tuple):
-                    event, tool_msg = item
-                    yield event
-                    tool_messages.append(
-                        _truncate_tool_message(
-                            tool_msg, self.tool_response_max_chars
-                        )
+                # Build request and apply planner instruction.
+                request: LlmRequest = self._build_request(system_prompt, messages)
+                if self._planner_adapter is not None:
+                    effective_prompt: str = self._planner_adapter.enrich_prompt(
+                        ctx, system_prompt, request
                     )
-                else:
-                    yield item
+                    if effective_prompt != system_prompt:
+                        if messages and isinstance(messages[0], SystemMessage):
+                            messages[0] = SystemMessage(content=effective_prompt)
 
-            messages.extend(tool_messages)
+                if self._callbacks.before_model:
+                    await self._callbacks.before_model(ctx, request)
 
-        yield self._emit_event(
-            ctx,
-            EventType.AGENT_MESSAGE,
-            content=Content.from_text(
-                f"Max iterations ({self.max_iterations}) reached "
-                f"without a final answer."
-            ),
-            metadata={"error": True},
-        )
+                # Log context size at debug level only.
+                total_chars: int = sum(len(str(m.content)) for m in messages)
+                if total_chars > 200_000:
+                    logger.debug(
+                        "Message context is %d chars (~%dk tokens).",
+                        total_chars,
+                        total_chars // 4000,
+                    )
+
+                # Call LLM with error recovery.
+                raw_response: AIMessage | None = None
+                async for item in self._call_llm_with_recovery(
+                    llm, messages, ctx, request
+                ):
+                    if isinstance(item, AIMessage):
+                        raw_response = item
+                    elif item is None:
+                        yield self._emit_event(
+                            ctx,
+                            EventType.AGENT_MESSAGE,
+                            content=Content.from_text("LLM call failed."),
+                            metadata={"error": True},
+                        )
+                        return
+                    else:
+                        yield item  # partial event
+
+                if raw_response is None:
+                    return
+
+                # Post-process response.
+                llm_response: LlmResponse = LlmResponse.from_ai_message(raw_response)
+                if self._planner_adapter is not None:
+                    llm_response = self._planner_adapter.process_response(
+                        ctx, llm_response
+                    )
+
+                if self._callbacks.after_model:
+                    await self._callbacks.after_model(ctx, llm_response)
+
+                messages.append(raw_response)
+
+                # No tool calls → final answer or planner continuation.
+                if not llm_response.has_tool_calls:
+                    final_event: Event | None = await self._handle_final_response(
+                        ctx, messages, llm_response
+                    )
+                    if final_event is None:
+                        continue
+                    yield final_event
+                    return
+
+                # Execute tool calls and collect ToolMessages.
+                tool_messages: list[ToolMessage] = []
+                async for item in self._tool_executor.execute(ctx, llm_response):
+                    if isinstance(item, tuple):
+                        event, tool_msg = item
+                        yield event
+                        tool_messages.append(
+                            _truncate_tool_message(
+                                tool_msg, self.tool_response_max_chars
+                            )
+                        )
+                    else:
+                        yield item
+
+                messages.extend(tool_messages)
+
+            yield self._emit_event(
+                ctx,
+                EventType.AGENT_MESSAGE,
+                content=Content.from_text(
+                    f"Max iterations ({self.max_iterations}) reached "
+                    f"without a final answer."
+                ),
+                metadata={"error": True},
+            )
+        except BaseException as exc:
+            await error_agent_span(_run_mgr, exc)
+            raise
+        else:
+            await end_agent_span(_run_mgr)

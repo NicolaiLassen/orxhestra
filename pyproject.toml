@@ -46,6 +46,7 @@ perplexity = ["langchain-perplexity>=0.1.0"]
 openrouter = ["langchain-openrouter>=0.1.0"]
 upstage = ["langchain-upstage>=0.3.0"]
 # Infrastructure
+auth = ["cryptography>=43.0", "base58>=2.1", "PyJWT>=2.8"]
 database = ["sqlalchemy[asyncio]>=2.0", "aiosqlite>=0.20"]
 mcp = ["fastmcp>=2.0.0"]
 composer = ["pyyaml>=6.0"]
@@ -61,6 +62,9 @@ all = [
     "prompt-toolkit>=3.0",
     "sqlalchemy[asyncio]>=2.0",
     "aiosqlite>=0.20",
+    "cryptography>=43.0",
+    "base58>=2.1",
+    "PyJWT>=2.8",
 ]
 
 [project.scripts]

@@ -69,6 +69,7 @@ class _StreamState:
 
     buffer: str = ""
     in_stream: bool = False
+    thinking_active: bool = False
     live: Any = None
     status: Any = None
     tool_start: float = 0.0
@@ -230,9 +231,7 @@ async def stream_response(
                     if state.status is None:
                         break
                     new_phrase = _spinner_text(todo_list)
-                    state.status.update(
-                        f"  [orx.accent]{new_phrase}...[/orx.accent]"
-                    )
+                    state.status.update(f"  [orx.accent]{new_phrase}...[/orx.accent]")
             except asyncio.CancelledError:
                 pass
 
@@ -248,8 +247,24 @@ async def stream_response(
         ):
             s.accumulate_usage(event)
 
+            if event.partial and event.type == EventType.AGENT_MESSAGE and event.thinking:
+                s.stop_status()
+                if not s.thinking_active:
+                    s.thinking_active = True
+                    console.print(
+                        "[orx.thinking]  thinking ...[/orx.thinking]",
+                    )
+                console.print(
+                    f"[orx.thinking]{event.thinking}[/orx.thinking]",
+                    end="",
+                )
+                continue
+
             if event.partial and event.type == EventType.AGENT_MESSAGE and event.text:
                 s.stop_status()
+                if s.thinking_active:
+                    console.print()  # newline after thinking
+                    s.thinking_active = False
                 s.buffer += event.text
                 if Live is not None:
                     if not s.in_stream:
@@ -339,9 +354,7 @@ async def stream_response(
                         else ""
                     )
                     if agent_label:
-                        console.print(
-                            f"\n[orx.agent]{agent_label}[/orx.agent]"
-                        )
+                        console.print(f"\n[orx.agent]{agent_label}[/orx.agent]")
                     console.print(
                         f"[orx.muted]{RESPONSE_CONNECTOR}[/orx.muted] ",
                         end="",

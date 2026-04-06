@@ -38,7 +38,7 @@ Composer::
     from orxhestra.composer import Composer
 """
 
-__version__ = "0.0.40"
+__version__ = "0.0.41"
 
 from orxhestra.agents import (
     AgentConfig,
@@ -66,6 +66,7 @@ from orxhestra.models.part import (
     DataPart,
     FilePart,
     TextPart,
+    ThinkingPart,
     ToolCallPart,
     ToolResponsePart,
 )
@@ -101,6 +102,7 @@ __all__ = [
     "TextPart",
     "DataPart",
     "FilePart",
+    "ThinkingPart",
     "ToolCallPart",
     "ToolResponsePart",
     # Context

@@ -71,6 +71,7 @@ def _build_theme(palette: dict[str, str]) -> Theme:
             "orx.denied": m,
             "orx.interrupted": m,
             "orx.goodbye": m,
+            "orx.thinking": f"dim italic {m}",
             "orx.status": m,
             # Rich Markdown overrides
             "markdown.item.bullet": f"bold {a}",

@@ -73,6 +73,7 @@ if TYPE_CHECKING:
 
 logger: logging.Logger = logging.getLogger(__name__)
 
+
 class LlmAgent(BaseAgent):
     """Agent with a manual tool-call loop.
 
@@ -207,15 +208,11 @@ class LlmAgent(BaseAgent):
             callbacks=self._callbacks,
             emit_event=self._emit_event,
         )
-        self._planner_adapter: PlannerAdapter | None = (
-            PlannerAdapter(planner) if planner else None
-        )
+        self._planner_adapter: PlannerAdapter | None = PlannerAdapter(planner) if planner else None
         # Keep raw reference for subclass access (e.g. ReActAgent).
         self._planner = planner
         self._structured_parser: StructuredOutputParser | None = (
-            StructuredOutputParser(llm, output_schema)
-            if output_schema
-            else None
+            StructuredOutputParser(llm, output_schema) if output_schema else None
         )
 
     @property
@@ -275,8 +272,7 @@ class LlmAgent(BaseAgent):
     ) -> LlmRequest:
         """Package the current turn into an ``LlmRequest``."""
         return LlmRequest(
-            model=getattr(self._llm, "model_name", None)
-            or getattr(self._llm, "model", None),
+            model=getattr(self._llm, "model_name", None) or getattr(self._llm, "model", None),
             system_instruction=system_instruction,
             messages=list(messages),
             tools=list(self._tools.values()),
@@ -303,8 +299,7 @@ class LlmAgent(BaseAgent):
             chunks.append(chunk)
 
             if not has_tool_calls and (
-                getattr(chunk, "tool_calls", None)
-                or getattr(chunk, "tool_call_chunks", None)
+                getattr(chunk, "tool_calls", None) or getattr(chunk, "tool_call_chunks", None)
             ):
                 has_tool_calls = True
 
@@ -312,12 +307,28 @@ class LlmAgent(BaseAgent):
                 continue
 
             chunk_text: str = ""
+            chunk_thinking: str = ""
             if isinstance(chunk.content, str):
                 chunk_text = chunk.content
             elif isinstance(chunk.content, list):
                 for part in chunk.content:
                     if isinstance(part, dict):
-                        chunk_text += part.get("text", "")
+                        ptype = part.get("type")
+                        if ptype == "thinking":
+                            chunk_thinking += part.get("thinking", "")
+                        elif ptype == "reasoning":
+                            chunk_thinking += part.get("reasoning", "")
+                        else:
+                            chunk_text += part.get("text", "")
+
+            if chunk_thinking:
+                yield self._emit_event(
+                    ctx,
+                    EventType.AGENT_MESSAGE,
+                    content=Content.from_thinking(chunk_thinking),
+                    partial=True,
+                    turn_complete=False,
+                )
 
             if chunk_text:
                 yield self._emit_event(
@@ -351,9 +362,7 @@ class LlmAgent(BaseAgent):
             async for item in self._call_llm(llm, messages, ctx):
                 yield item
         except Exception as exc:
-            recovered: AIMessage | None = await self._handle_llm_error(
-                ctx, request, exc
-            )
+            recovered: AIMessage | None = await self._handle_llm_error(ctx, request, exc)
             if recovered is not None:
                 yield recovered
             else:
@@ -367,9 +376,7 @@ class LlmAgent(BaseAgent):
     ) -> AIMessage | None:
         """Handle an LLM call error, returning a recovery message or ``None``."""
         if self._callbacks.on_model_error:
-            recovery: LlmResponse | None = await self._callbacks.on_model_error(
-                ctx, request, exc
-            )
+            recovery: LlmResponse | None = await self._callbacks.on_model_error(ctx, request, exc)
             if recovery is not None:
                 return AIMessage(content=recovery.text or "")
         return None
@@ -412,9 +419,7 @@ class LlmAgent(BaseAgent):
 
         # Parse structured output if schema is set.
         if self._structured_parser is not None:
-            structured = await self._structured_parser.parse(
-                answer_text, messages, ctx
-            )
+            structured = await self._structured_parser.parse(answer_text, messages, ctx)
             if structured is not None:
                 parts.append(DataPart(data=structured.model_dump()))
 
@@ -431,7 +436,6 @@ class LlmAgent(BaseAgent):
             )
 
         return self._emit_event(ctx, EventType.AGENT_MESSAGE, **emit_kwargs)
-
 
     @trace("LlmAgent")
     async def astream(
@@ -461,9 +465,7 @@ class LlmAgent(BaseAgent):
             Events emitted during execution, including partial streaming
             tokens, tool call/response events, and the final answer.
         """
-        system_prompt, messages = (
-            await self._message_builder.build_conversation_history(ctx, input)
-        )
+        system_prompt, messages = await self._message_builder.build_conversation_history(ctx, input)
         llm: BaseChatModel = self._build_bound_llm()
 
         for _ in range(self.max_iterations):
@@ -495,9 +497,7 @@ class LlmAgent(BaseAgent):
 
             # Call LLM with error recovery.
             raw_response: AIMessage | None = None
-            async for item in self._call_llm_with_recovery(
-                llm, messages, ctx, request
-            ):
+            async for item in self._call_llm_with_recovery(llm, messages, ctx, request):
                 if isinstance(item, AIMessage):
                     raw_response = item
                 elif item is None:
@@ -517,9 +517,7 @@ class LlmAgent(BaseAgent):
             # Post-process response.
             llm_response: LlmResponse = LlmResponse.from_ai_message(raw_response)
             if self._planner_adapter is not None:
-                llm_response = self._planner_adapter.process_response(
-                    ctx, llm_response
-                )
+                llm_response = self._planner_adapter.process_response(ctx, llm_response)
 
             if self._callbacks.after_model:
                 await self._callbacks.after_model(ctx, llm_response)
@@ -543,9 +541,7 @@ class LlmAgent(BaseAgent):
                     event, tool_msg = item
                     yield event
                     tool_messages.append(
-                        _truncate_tool_message(
-                            tool_msg, self.tool_response_max_chars
-                        )
+                        _truncate_tool_message(tool_msg, self.tool_response_max_chars)
                     )
                 else:
                     yield item
@@ -556,8 +552,7 @@ class LlmAgent(BaseAgent):
             ctx,
             EventType.AGENT_MESSAGE,
             content=Content.from_text(
-                f"Max iterations ({self.max_iterations}) reached "
-                f"without a final answer."
+                f"Max iterations ({self.max_iterations}) reached without a final answer."
             ),
             metadata={"error": True},
         )

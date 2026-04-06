@@ -77,6 +77,24 @@ class FilePart(BaseModel):
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
+class ThinkingPart(BaseModel):
+    """A thinking/reasoning content part from extended thinking models.
+
+    Attributes
+    ----------
+    type : str
+        Part discriminator, always ``"thinking"``.
+    thinking : str
+        The thinking/reasoning text.
+    metadata : dict[str, Any]
+        Arbitrary key-value metadata attached to this part.
+    """
+
+    type: Literal["thinking"] = "thinking"
+    thinking: str
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
 class ToolCallPart(BaseModel):
     """A tool/function call part — the agent wants to invoke a tool.
 
@@ -129,7 +147,7 @@ class ToolResponsePart(BaseModel):
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
-Part = TextPart | DataPart | FilePart | ToolCallPart | ToolResponsePart
+Part = TextPart | DataPart | FilePart | ThinkingPart | ToolCallPart | ToolResponsePart
 
 
 class Content(BaseModel):
@@ -154,6 +172,11 @@ class Content(BaseModel):
         return Content(role=role, parts=[TextPart(text=text)])
 
     @staticmethod
+    def from_thinking(thinking: str, *, role: str | None = None) -> Content:
+        """Create a Content with a single ThinkingPart."""
+        return Content(role=role, parts=[ThinkingPart(thinking=thinking)])
+
+    @staticmethod
     def from_data(data: dict[str, Any], *, role: str | None = None) -> Content:
         """Create a Content with a single DataPart."""
         return Content(role=role, parts=[DataPart(data=data)])
@@ -162,6 +185,11 @@ class Content(BaseModel):
     def text(self) -> str:
         """Concatenate all text parts."""
         return "".join(p.text for p in self.parts if isinstance(p, TextPart))
+
+    @property
+    def thinking(self) -> str:
+        """Concatenate all thinking parts."""
+        return "".join(p.thinking for p in self.parts if isinstance(p, ThinkingPart))
 
     @property
     def data(self) -> dict[str, Any] | None:

@@ -82,6 +82,7 @@ class LlmResponse(BaseModel):
             text = " ".join(
                 block.get("text", "") if isinstance(block, dict) else str(block)
                 for block in content
+                if not (isinstance(block, dict) and block.get("type") in ("thinking", "reasoning"))
             ).strip()
         else:
             text = str(content) if content else ""
@@ -91,8 +92,7 @@ class LlmResponse(BaseModel):
         output_tokens = usage.get("output_tokens") if usage else None
 
         model_version = (
-            message.response_metadata.get("model_name")
-            or message.response_metadata.get("model")
+            message.response_metadata.get("model_name") or message.response_metadata.get("model")
             if hasattr(message, "response_metadata") and message.response_metadata
             else None
         )

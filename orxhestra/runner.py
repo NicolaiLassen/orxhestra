@@ -36,6 +36,7 @@ from typing import TYPE_CHECKING
 from langchain_core.runnables import RunnableConfig
 
 from orxhestra.agents.invocation_context import InvocationContext
+from orxhestra.agents.tracing import end_agent_span, error_agent_span, start_agent_span
 from orxhestra.artifacts.base_artifact_service import BaseArtifactService
 from orxhestra.events.event import Event, EventType
 from orxhestra.models.part import Content
@@ -194,27 +195,37 @@ class Runner:
         )
         await self.session_service.append_event(session, user_event)
 
+        ctx, run_manager = await start_agent_span(
+            ctx, f"Runner:{self.agent.name}", "Runner", {"input": new_message},
+        )
+
         current_agent = self.agent
 
-        while True:
-            transfer_target: str | None = None
+        try:
+            while True:
+                transfer_target: str | None = None
 
-            async for event in current_agent.astream(new_message, ctx=ctx):
-                await self.session_service.append_event(session, event)
-                yield event
+                async for event in current_agent.astream(new_message, ctx=ctx):
+                    await self.session_service.append_event(session, event)
+                    yield event
 
-                if event.actions and event.actions.transfer_to_agent:
-                    transfer_target = event.actions.transfer_to_agent
+                    if event.actions and event.actions.transfer_to_agent:
+                        transfer_target = event.actions.transfer_to_agent
 
-            if transfer_target is None:
-                break
+                if transfer_target is None:
+                    break
 
-            target = self.agent.find_agent(transfer_target)
-            if target is None:
-                break
+                target = self.agent.find_agent(transfer_target)
+                if target is None:
+                    break
 
-            current_agent = target
-            ctx = ctx.model_copy(update={"agent_name": target.name})
+                current_agent = target
+                ctx = ctx.model_copy(update={"agent_name": target.name})
+        except BaseException as exc:
+            await error_agent_span(run_manager, exc)
+            raise
+        else:
+            await end_agent_span(run_manager)
 
         # Run compaction after all events are yielded from the agent.
         # Only compact at the end of an invocation, never mid-stream.

@@ -77,15 +77,9 @@ class LlmResponse(BaseModel):
         LlmResponse
             A populated response wrapper.
         """
-        content = message.content
-        if isinstance(content, list):
-            text = " ".join(
-                block.get("text", "") if isinstance(block, dict) else str(block)
-                for block in content
-                if not (isinstance(block, dict) and block.get("type") in ("thinking", "reasoning"))
-            ).strip()
-        else:
-            text = str(content) if content else ""
+        from orxhestra.models.content_parser import parse_content_blocks
+
+        text, _ = parse_content_blocks(message.content)
 
         usage = getattr(message, "usage_metadata", None) or {}
         input_tokens = usage.get("input_tokens") if usage else None

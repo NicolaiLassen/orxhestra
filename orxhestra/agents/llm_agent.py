@@ -64,6 +64,7 @@ from orxhestra.agents.tool_executor import ToolExecutor
 from orxhestra.agents.tracing import trace
 from orxhestra.events.event import Event, EventType
 from orxhestra.events.event_actions import EventActions
+from orxhestra.models.content_parser import parse_content_blocks
 from orxhestra.models.llm_request import LlmRequest
 from orxhestra.models.llm_response import LlmResponse
 from orxhestra.models.part import Content, DataPart, TextPart
@@ -306,20 +307,7 @@ class LlmAgent(BaseAgent):
             if has_tool_calls:
                 continue
 
-            chunk_text: str = ""
-            chunk_thinking: str = ""
-            if isinstance(chunk.content, str):
-                chunk_text = chunk.content
-            elif isinstance(chunk.content, list):
-                for part in chunk.content:
-                    if isinstance(part, dict):
-                        ptype = part.get("type")
-                        if ptype == "thinking":
-                            chunk_thinking += part.get("thinking", "")
-                        elif ptype == "reasoning":
-                            chunk_thinking += part.get("reasoning", "")
-                        else:
-                            chunk_text += part.get("text", "")
+            chunk_text, chunk_thinking = parse_content_blocks(chunk.content)
 
             if chunk_thinking:
                 yield self._emit_event(

@@ -101,8 +101,9 @@ class A2AServer:
         self.url = url
         self.skills = skills or []
 
-        # In-memory task store: task_id -> Task
+        # In-memory task store: task_id -> Task (bounded to prevent leaks).
         self._tasks: dict[str, Task] = {}
+        self._max_tasks: int = 10_000
 
 
     def _build_agent_card(self) -> AgentCard:
@@ -133,6 +134,10 @@ class A2AServer:
             history=[message],
         )
         self._tasks[task.id] = task
+        # Evict oldest tasks when limit is reached.
+        while len(self._tasks) > self._max_tasks:
+            oldest_key = next(iter(self._tasks))
+            del self._tasks[oldest_key]
         return task
 
     def _update_task_status(

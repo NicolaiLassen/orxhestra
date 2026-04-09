@@ -252,8 +252,11 @@ def make_filesystem_tools(workspace: str | None = None) -> list[BaseTool]:
         match_count = 0
         files = sorted(target.rglob("*")) if target.is_dir() else [target]
 
+        ws_resolved = Path(ws).resolve()
         for file in files:
             if not file.is_file():
+                continue
+            if not str(file.resolve()).startswith(str(ws_resolved)):
                 continue
             if not fnmatch.fnmatch(file.name, glob_filter):
                 continue

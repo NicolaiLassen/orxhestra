@@ -100,6 +100,7 @@ def make_shell_tools(
             stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=t)
         except asyncio.TimeoutError:
             proc.kill()
+            await proc.wait()
             return f"Error: command timed out after {t}s"
 
         output: str = ""

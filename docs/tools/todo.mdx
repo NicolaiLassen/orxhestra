@@ -1,0 +1,122 @@
+---
+title: "Todo Tool"
+description: "Structured task tracking with write_todos. Agents create, update, and complete task lists that integrate with the TaskPlanner for per-turn status injection."
+keywords: ["todo", "task tracking", "write_todos", "TaskPlanner", "task management"]
+---
+
+The todo tool gives agents structured task management. The agent calls `write_todos` to create and update a task list, and the `TaskPlanner` injects the current status into the system prompt before each LLM call.
+
+## Setup
+
+```python
+from orxhestra import LlmAgent
+from orxhestra.tools.todo_tool import TodoList, make_todo_tool
+from orxhestra.planners.task_planner import TaskPlanner
+
+todo_list = TodoList()
+todo_tool = make_todo_tool(todo_list)
+planner = TaskPlanner(todo_list=todo_list)
+
+agent = LlmAgent(
+    name="ProjectAgent",
+    llm=llm,
+    tools=[todo_tool],
+    planner=planner,
+    instructions="Use write_todos to track your work on multi-step tasks.",
+)
+```
+
+## write_todos
+
+The agent calls `write_todos` with a JSON array of task objects. Each call **replaces** the entire list.
+
+```json
+[
+  {"content": "Research the topic", "status": "completed"},
+  {"content": "Write the outline", "status": "in_progress"},
+  {"content": "Draft the article", "status": "pending"},
+  {"content": "Review and edit", "status": "pending", "required": true}
+]
+```
+
+### Task fields
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `content` | `str` | Yes | What needs to be done (imperative form) |
+| `status` | `str` | Yes | `"pending"`, `"in_progress"`, `"completed"`, or `"blocked"` |
+| `description` | `str` | No | Longer explanation of the task |
+| `required` | `bool` | No | Whether the task must be completed (default `false`) |
+
+### Auto-generated fields
+
+| Field | Description |
+|-------|-------------|
+| `id` | Auto-assigned (`t1`, `t2`, ...) |
+| `updated_by` | Agent name (if `agent_name` passed to `make_todo_tool`) |
+| `updated_at` | Timestamp of last update |
+
+## TaskPlanner
+
+`TaskPlanner` reads from the shared `TodoList` and injects the current status into the system prompt before each LLM call:
+
+```
+Current tasks (v3):
+  t1 [done] Research the topic
+  t2 [in_progress] Write the outline
+  t3 [pending] Draft the article
+  t4 [pending] Review and edit (required)
+
+Progress: 1/4 completed.
+```
+
+### Initial task seeding
+
+You can pre-seed tasks via the planner:
+
+```python
+planner = TaskPlanner(
+    todo_list=todo_list,
+    tasks=[
+        {"title": "Research", "status": "pending"},
+        {"title": "Write", "status": "pending"},
+        {"title": "Review", "status": "pending"},
+    ],
+)
+```
+
+Tasks are seeded on the first LLM call if the todo list is empty.
+
+### Checking completion
+
+```python
+planner.has_pending_tasks(readonly_context)  # True if any task is not completed
+```
+
+## TodoList API
+
+```python
+from orxhestra.tools.todo_tool import TodoList
+
+todo_list = TodoList()
+
+# Update tasks
+todo_list.update([
+    {"content": "Step 1", "status": "completed"},
+    {"content": "Step 2", "status": "in_progress"},
+], actor="MyAgent")
+
+# Check status
+todo_list.has_pending()       # True
+todo_list.get_active_task()   # "Step 2"
+todo_list.build_status_text() # Formatted status block
+todo_list.render()            # Rich-formatted output (for CLI)
+
+# Access
+todo_list.todos    # list[dict]
+todo_list.version  # int (incremented on each update)
+```
+
+## Verification nudge
+
+When all tasks are marked as completed, the tool automatically appends a reminder for the agent to verify its work before responding — unless a task already contains "verify", "test", or "check" in its content.

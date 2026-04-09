@@ -1,0 +1,119 @@
+---
+title: "Artifact Tools"
+description: "Save, load, and list file artifacts during agent execution. Agents can persist files, code, reports, and binary data across turns."
+keywords: ["artifacts", "file storage", "save artifact", "load artifact", "agent files"]
+---
+
+Artifact tools let agents save, load, and list files during execution. Useful for persisting generated code, reports, images, or any data the agent produces.
+
+## Setup
+
+```python
+from orxhestra import LlmAgent, Runner, InMemorySessionService
+from orxhestra.artifacts.in_memory_artifact_service import InMemoryArtifactService
+from orxhestra.tools.artifact_tools import make_artifact_tools
+
+artifact_tools = make_artifact_tools()
+
+agent = LlmAgent(
+    name="Coder",
+    llm=llm,
+    tools=artifact_tools,
+    instructions="Use save_artifact to persist files. Use load_artifact to read them back.",
+)
+
+runner = Runner(
+    agent=agent,
+    app_name="my-app",
+    session_service=InMemorySessionService(),
+    artifact_service=InMemoryArtifactService(),
+)
+```
+
+## Available tools
+
+| Tool | Description |
+|------|-------------|
+| `save_artifact` | Save a file or blob to the artifact store |
+| `load_artifact` | Load an artifact by filename (optionally a specific version) |
+| `list_artifacts` | List all saved artifact filenames in the current session |
+
+### save_artifact
+
+```
+save_artifact(filename, content, mime_type="", is_base64=false)
+```
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `filename` | `str` | Name of the artifact (e.g. `"report.md"`) |
+| `content` | `str` | Text content, or base64-encoded binary data |
+| `mime_type` | `str` | MIME type (auto-detected from filename if empty) |
+| `is_base64` | `bool` | Set `true` if content is base64-encoded binary |
+
+Returns a confirmation string with the version number and byte count.
+
+### load_artifact
+
+```
+load_artifact(filename, version=null)
+```
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `filename` | `str` | Name of the artifact to load |
+| `version` | `int \| null` | Specific version to load (latest if omitted) |
+
+Returns the file content as text, or base64-encoded string for binary files.
+
+### list_artifacts
+
+Returns a newline-separated list of all saved artifact filenames, or `"No artifacts saved."`.
+
+## Versioning
+
+Every `save_artifact` call increments the version number for that filename. The version is tracked in `EventActions.artifact_delta` so artifact changes appear in the session event log.
+
+## CallContext API
+
+Tools can also save and load artifacts programmatically via `CallContext`:
+
+```python
+from orxhestra.tools import CallContext
+
+call_ctx = CallContext(ctx)
+
+# Save
+version = await call_ctx.save_artifact("report.md", "# Report\n...", mime_type="text/markdown")
+
+# Load (latest)
+data = await call_ctx.load_artifact("report.md")
+
+# Load specific version
+data = await call_ctx.load_artifact("report.md", version=1)
+
+# List all
+filenames = await call_ctx.list_artifacts()
+```
+
+## Artifact services
+
+| Service | Storage | Install |
+|---------|---------|---------|
+| `InMemoryArtifactService` | In-memory (volatile) | Built-in |
+| `FileArtifactService` | Local filesystem | Built-in |
+
+```python
+from orxhestra.artifacts.in_memory_artifact_service import InMemoryArtifactService
+from orxhestra.artifacts.file_artifact_service import FileArtifactService
+
+# In-memory (for testing)
+svc = InMemoryArtifactService()
+
+# File-based (persistent)
+svc = FileArtifactService(base_dir="/tmp/artifacts")
+```
+
+## Composer YAML
+
+Artifact tools are not yet available as a builtin in Composer YAML. Use the Python API to add them to your agent.

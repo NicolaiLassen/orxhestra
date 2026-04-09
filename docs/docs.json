@@ -33,7 +33,7 @@
           {
             "group": "Tools",
             "icon": "wrench",
-            "pages": ["tools/overview", "tools/filesystem", "tools/long-running", "tools/confirmation"]
+            "pages": ["tools/overview", "tools/filesystem", "tools/artifacts", "tools/todo", "tools/long-running", "tools/confirmation"]
           },
           {
             "group": "Orchestration",

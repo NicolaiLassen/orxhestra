@@ -75,6 +75,8 @@ if TYPE_CHECKING:
 logger: logging.Logger = logging.getLogger(__name__)
 
 
+
+
 class LlmAgent(BaseAgent):
     """Agent with a manual tool-call loop.
 
@@ -350,6 +352,7 @@ class LlmAgent(BaseAgent):
             async for item in self._call_llm(llm, messages, ctx):
                 yield item
         except Exception as exc:
+            self._last_llm_error = exc
             recovered: AIMessage | None = await self._handle_llm_error(ctx, request, exc)
             if recovered is not None:
                 yield recovered
@@ -489,11 +492,15 @@ class LlmAgent(BaseAgent):
                 if isinstance(item, AIMessage):
                     raw_response = item
                 elif item is None:
+                    exc = getattr(self, "_last_llm_error", None)
                     yield self._emit_event(
                         ctx,
                         EventType.AGENT_MESSAGE,
-                        content=Content.from_text("LLM call failed."),
-                        metadata={"error": True},
+                        content=Content.from_text(str(exc) if exc else "LLM call failed."),
+                        metadata={
+                            "error": True,
+                            "exception_type": type(exc).__name__ if exc else None,
+                        },
                     )
                     return
                 else:

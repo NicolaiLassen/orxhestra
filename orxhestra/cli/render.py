@@ -109,7 +109,12 @@ def render_tool_response(
 ) -> None:
     """Render a truncated tool response with optional timing."""
     text: str = (event.text or "")[:300]
-    elapsed_str: str = f" ({elapsed:.1f}s)" if elapsed is not None else ""
+    if elapsed is not None and elapsed < 0.1:
+        elapsed_str = ""  # Don't show near-zero times — just noise.
+    elif elapsed is not None:
+        elapsed_str = f" ({elapsed:.1f}s)"
+    else:
+        elapsed_str = ""
     if text:
         lines: list[str] = text.splitlines()
         first_line: str = lines[0][:120]
@@ -118,7 +123,7 @@ def render_tool_response(
         console.print(
             f"  [orx.muted]{TOOL_BOT} {first_line}{elapsed_str}[/orx.muted]"
         )
-    elif elapsed_str:
+    else:
         console.print(
             f"  [orx.muted]{TOOL_BOT} done{elapsed_str}[/orx.muted]"
         )

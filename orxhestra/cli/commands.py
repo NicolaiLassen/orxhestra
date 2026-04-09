@@ -395,6 +395,40 @@ _DISPATCH: dict[str, Callable[..., object]] = {
 }
 
 
+def register_command(
+    name: str,
+    handler: Callable[..., object] | None = None,
+) -> Callable[..., object]:
+    """Register a slash command handler.
+
+    Can be used as a decorator or called directly::
+
+        # Decorator
+        @register_command("/greet")
+        async def greet(state, cmd_arg, *, console, **kw):
+            console.print("Hello!")
+
+        # Direct
+        register_command("/greet", my_handler)
+
+    Parameters
+    ----------
+    name : str
+        Command name including the leading slash.
+    handler : callable, optional
+        Async handler. If omitted, returns a decorator.
+    """
+    if handler is not None:
+        _DISPATCH[name] = handler
+        return handler
+
+    def decorator(fn: Callable[..., object]) -> Callable[..., object]:
+        _DISPATCH[name] = fn
+        return fn
+
+    return decorator
+
+
 def get_command_names() -> list[str]:
     """Return all registered slash command names (for autocomplete)."""
     return sorted(_DISPATCH.keys())

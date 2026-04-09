@@ -44,7 +44,7 @@ async def main() -> None:
     """Run a ReActAgent that reasons step by step."""
     # --- Replace with a real LLM ---
     # from langchain_openai import ChatOpenAI
-    # llm = ChatOpenAI(model="gpt-4o")
+    # llm = ChatOpenAI(model="gpt-5.4")
     raise NotImplementedError(
         "Replace the llm= line below with a real LangChain chat model "
         "and comment out this raise."

@@ -5,7 +5,7 @@ Run with:
 
 Then test:
     # Agent Card discovery
-    curl http://localhost:8000/.well-known/agent.json
+    curl http://localhost:8000/.well-known/agent-card.json
 
     # message/send (JSON-RPC 2.0)
     curl -X POST http://localhost:8000/ \\

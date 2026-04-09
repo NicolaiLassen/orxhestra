@@ -37,7 +37,7 @@ orxhestra supports all major LLM providers via LangChain integrations.
 The CLI automatically detects the provider from the model name:
 
 ```bash
-orx --model gpt-4o           # → openai
+orx --model gpt-5.4           # → openai
 orx --model claude-sonnet-4-6 # → anthropic
 orx --model gemini-2.0-flash  # → google
 orx --model mistral-large     # → mistralai
@@ -79,10 +79,10 @@ Azure OpenAI requires explicit provider since model names overlap with OpenAI:
 defaults:
   model:
     provider: azure_openai
-    name: gpt-4o
+    name: gpt-5.4
     azure_endpoint: https://my-resource.openai.azure.com/
     api_version: "2024-12-01-preview"
-    azure_deployment: gpt-4o
+    azure_deployment: gpt-5.4
 ```
 
 ## Custom Providers

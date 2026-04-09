@@ -17,7 +17,7 @@ pip install orxhestra[composer]
 defaults:
   model:
     provider: openai
-    name: gpt-4o
+    name: gpt-5.4
 
 agents:
   assistant:
@@ -45,7 +45,7 @@ models:
     max_tokens: 8192
   fast:
     provider: openai
-    name: gpt-4o-mini
+    name: gpt-5.4-mini
 
 agents:
   researcher:

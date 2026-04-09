@@ -16,14 +16,23 @@ The `examples/` directory contains runnable demos for every major feature. Each 
 | `parallel_agent.py` | ParallelAgent running 3 research agents concurrently |
 | `loop_agent.py` | LoopAgent with writer/reviewer iterative refinement |
 | `transfer_agent.py` | Agent handoff via `make_transfer_tool` (triage -> specialists) |
+| `react_agent.py` | ReActAgent with structured thought-action-observation loop |
 | `planner_agent.py` | PlanReActPlanner with structured chain-of-thought |
 | `memory_agent.py` | Persistent memory with `InMemoryMemoryService` |
+| `memory_system.py` | File-based persistent memory with YAML frontmatter |
 | `structured_output.py` | Typed Pydantic output via `output_schema` |
 | `human_in_the_loop.py` | Interactive `ask_human` tool for user input |
 | `task_orchestration.py` | TaskPlanner with managed task board |
+| `multi_provider.py` | Same agent across OpenAI, Anthropic, and Google providers |
+| `database_sessions.py` | Persistent sessions with SQLite via `DatabaseSessionService` |
+| `background_tasks.py` | Background task lifecycle with `TaskStore` |
 | `mcp_agent.py` | MCP tool server integration |
 | `langfuse_tracing.py` | Langfuse tracing integration |
 | `a2a_server.py` | A2A protocol server endpoint |
+| `thinking_parts.py` | Processing extended thinking/reasoning tokens |
+| `signed_events.py` | Cryptographic event signing and verification |
+| `artifact_tools.py` | Saving and loading artifacts during agent execution |
+| `tool_confirmation.py` | Gating dangerous tools with confirmation callbacks |
 
 ```bash
 # Run any example (after replacing the NotImplementedError with your LLM)
@@ -40,6 +49,7 @@ YAML-based agent composition examples in `examples/composer/`:
 | `composer/pipeline/` | Sequential researcher -> writer pipeline with tools |
 | `composer/loop/` | Draft/review loop with `exit_loop` termination |
 | `composer/transfer/` | Triage agent with transfer routing to specialists |
+| `composer/coding/` | Plan-code-review loop with filesystem and shell tools |
 | `composer/a2a-server/` | A2A endpoint with Dockerfile for deployment |
 
 ```bash

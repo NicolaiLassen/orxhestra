@@ -119,7 +119,7 @@ class TestSchema:
     def test_full_spec(self):
         spec = ComposeSpec.model_validate(
             {
-                "defaults": {"model": {"provider": "openai", "name": "gpt-4o"}},
+                "defaults": {"model": {"provider": "openai", "name": "gpt-5.4"}},
                 "tools": {"search": {"function": "myapp.tools.search"}},
                 "agents": {
                     "bot": {
@@ -170,8 +170,8 @@ class TestModelFactory:
     def test_lazy_provider_resolved_via_registry(self):
         mock_cls = MagicMock()
         register_provider("openai", mock_cls)
-        create_model("openai", "gpt-4o")
-        mock_cls.assert_called_once_with(model="gpt-4o")
+        create_model("openai", "gpt-5.4")
+        mock_cls.assert_called_once_with(model="gpt-5.4")
 
 
 # ---------------------------------------------------------------------------
@@ -409,7 +409,7 @@ class TestComposerBuild:
             defaults:
               model:
                 provider: openai
-                name: gpt-4o
+                name: gpt-5.4
             agents:
               bot:
                 type: llm
@@ -441,7 +441,7 @@ class TestComposerBuild:
             models:
               fast:
                 provider: openai
-                name: gpt-4o-mini
+                name: gpt-5.4-mini
                 temperature: 0.0
               smart:
                 provider: anthropic
@@ -496,7 +496,7 @@ class TestComposerBuild:
                 type: llm
                 model:
                   provider: openai
-                  name: gpt-4o
+                  name: gpt-5.4
                   max_tokens: 4096
                   top_p: 0.9
             main_agent: bot
@@ -523,7 +523,7 @@ class TestComposerBuild:
             models:
               fast:
                 provider: openai
-                name: gpt-4o-mini
+                name: gpt-5.4-mini
               smart:
                 provider: anthropic
                 name: claude-opus-4-6
@@ -544,7 +544,7 @@ class TestComposerBuild:
 
         await Composer.from_yaml_async(yaml_path)
         models_used = {c["model"] for c in calls}
-        assert "gpt-4o-mini" in models_used
+        assert "gpt-5.4-mini" in models_used
         assert "claude-opus-4-6" in models_used
 
     @patch("orxhestra.composer.builders.models._resolve_provider")

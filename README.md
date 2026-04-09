@@ -252,6 +252,7 @@ docker run -e OPENAI_API_KEY=$OPENAI_API_KEY \
 - [Tools](https://docs.orxhestra.com/tools/overview) - Built-in and custom tools
 - [Composer](https://docs.orxhestra.com/composer/overview) - YAML-based agent composition
 - [Integrations](https://docs.orxhestra.com/integrations/mcp) - MCP and A2A setup
+- [Skills](docs/skills/) - Code-level CLI skill references (agent-tools, callbacks, planners, streaming, and more)
 
 ---
 

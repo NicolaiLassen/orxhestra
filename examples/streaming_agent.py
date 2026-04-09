@@ -71,7 +71,7 @@ async def main() -> None:
         print("Set OPENAI_API_KEY to run this example.")
         return
 
-    llm = ChatOpenAI(model="gpt-4o", api_key=api_key)
+    llm = ChatOpenAI(model="gpt-5.4", api_key=api_key)
 
     # Sub-agent 1: weather expert
     weather_agent = LlmAgent(

@@ -1,8 +1,9 @@
-"""Task orchestration example - agent with manage_tasks tool.
+"""Task orchestration example - agent with TodoList and TaskPlanner.
 
 Demonstrates an agent that:
   - Receives a multi-step task
-  - Uses manage_tasks to track progress
+  - Uses write_todos tool to track progress
+  - TaskPlanner injects task status into each LLM call
   - Marks tasks complete as it works
 """
 
@@ -11,9 +12,10 @@ from __future__ import annotations
 import asyncio
 
 from orxhestra import LlmAgent
-from orxhestra.planners.task_planner import ManageTasksTool
+from orxhestra.planners.task_planner import TaskPlanner
 from orxhestra.prompts.catalog import build_system_prompt
 from orxhestra.prompts.context import PromptContext
+from orxhestra.tools.todo_tool import TodoList, make_todo_tool
 
 
 async def main() -> None:
@@ -25,30 +27,32 @@ async def main() -> None:
         "and comment out this raise."
     )
 
-    manage_tasks = ManageTasksTool()
+    todo_list = TodoList()
+    todo_tool = make_todo_tool(todo_list)
+    planner = TaskPlanner(todo_list=todo_list)
 
     prompt = build_system_prompt(PromptContext(
         agent_name="ProjectAgent",
         goal="Complete the project tasks systematically.",
         instructions=(
-            "Use manage_tasks to track your work. "
+            "Use write_todos to track your work. "
             "Initialize tasks at the start. "
             "Mark each task complete when done. "
             "Only produce a final answer once all required tasks are complete."
         ),
         workflow_instructions=(
-            "1. Call manage_tasks(action='initialize', tasks=[...]) to set up tasks.\n"
+            "1. Call write_todos to set up your task list.\n"
             "2. Work through each task in order.\n"
-            "3. Call manage_tasks(action='complete', task_id='t1') when done.\n"
-            "4. Call manage_tasks(action='list') to check progress.\n"
-            "5. Produce a final answer summarising what was accomplished."
+            "3. Update tasks as completed via write_todos.\n"
+            "4. Produce a final answer summarising what was accomplished."
         ),
     ))
 
     agent = LlmAgent(
         name="ProjectAgent",
         llm=llm,  # noqa: F821
-        tools=[manage_tasks],
+        tools=[todo_tool],
+        planner=planner,
         instructions=prompt,
     )
 

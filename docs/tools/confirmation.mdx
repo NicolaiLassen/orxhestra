@@ -1,18 +1,18 @@
 ---
 title: "Tool Confirmation"
-description: "Gate dangerous tool executions with ToolContext.request_confirmation(). Pause and require approval before delete, drop, or other risky operations."
+description: "Gate dangerous tool executions with CallContext.request_confirmation(). Pause and require approval before delete, drop, or other risky operations."
 keywords: ["tool confirmation", "human approval", "safety", "before_tool_callback"]
 ---
 
-Gate dangerous tool executions with `ToolContext.request_confirmation()`:
+Gate dangerous tool executions with `CallContext.request_confirmation()`:
 
 ```python
-from orxhestra.tools import ToolContext
+from orxhestra.tools import CallContext
 
 async def confirm_dangerous(ctx, tool_name: str, tool_args: dict) -> None:
     if tool_name in ("delete_file", "drop_table"):
-        tool_ctx = ToolContext(ctx)
-        tool_ctx.request_confirmation()
+        call_ctx = CallContext(ctx)
+        call_ctx.request_confirmation()
 ```
 
 When `request_confirmation()` is called from a `before_tool_callback`, the tool execution is paused and a confirmation request event is yielded. The caller must approve or reject before execution continues.

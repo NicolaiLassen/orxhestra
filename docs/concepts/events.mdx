@@ -21,12 +21,13 @@ Every agent yields a stream of unified `Event` objects. All events share the sam
 | Property | Type | Description |
 |---|---|---|
 | `event.text` | `str` | Concatenated text from all text parts in the event's content |
+| `event.thinking` | `str` | Concatenated thinking parts (extended thinking models like Claude with thinking enabled) |
 | `event.data` | `dict \| None` | First data part's dict, or `None` |
-| `event.tool_name` | `str \| None` | Name of the tool (for `TOOL_RESPONSE` events) |
-| `event.tool_input` | `dict \| None` | Input arguments passed to the tool |
-| `event.tool_calls` | `list[dict]` | List of tool call requests from the LLM response |
+| `event.tool_name` | `str \| None` | Name of the tool (for `TOOL_RESPONSE` events or first tool call) |
+| `event.tool_input` | `dict \| None` | Input arguments passed to the first tool call |
+| `event.tool_calls` | `list[ToolCallPart]` | List of `ToolCallPart` objects from the LLM response (access `.tool_name`, `.args`, `.tool_call_id`) |
 | `event.has_tool_calls` | `bool` | `True` if the event contains tool call requests |
-| `event.error` | `str \| None` | Error message, if the event represents an error |
+| `event.error` | `str \| None` | Error message from tool response or metadata |
 
 ## Key methods
 
@@ -35,6 +36,7 @@ Every agent yields a stream of unified `Event` objects. All events share the sam
 | `event.is_final_response()` | Returns `True` if this is the agent's final answer (an `AGENT_MESSAGE` with no tool calls and not a partial streaming chunk) |
 | `event.to_langchain_message()` | Converts the event to the corresponding LangChain message type (`HumanMessage`, `AIMessage`, `ToolMessage`, etc.) |
 | `Event.from_langchain_message(msg)` | Class method that creates an `Event` from a LangChain message |
+| `Event.new_id()` | Static method that generates a new unique event ID (UUID) |
 
 ## Checking event types
 
@@ -50,7 +52,7 @@ if event.is_final_response():
 # Check for tool calls (replaces isinstance(event, ToolCallEvent))
 if event.has_tool_calls:
     for tc in event.tool_calls:
-        print(f"Calling {tc['name']} with {tc['args']}")
+        print(f"Calling {tc.tool_name} with {tc.args}")
 
 # Check for tool results (replaces isinstance(event, ToolResultEvent))
 if event.type == EventType.TOOL_RESPONSE:
@@ -78,9 +80,10 @@ Events carry `EventActions` for side-effects:
 
 ```python
 class EventActions(BaseModel):
-    state_delta: dict[str, Any] = {}     # merged into session state
-    transfer_to_agent: str | None = None # trigger agent handoff
-    escalate: bool | None = None         # stop parent LoopAgent
+    state_delta: dict[str, Any] = {}       # merged into session state
+    artifact_delta: dict[str, int] = {}    # artifact filenames → version saved
+    transfer_to_agent: str | None = None   # trigger agent handoff
+    escalate: bool | None = None           # stop parent LoopAgent
     skip_summarization: bool | None = None
     end_of_agent: bool | None = None
     compaction: EventCompaction | None = None
@@ -132,3 +135,24 @@ event.llm_response.input_tokens
 event.llm_response.output_tokens
 event.llm_response.model_version
 ```
+
+## Signed Events
+
+Agents with a `signing_key` automatically sign every event they emit using Ed25519. This provides cryptographic proof of which agent produced each event.
+
+| Property / Method | Type | Description |
+|---|---|---|
+| `event.signature` | `str \| None` | Base64url-encoded Ed25519 signature |
+| `event.signer_did` | `str` | `did:key` identifier of the signing agent |
+| `event.is_signed` | `bool` | `True` if the event carries a signature |
+| `event.verify_signature()` | `bool` | Verify the signature using the signer's DID public key |
+| `event.signable_payload()` | `dict` | Canonical dict of fields included in the signature (`id`, `type`, `timestamp`, `agent_name`, `branch`, `content_text`) |
+
+```python
+# Verify a signed event
+if event.is_signed:
+    valid = event.verify_signature()
+    print(f"Signed by {event.signer_did}: {'valid' if valid else 'invalid'}")
+```
+
+Requires `orxhestra[auth]` (`pip install orxhestra[auth]`).

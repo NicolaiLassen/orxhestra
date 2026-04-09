@@ -1,7 +1,7 @@
 ---
 title: "Tools"
-description: "Function tools, AgentTool sub-agents, transfer handoffs, exit loop, long-running tools, MCP adapters, and ToolContext for stateful tools."
-keywords: ["tools", "function tool", "AgentTool", "transfer tool", "MCP", "tool calling", "ToolContext"]
+description: "Function tools, AgentTool sub-agents, transfer handoffs, exit loop, long-running tools, MCP adapters, and CallContext for stateful tools."
+keywords: ["tools", "function tool", "AgentTool", "transfer tool", "MCP", "tool calling", "CallContext"]
 ---
 
 ```mermaid
@@ -109,18 +109,18 @@ loop_agent = LoopAgent(
 )
 ```
 
-## ToolContext
+## CallContext
 
-Inside a tool's `_arun()`, use `ToolContext` to read/write agent state:
+Inside a tool's `_arun()`, use `CallContext` to read/write agent state:
 
 ```python
-from orxhestra import ToolContext
+from orxhestra.tools import CallContext
 
 class MyStatefulTool(BaseTool):
-    _ctx: ToolContext | None = None
+    _ctx: CallContext | None = None
 
-    def inject_context(self, ctx: Context) -> None:
-        self._ctx = ToolContext(ctx)
+    def inject_context(self, ctx: InvocationContext) -> None:
+        self._ctx = CallContext(ctx)
 
     async def _arun(self, query: str) -> str:
         self._ctx.state["last_query"] = query

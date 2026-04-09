@@ -65,8 +65,8 @@ async def main() -> None:
         "this raise."
     )
 
-    # openai_llm = create("openai", "gpt-4o")
-    # await run_agent(openai_llm, "OpenAI gpt-4o")
+    # openai_llm = create("openai", "gpt-5.4")
+    # await run_agent(openai_llm, "OpenAI gpt-5.4")
 
     # anthropic_llm = create("anthropic", "claude-sonnet-4-6")
     # await run_agent(anthropic_llm, "Anthropic Claude Sonnet")

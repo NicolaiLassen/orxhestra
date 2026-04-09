@@ -15,9 +15,9 @@ import asyncio
 from orxhestra import LlmAgent, SequentialAgent
 from orxhestra.prompts.catalog import build_system_prompt
 from orxhestra.prompts.context import PromptContext
+from orxhestra.skills.in_memory_skill_store import InMemorySkillStore
 from orxhestra.skills.load_skill_tool import make_list_skills_tool, make_load_skill_tool
 from orxhestra.skills.skill import Skill
-from orxhestra.skills.skill_store import InMemorySkillStore
 from orxhestra.tools.agent_tool import AgentTool
 
 

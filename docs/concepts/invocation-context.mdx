@@ -1,15 +1,15 @@
 ---
-title: "Context"
-description: "Context carries session binding, shared state, run config, and event callbacks through the agent tree. Supports derived contexts and ReadonlyContext."
-keywords: ["Context", "invocation context", "agent state", "ReadonlyContext", "CallbackContext"]
+title: "InvocationContext"
+description: "InvocationContext carries session binding, shared state, run config, and event callbacks through the agent tree. Supports derived contexts and ReadonlyContext."
+keywords: ["InvocationContext", "invocation context", "agent state", "ReadonlyContext", "CallbackContext"]
 ---
 
-`Context` is the runtime state passed through every agent in the call tree. It carries the session binding, a mutable shared state dict, run config, and an optional event callback for real-time event pushing.
+`InvocationContext` is the runtime state passed through every agent in the call tree. It carries the session binding, a mutable shared state dict, run config, and an optional event callback for real-time event pushing.
 
 ```python
-from orxhestra import Context
+from orxhestra import InvocationContext
 
-ctx = Context(
+ctx = InvocationContext(
     session_id="session-1",
     user_id="user-1",
     app_name="my-app",
@@ -21,19 +21,51 @@ ctx = Context(
 
 ## Fields
 
+### Core Identity
+
 | Field | Type | Description |
 |---|---|---|
-| `invocation_id` | `str` | Unique ID for this invocation (auto-generated) |
+| `invocation_id` | `str` | Unique ID for this invocation (auto-generated UUID) |
 | `session_id` | `str` | The session this invocation belongs to |
 | `user_id` | `str` | The user who initiated the session |
 | `app_name` | `str` | The application running the agent |
 | `agent_name` | `str` | The name of the currently executing agent |
 | `branch` | `str` | Dot-separated path for nested execution (e.g. `"root.child"`) |
+
+### State & Session
+
+| Field | Type | Description |
+|---|---|---|
 | `state` | `dict` | Mutable key-value store shared across the call tree |
-| `session` | `Session` | Session with conversation history and persisted state |
-| `run_config` | `dict` | LangChain `RunnableConfig` for callbacks/tracing |
-| `memory_service` | `Any` | Optional memory service for long-term recall |
-| `event_callback` | `Callable` | Optional callback for pushing events to the parent stream |
+| `agent_states` | `dict[str, dict]` | Per-agent execution state for composite agents (e.g. LoopAgent step tracking) |
+| `end_of_agents` | `dict[str, bool]` | Tracks which agents have finished their turn |
+| `session` | `Session \| None` | Session with conversation history and persisted state |
+| `input_content` | `str \| None` | The input that initiated this invocation, preserved for resumption |
+| `run_config` | `dict` | LangChain `RunnableConfig` / `AgentConfig` for callbacks/tracing |
+
+### Control Flow
+
+| Field | Type | Description |
+|---|---|---|
+| `end_invocation` | `bool` | Kill switch — set `True` to force-stop the entire invocation |
+| `is_resumable` | `bool` | When `True`, enables pause/resume for long-running tools |
+| `long_running_tool_ids` | `set[str]` | Tool call IDs that should trigger invocation pause |
+
+### Services & Callbacks
+
+| Field | Type | Description |
+|---|---|---|
+| `current_agent` | `BaseAgent \| None` | Reference to the current agent instance |
+| `artifact_service` | `BaseArtifactService \| None` | Service for storing and retrieving file artifacts |
+| `memory_service` | `Any \| None` | Optional memory service for long-term recall |
+| `event_callback` | `Callable \| None` | Callback for pushing events to the parent stream |
+
+### Event Signing
+
+| Field | Type | Description |
+|---|---|---|
+| `signing_key` | `Ed25519PrivateKey \| None` | Ed25519 private key for signing events (requires `orxhestra[auth]`) |
+| `signing_did` | `str` | The `did:key` identifier corresponding to `signing_key` |
 
 ## Derived contexts
 
@@ -69,6 +101,33 @@ if ctx.event_callback is not None:
 ```
 
 The callback propagates through `derive()`, so nested sub-agents also push events up to the root.
+
+## Methods
+
+### `get_events(*, current_branch=False, current_invocation=False)`
+
+Return session events with optional filtering. When `current_branch=True`, only events matching this context's branch are returned. When `current_invocation=True`, only events from this invocation ID are returned.
+
+```python
+# Get all events from this agent's branch in the current invocation
+events = ctx.get_events(current_branch=True, current_invocation=True)
+```
+
+### `get_previous_final_responses()`
+
+Return final response events from previous invocations (all branches). Useful for giving agents context about what happened in prior turns.
+
+### `set_agent_state(agent_name, *, agent_state=None, end_of_agent=False)`
+
+Set or clear execution state for a named agent. Used by composite agents to track child progress. When `end_of_agent=True`, marks the agent as finished and clears its state.
+
+### `reset_sub_agent_states(agent_name)`
+
+Recursively reset the state of all sub-agents of the named agent. Called by `LoopAgent` between iterations so child agents start fresh each cycle.
+
+### `should_pause_invocation(event)`
+
+Return `True` if the invocation should pause after this event. Triggered when `is_resumable=True` and the event contains tool calls with IDs in `long_running_tool_ids`.
 
 ## ReadonlyContext & CallbackContext
 

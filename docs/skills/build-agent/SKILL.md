@@ -21,7 +21,7 @@ async def search(query: str) -> str:
 
 agent = LlmAgent(
     name="assistant",
-    llm=ChatOpenAI(model="gpt-4o"),
+    llm=ChatOpenAI(model="gpt-5.4"),
     tools=[search],
     instructions="You are a helpful assistant.",
     max_iterations=10,
@@ -71,7 +71,7 @@ from orxhestra import ReActAgent
 
 agent = ReActAgent(
     name="reasoner",
-    llm=ChatOpenAI(model="gpt-4o"),
+    llm=ChatOpenAI(model="gpt-5.4"),
     tools=[search],
     instructions="Think step by step.",  # appended to ReAct prompt
     max_iterations=10,

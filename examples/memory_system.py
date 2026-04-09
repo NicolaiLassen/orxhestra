@@ -16,9 +16,9 @@ from pathlib import Path
 
 from orxhestra.memory.file_memory_service import (
     FileMemoryService,
+    delete_memory_file,
     save_memory_file,
     scan_memory_files,
-    delete_memory_file,
 )
 
 

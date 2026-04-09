@@ -1,6 +1,6 @@
 ---
 name: agent-tools
-description: Create and use tools with orxhestra agents. Covers function_tool, AgentTool, transfer tools, exit_loop, MCP tools, and ToolContext.
+description: Create and use tools with orxhestra agents. Covers function_tool, AgentTool, transfer tools, exit_loop, MCP tools, and CallContext.
 ---
 
 # Agent Tools
@@ -61,17 +61,17 @@ reviewer = LlmAgent(
 )
 ```
 
-## ToolContext — Access state inside tools
+## CallContext — Access state inside tools
 
 ```python
-from orxhestra.tools import ToolContext
+from orxhestra.tools import CallContext
 
 class MyTool(BaseTool):
     name = "my_tool"
     description = "Does something"
 
     async def _arun(self, input: str, **kwargs) -> str:
-        ctx: ToolContext = kwargs.get("tool_context")
+        ctx: CallContext = kwargs.get("tool_context")
         if ctx:
             ctx.state["last_query"] = input  # write to shared state
             session_id = ctx.session_id

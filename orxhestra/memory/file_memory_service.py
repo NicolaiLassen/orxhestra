@@ -93,7 +93,25 @@ def _parse_frontmatter(text: str) -> tuple[dict[str, str], str]:
 
 @dataclass
 class MemoryHeader:
-    """Parsed header from a memory file's frontmatter."""
+    """Parsed header from a memory file's frontmatter.
+
+    Attributes
+    ----------
+    filename : str
+        Name of the memory file (e.g. ``"feedback_testing.md"``).
+    filepath : Path
+        Absolute path to the memory file.
+    name : str
+        Human-readable memory name from frontmatter.
+    description : str
+        One-line description from frontmatter.
+    memory_type : str
+        Memory type (``"user"``, ``"feedback"``, ``"project"``, ``"reference"``).
+    created : str
+        ISO timestamp from frontmatter, or empty string.
+    mtime : float
+        File modification time (Unix timestamp).
+    """
 
     filename: str
     filepath: Path

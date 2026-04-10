@@ -24,7 +24,21 @@ from orxhestra.models.part import Content, ToolCallPart, ToolResponsePart
 
 
 class ReActStep(BaseModel):
-    """A single ReAct step — either reason+act or final answer."""
+    """A single ReAct step — either reason+act or final answer.
+
+    Attributes
+    ----------
+    scratchpad : str
+        Running notes and observations accumulated across steps.
+    thought : str
+        Current reasoning about the problem.
+    action : str, optional
+        Tool name to call, or ``None`` if giving final answer.
+    action_input : str, optional
+        Input for the tool, or ``None`` if giving final answer.
+    answer : str, optional
+        Final answer text, or ``None`` if calling a tool.
+    """
 
     scratchpad: str = Field(
         description="Running notes and observations accumulated across steps",

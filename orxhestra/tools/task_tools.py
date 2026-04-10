@@ -24,7 +24,23 @@ from langchain_core.tools import BaseTool, StructuredTool
 
 @dataclass
 class BackgroundTask:
-    """A background task with stored output."""
+    """A background task with stored output.
+
+    Attributes
+    ----------
+    id : str
+        Unique task identifier.
+    subject : str
+        Short summary of the task.
+    description : str
+        Detailed description of what the task does.
+    status : str
+        Current status (``"running"``, ``"completed"``, ``"stopped"``).
+    output : str
+        Accumulated output from the task.
+    created_at : float
+        Unix timestamp when the task was created.
+    """
 
     id: str
     subject: str

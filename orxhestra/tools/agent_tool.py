@@ -27,7 +27,13 @@ if TYPE_CHECKING:
 
 
 class AgentToolInput(BaseModel):
-    """Input schema for AgentTool - a plain request string."""
+    """Input schema for AgentTool.
+
+    Attributes
+    ----------
+    request : str
+        The request or task to send to the agent.
+    """
     request: str = Field(description="The request or task to send to the agent.")
 
 

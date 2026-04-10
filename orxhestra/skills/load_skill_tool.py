@@ -15,13 +15,27 @@ from orxhestra.skills.skill_store import BaseSkillStore
 
 
 class LoadSkillInput(BaseModel):
-    """Input schema for the load_skill tool."""
+    """Input schema for the load_skill tool.
+
+    Attributes
+    ----------
+    name : str
+        The name of the skill to load.
+    """
 
     name: str = Field(description="The name of the skill to load.")
 
 
 class LoadSkillResourceInput(BaseModel):
-    """Input schema for the load_skill_resource tool."""
+    """Input schema for the load_skill_resource tool.
+
+    Attributes
+    ----------
+    skill_name : str
+        The name of the skill.
+    resource_path : str
+        Relative path to the resource within the skill directory.
+    """
 
     skill_name: str = Field(description="The name of the skill.")
     resource_path: str = Field(

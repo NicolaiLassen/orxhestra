@@ -50,6 +50,22 @@ class ToolExecutor:
         self._callbacks = callbacks
         self._emit_event = emit_event
 
+    def _tool_metadata(self, tool_name: str) -> dict[str, bool]:
+        """Build metadata dict for a tool call event.
+
+        Checks for ``interactive`` and ``require_confirmation`` attributes
+        on the tool instance.
+        """
+        tool = self._tools.get(tool_name)
+        if tool is None:
+            return {}
+        meta: dict[str, bool] = {}
+        if getattr(tool, "interactive", False):
+            meta["interactive"] = True
+        if getattr(tool, "require_confirmation", False):
+            meta["require_confirmation"] = True
+        return meta
+
     async def execute(
         self,
         ctx: InvocationContext,
@@ -80,11 +96,7 @@ class ToolExecutor:
                     tool_call_id=tc["id"],
                     tool_name=tc["name"],
                     args=tc["args"],
-                    metadata={"interactive": True}
-                    if getattr(
-                        self._tools.get(tc["name"]), "interactive", False
-                    )
-                    else {},
+                    metadata=self._tool_metadata(tc["name"]),
                 )
                 for tc in llm_response.tool_calls
             ]),

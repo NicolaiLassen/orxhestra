@@ -78,6 +78,7 @@ class _StreamState:
     prompt_tokens: int = 0
     completion_tokens: int = 0
     interactive_tool_ids: set[str] = field(default_factory=set)
+    confirmation_tool_ids: set[str] = field(default_factory=set)
 
     def stop_status(self) -> None:
         """Stop and clear the spinner and phrase rotation."""
@@ -293,10 +294,14 @@ async def stream_response(
                 s.end_stream(console, markdown_cls)
 
                 has_interactive: bool = False
+                has_confirmation: bool = False
                 for tc in event.tool_calls:
                     if tc.metadata.get("interactive"):
                         s.interactive_tool_ids.add(tc.tool_call_id)
                         has_interactive = True
+                    if tc.metadata.get("require_confirmation"):
+                        s.confirmation_tool_ids.add(tc.tool_call_id)
+                        has_confirmation = True
 
                 render_tool_call(event, console)
 
@@ -309,7 +314,7 @@ async def stream_response(
                             console.print("  [orx.denied]Denied.[/orx.denied]")
 
                 s.tool_start = time.monotonic()
-                if Status is not None and not has_interactive:
+                if Status is not None and not has_interactive and not has_confirmation:
                     last_tool: str = event.tool_calls[-1].tool_name
                     s.status = Status(
                         f"  [orx.accent]Running {last_tool}...[/orx.accent]",
@@ -330,6 +335,9 @@ async def stream_response(
                     s.interactive_tool_ids.discard(tool_call_id)
                     s.tool_start = 0.0
                     continue
+                # Confirmation tools render normally (unlike interactive).
+                if tool_call_id in s.confirmation_tool_ids:
+                    s.confirmation_tool_ids.discard(tool_call_id)
                 elapsed: float | None = None
                 if s.tool_start > 0:
                     elapsed = time.monotonic() - s.tool_start

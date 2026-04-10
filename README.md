@@ -20,6 +20,8 @@ Compose multi-agent AI systems with async event streaming, agent hierarchies, an
 
 Turn any `orx.yaml` agent setup into an interactive terminal agent. Ships with a coding agent out of the box — or compose your own.
 
+> **Looking for a full-featured coding agent?** Check out [orxhestra-code](https://github.com/NicolaiLassen/orxhestra-code) — an enhanced coding agent built on orxhestra with permissions, multi-file editing, and project-aware context.
+
 ```bash
 pip install orxhestra[cli,openai]
 orx
@@ -253,6 +255,7 @@ docker run -e OPENAI_API_KEY=$OPENAI_API_KEY \
 - [Composer](https://docs.orxhestra.com/composer/overview) - YAML-based agent composition
 - [Integrations](https://docs.orxhestra.com/integrations/mcp) - MCP and A2A setup
 - [Skills](docs/skills/) - Code-level CLI skill references (agent-tools, callbacks, planners, streaming, and more)
+- [orxhestra-code](https://github.com/NicolaiLassen/orxhestra-code) - Enhanced coding agent with permissions, multi-file editing, and project context
 
 ---
 

@@ -75,6 +75,10 @@
   "navbar": {
     "links": [
       {
+        "label": "orxhestra-code",
+        "href": "https://github.com/NicolaiLassen/orxhestra-code"
+      },
+      {
         "label": "PyPI",
         "href": "https://pypi.org/project/orxhestra/"
       },

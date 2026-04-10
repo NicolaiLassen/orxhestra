@@ -105,11 +105,10 @@ class _StreamState:
             self.buffer = ""
 
     def accumulate_usage(self, event: Event) -> None:
-        """Extract token usage from event metadata."""
-        usage: dict = event.metadata.get("usage", {})
-        if usage:
-            self.prompt_tokens += usage.get("prompt_tokens", 0) or 0
-            self.completion_tokens += usage.get("completion_tokens", 0) or 0
+        """Extract token usage from the event's LLM response."""
+        if event.llm_response:
+            self.prompt_tokens += event.llm_response.input_tokens or 0
+            self.completion_tokens += event.llm_response.output_tokens or 0
 
 
 async def prompt_approval(

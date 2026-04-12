@@ -52,6 +52,21 @@ _THINKING_PHRASES: list[str] = [
     "Deliberating",
     "Contemplating",
     "Interpreting",
+    "Computing",
+    "Deciphering",
+    "Untangling",
+    "Calibrating",
+    "Orchestrating",
+    "Deconstructing",
+    "Strategizing",
+    "Distilling",
+    "Crystallizing",
+    "Navigating",
+    "Investigating",
+    "Composing",
+    "Reticulating",
+    "Weaving",
+    "Converging",
 ]
 
 

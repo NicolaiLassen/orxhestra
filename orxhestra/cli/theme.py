@@ -52,7 +52,7 @@ def _build_theme(palette: dict[str, str]) -> Theme:
             "orx.label": m,
             "orx.tool.read": m,
             "orx.tool.write": w,
-            "orx.tool.shell": "bold",
+            "orx.tool.shell": f"bold {sc}",
             "orx.tool.default": m,
             "orx.success": sc,
             "orx.warning": w,
@@ -94,7 +94,7 @@ TOOL_MID: str = "\u2502"
 TOOL_BOT: str = "\u2514"
 TURN_DOT: str = "\u27e1"
 SEP: str = " \u00b7 "
-RESPONSE_CONNECTOR: str = "\u23bf"  # ⎿
+RESPONSE_CONNECTOR: str = "\u25b8"  # ▸
 BLOCKQUOTE_BAR: str = "\u258e"  # ▎
 
 # Custom spinner for the orxhestra CLI.

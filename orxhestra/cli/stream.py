@@ -39,23 +39,19 @@ def _spinner_text(todo_list: TodoList | None) -> str:
 
 _THINKING_PHRASES: list[str] = [
     "Thinking",
+    "Analyzing code",
+    "Reading files",
+    "Searching codebase",
+    "Planning approach",
     "Reasoning",
-    "Pondering",
-    "Analyzing",
-    "Considering",
-    "Processing",
-    "Reflecting",
-    "Evaluating",
-    "Examining",
-    "Contemplating",
-    "Synthesizing",
-    "Interpreting",
-    "Formulating",
-    "Deliberating",
+    "Evaluating options",
+    "Structuring solution",
+    "Breaking it down",
+    "Checking patterns",
+    "Tracing logic",
+    "Reviewing context",
     "Connecting dots",
-    "Piecing together",
     "Working through it",
-    "Mapping it out",
 ]
 
 
@@ -316,9 +312,13 @@ async def stream_response(
 
                 s.tool_start = time.monotonic()
                 if Status is not None and not has_interactive and not has_confirmation:
-                    last_tool: str = event.tool_calls[-1].tool_name
+                    n_tools = len(event.tool_calls)
+                    if n_tools > 1:
+                        tool_label = f"{n_tools} tools"
+                    else:
+                        tool_label = event.tool_calls[-1].tool_name
                     s.status = Status(
-                        f"  [orx.accent]Running {last_tool}...[/orx.accent]",
+                        f"  [orx.accent]Running {tool_label}...[/orx.accent]",
                         console=console,
                         spinner="orx_music",
                         spinner_style=ACCENT,

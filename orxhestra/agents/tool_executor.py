@@ -130,7 +130,14 @@ class ToolExecutor:
             except Exception as exc:
                 if self._callbacks.after_tool:
                     await self._callbacks.after_tool(ctx, t_name, None)
-                return self._build_response(ctx, t_id, t_name, error=str(exc))
+                # Permission denials should not create ToolMessages — the
+                # tool_call_id may be invalid for stateful APIs (e.g.
+                # OpenAI Responses API) causing 400 errors on the next turn.
+                is_permission_denied = "PermissionDenied" in type(exc).__name__
+                event, msg = self._build_response(
+                    ctx, t_id, t_name, error=str(exc),
+                )
+                return (event, None) if is_permission_denied else (event, msg)
 
         # Run all tool calls concurrently, streaming intermediate events.
         async for item in gather_with_event_queue(

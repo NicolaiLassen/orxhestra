@@ -245,7 +245,9 @@ class Runner:
         # Run compaction after all events are yielded from the agent.
         # Only compact at the end of an invocation, never mid-stream.
         if self.compaction_config is not None:
-            await compact_session(
+            compacted = await compact_session(
                 session, self.session_service, self.compaction_config,
             )
+            if compacted:
+                logger.info("Session compacted — old events summarized.")
 

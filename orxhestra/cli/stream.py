@@ -403,6 +403,12 @@ async def stream_response(
                     console.print(markdown_cls(event.text))
                 continue
 
+            if event.metadata.get("compaction"):
+                console.print(
+                    "  [orx.muted]context compacted[/orx.muted]"
+                )
+                continue
+
             if event.metadata.get("error") and event.text:
                 s.stop_status()
                 s.end_stream(console, markdown_cls)

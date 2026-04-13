@@ -249,5 +249,14 @@ class Runner:
                 session, self.session_service, self.compaction_config,
             )
             if compacted:
-                logger.info("Session compacted — old events summarized.")
+                yield Event(
+                    type=EventType.AGENT_MESSAGE,
+                    session_id=session.id,
+                    invocation_id=ctx.invocation_id,
+                    agent_name=self.agent.name,
+                    content=Content.from_text(
+                        "Session history compacted to save context."
+                    ),
+                    metadata={"compaction": True},
+                )
 

@@ -299,9 +299,9 @@ class LlmAgent(BaseAgent):
         has_tool_calls: bool = False
 
         # Some APIs (OpenAI Responses) return accumulated text per
-        # chunk rather than just the new delta.  Detect the format
-        # once from the first content chunk, then extract deltas.
-        _accumulated: bool | None = None
+        # chunk rather than just the new delta.  We detect this by
+        # checking if each new chunk's text starts with the previous
+        # chunk's text — if so, only emit the new portion.
         _prev_text: str = ""
         _prev_thinking: str = ""
 
@@ -318,20 +318,17 @@ class LlmAgent(BaseAgent):
 
             chunk_text, chunk_thinking = parse_content_blocks(chunk.content)
 
-            # Detect format on first content chunk.
-            if _accumulated is None and (chunk_text or chunk_thinking):
-                _accumulated = is_accumulated_content(chunk.content)
+            # Detect accumulated content: if new text starts with all
+            # of the previous text, it's accumulated — extract the delta.
+            if chunk_text and _prev_text and chunk_text.startswith(_prev_text):
+                chunk_text = chunk_text[len(_prev_text):]
+            if chunk_text:
+                _prev_text += chunk_text
 
-            # For accumulated APIs, extract only the new portion.
-            if _accumulated:
-                if chunk_text:
-                    delta = chunk_text[len(_prev_text):]
-                    _prev_text = chunk_text
-                    chunk_text = delta
-                if chunk_thinking:
-                    delta = chunk_thinking[len(_prev_thinking):]
-                    _prev_thinking = chunk_thinking
-                    chunk_thinking = delta
+            if chunk_thinking and _prev_thinking and chunk_thinking.startswith(_prev_thinking):
+                chunk_thinking = chunk_thinking[len(_prev_thinking):]
+            if chunk_thinking:
+                _prev_thinking += chunk_thinking
 
             if chunk_thinking:
                 yield self._emit_event(

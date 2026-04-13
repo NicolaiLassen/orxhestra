@@ -120,24 +120,36 @@ class ToolExecutor:
             if hasattr(tool, "inject_context"):
                 tool.inject_context(tool_ctx)
 
+            tool_succeeded = False
             try:
                 if self._callbacks.before_tool:
                     await self._callbacks.before_tool(ctx, t_name, t_args)
                 result = await tool.ainvoke(t_args, config=ctx.run_config)
+                tool_succeeded = True
                 if self._callbacks.after_tool:
-                    await self._callbacks.after_tool(ctx, t_name, result)
+                    try:
+                        await self._callbacks.after_tool(ctx, t_name, result)
+                    except Exception:
+                        pass  # Don't let callback errors affect the tool result.
                 return self._build_response(ctx, t_id, t_name, result=str(result))
             except Exception as exc:
-                if self._callbacks.after_tool:
-                    await self._callbacks.after_tool(ctx, t_name, None)
-                # Permission denials should not create ToolMessages — the
-                # tool_call_id may be invalid for stateful APIs (e.g.
-                # OpenAI Responses API) causing 400 errors on the next turn.
-                is_permission_denied = "PermissionDenied" in type(exc).__name__
+                if self._callbacks.after_tool and not tool_succeeded:
+                    try:
+                        await self._callbacks.after_tool(ctx, t_name, None)
+                    except Exception:
+                        pass
+                # Only suppress ToolMessage when the tool itself was blocked
+                # by a permission denial (before_tool raised).  If the tool
+                # succeeded, always return a ToolMessage so the API sees a
+                # matching response for every tool_call_id.
+                is_pre_tool_denial = (
+                    not tool_succeeded
+                    and "PermissionDenied" in type(exc).__name__
+                )
                 event, msg = self._build_response(
                     ctx, t_id, t_name, error=str(exc),
                 )
-                return (event, None) if is_permission_denied else (event, msg)
+                return (event, None) if is_pre_tool_denial else (event, msg)
 
         # Run all tool calls concurrently, streaming intermediate events.
         async for item in gather_with_event_queue(

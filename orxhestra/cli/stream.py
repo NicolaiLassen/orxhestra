@@ -102,12 +102,20 @@ class _StreamState:
             self.status = None
 
     def end_stream(self, console: Console, markdown_cls: type) -> None:
-        """Stop live preview, render final Markdown, clear buffer."""
+        """Stop live preview and clear buffer.
+
+        With ``transient=False`` the last Live frame stays on screen,
+        so we do NOT re-print the buffer — that would duplicate it.
+        """
         if self.in_stream:
             if self.live is not None:
+                # Do one final update so the last tokens are visible.
+                if self.buffer:
+                    self.live.update(markdown_cls(self.buffer))
                 self.live.stop()
                 self.live = None
-            if self.buffer:
+            elif self.buffer:
+                # Fallback path (no Live available).
                 console.print(
                     f"[orx.muted]{RESPONSE_CONNECTOR}[/orx.muted] ",
                     end="",
@@ -281,12 +289,15 @@ async def stream_response(
                 if Live is not None:
                     if not s.in_stream:
                         s.in_stream = True
+                        console.print(
+                            f"[orx.muted]{RESPONSE_CONNECTOR}[/orx.muted] ",
+                            end="",
+                        )
                         s.live = Live(
                             markdown_cls(s.buffer),
                             console=console,
                             refresh_per_second=8,
-                            transient=True,
-                            vertical_overflow="visible",
+                            transient=False,
                         )
                         s.live.start()
                     else:

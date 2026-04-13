@@ -298,6 +298,12 @@ class LlmAgent(BaseAgent):
         chunks: list[AIMessageChunk] = []
         has_tool_calls: bool = False
 
+        # Track previously emitted text to compute deltas.
+        # Some APIs (OpenAI Responses) return accumulated text per chunk
+        # rather than just the new delta.
+        _prev_text: str = ""
+        _prev_thinking: str = ""
+
         async for chunk in model.astream(messages, config=ctx.run_config):
             chunks.append(chunk)
 
@@ -310,6 +316,22 @@ class LlmAgent(BaseAgent):
                 continue
 
             chunk_text, chunk_thinking = parse_content_blocks(chunk.content)
+
+            # Detect accumulated (non-delta) content: if the new text
+            # starts with the previous text, extract just the delta.
+            if chunk_text and chunk_text.startswith(_prev_text) and len(chunk_text) > len(_prev_text):
+                delta_text = chunk_text[len(_prev_text):]
+                _prev_text = chunk_text
+                chunk_text = delta_text
+            elif chunk_text:
+                _prev_text = chunk_text
+
+            if chunk_thinking and chunk_thinking.startswith(_prev_thinking) and len(chunk_thinking) > len(_prev_thinking):
+                delta_thinking = chunk_thinking[len(_prev_thinking):]
+                _prev_thinking = chunk_thinking
+                chunk_thinking = delta_thinking
+            elif chunk_thinking:
+                _prev_thinking = chunk_thinking
 
             if chunk_thinking:
                 yield self._emit_event(

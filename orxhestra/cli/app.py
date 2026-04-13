@@ -348,12 +348,22 @@ async def _async_main() -> None:
         )
         return
 
-    await _repl(
-        orx_path,
-        state,
-        args.workspace,
+    from orxhestra.cli.repl_app import ReplApp
+    from orxhestra.cli.render import print_banner
+    from orxhestra.cli.theme import make_console
+
+    console = make_console()
+    print_banner(orx_path, state.model_name, args.workspace, console)
+
+    repl = ReplApp(
+        state=state,
+        console=console,
+        orx_path=orx_path,
+        workspace=args.workspace,
         auto_approve=args.auto_approve,
     )
+    app = repl.build()
+    await app.run_async()
 
 
 def _graceful_shutdown() -> None:

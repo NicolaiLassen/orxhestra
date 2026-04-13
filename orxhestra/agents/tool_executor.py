@@ -138,18 +138,13 @@ class ToolExecutor:
                         await self._callbacks.after_tool(ctx, t_name, None)
                     except Exception:
                         pass
-                # Only suppress ToolMessage when the tool itself was blocked
-                # by a permission denial (before_tool raised).  If the tool
-                # succeeded, always return a ToolMessage so the API sees a
-                # matching response for every tool_call_id.
-                is_pre_tool_denial = (
-                    not tool_succeeded
-                    and "PermissionDenied" in type(exc).__name__
-                )
-                event, msg = self._build_response(
+                # ALWAYS return a ToolMessage — even for permission denials.
+                # The API already has an AIMessage with this tool_call_id;
+                # if we skip the ToolMessage the next request fails with
+                # "No tool call found for function call output".
+                return self._build_response(
                     ctx, t_id, t_name, error=str(exc),
                 )
-                return (event, None) if is_pre_tool_denial else (event, msg)
 
         # Run all tool calls concurrently, streaming intermediate events.
         async for item in gather_with_event_queue(

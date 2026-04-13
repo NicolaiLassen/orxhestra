@@ -596,10 +596,9 @@ class LlmAgent(BaseAgent):
                 if isinstance(item, tuple):
                     event, tool_msg = item
                     yield event
-                    if tool_msg is not None:
-                        tool_messages.append(
-                            _truncate_tool_message(tool_msg, self.tool_response_max_chars)
-                        )
+                    tool_messages.append(
+                        _truncate_tool_message(tool_msg, self.tool_response_max_chars)
+                    )
                 else:
                     yield item
 

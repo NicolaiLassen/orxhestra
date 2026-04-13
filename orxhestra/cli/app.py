@@ -127,11 +127,13 @@ async def _repl(
 
     prompt_session: Any = None
     prompt_style: Any = None
+    patch_ctx: Any = None
     try:
         from prompt_toolkit import PromptSession
         from prompt_toolkit.completion import WordCompleter
         from prompt_toolkit.formatted_text import ANSI
         from prompt_toolkit.history import FileHistory
+        from prompt_toolkit.patch_stdout import patch_stdout
 
         from orxhestra.cli.commands import get_command_names
 
@@ -145,66 +147,73 @@ async def _repl(
             completer=command_completer,
             complete_while_typing=False,
         )
-        # Colored prompt using ANSI escape codes.
         prompt_style = ANSI("\033[38;5;67morx\033[0m\033[90m>\033[0m ")
+        # patch_stdout ensures Rich output appears above the prompt
+        # without disrupting the input line.
+        patch_ctx = patch_stdout()
+        patch_ctx.__enter__()
     except ImportError:
         pass
 
-    while True:
-        try:
-            if prompt_session:
-                user_input: str = await prompt_session.prompt_async(
-                    prompt_style or "orx> "
-                )
-            else:
-                user_input = input("orx> ")
-        except (EOFError, KeyboardInterrupt):
-            console.print("\n[orx.status]Goodbye![/orx.status]")
-            break
+    try:
+        while True:
+            try:
+                if prompt_session:
+                    user_input: str = await prompt_session.prompt_async(
+                        prompt_style or "orx> "
+                    )
+                else:
+                    user_input = input("orx> ")
+            except (EOFError, KeyboardInterrupt):
+                console.print("\n[orx.status]Goodbye![/orx.status]")
+                break
 
-        user_input = user_input.strip()
-        if not user_input:
-            continue
-
-        if user_input.startswith('"""') or user_input.startswith("'''"):
-            user_input = await _read_multiline(
-                user_input, prompt_session
-            )
+            user_input = user_input.strip()
             if not user_input:
                 continue
 
-        if user_input.startswith("/"):
-            cmd_parts: list[str] = user_input.split(maxsplit=1)
-            cmd_arg: str | None = (
-                cmd_parts[1].strip() if len(cmd_parts) > 1 else None
-            )
-            await handle_slash_command(
-                cmd_parts[0].lower(),
-                cmd_arg,
-                state,
-                console=console,
-                orx_path=orx_path,
-                workspace=workspace,
-            )
-            if not state.should_continue:
-                break
-            if state.retry_message:
-                user_input = state.retry_message
-                state.retry_message = None
-            else:
-                continue
+            if user_input.startswith('"""') or user_input.startswith("'''"):
+                user_input = await _read_multiline(
+                    user_input, prompt_session
+                )
+                if not user_input:
+                    continue
 
-        auto_approve = await stream_response(
-            state.runner,
-            state.session_id,
-            user_input,
-            console,
-            Markdown,
-            todo_list=state.todo_list,
-            auto_approve=auto_approve,
-        )
-        state.turn_count += 1
-        console.print()
+            if user_input.startswith("/"):
+                cmd_parts: list[str] = user_input.split(maxsplit=1)
+                cmd_arg: str | None = (
+                    cmd_parts[1].strip() if len(cmd_parts) > 1 else None
+                )
+                await handle_slash_command(
+                    cmd_parts[0].lower(),
+                    cmd_arg,
+                    state,
+                    console=console,
+                    orx_path=orx_path,
+                    workspace=workspace,
+                )
+                if not state.should_continue:
+                    break
+                if state.retry_message:
+                    user_input = state.retry_message
+                    state.retry_message = None
+                else:
+                    continue
+
+            auto_approve = await stream_response(
+                state.runner,
+                state.session_id,
+                user_input,
+                console,
+                Markdown,
+                todo_list=state.todo_list,
+                auto_approve=auto_approve,
+            )
+            state.turn_count += 1
+            console.print()
+    finally:
+        if patch_ctx is not None:
+            patch_ctx.__exit__(None, None, None)
 
 
 async def _read_multiline(

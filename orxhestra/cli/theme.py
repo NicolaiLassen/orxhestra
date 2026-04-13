@@ -9,7 +9,7 @@ from rich.theme import Theme
 
 # ── Color palettes ───────────────────────────────────────────
 
-# Dark theme (default)
+# Dark theme (default).
 _DARK = {
     "accent": "#6C8EBF",
     "muted": "#6c6c6c",

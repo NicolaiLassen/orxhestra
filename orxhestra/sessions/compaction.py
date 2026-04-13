@@ -150,7 +150,12 @@ def _find_compaction_boundary(events: list[Event]) -> float:
 def _split_by_retention_chars(
     events: list[Event], retention_chars: int,
 ) -> tuple[list[Event], list[Event]]:
-    """Split events into (old, recent) keeping at least retention_chars recent."""
+    """Split events into (old, recent) keeping at least retention_chars recent.
+
+    The split point is adjusted so that tool_call/tool_response pairs are
+    never separated — if the candidate boundary falls between a tool call
+    and its response, the boundary moves earlier to include the full pair.
+    """
     cumulative: int = 0
     split_idx: int = len(events)
     for i in range(len(events) - 1, -1, -1):
@@ -161,6 +166,41 @@ def _split_by_retention_chars(
     else:
         # All events fit within retention — nothing to compact
         split_idx = 0
+
+    # Ensure tool_call/tool_response pairs are not split.
+    # Collect tool_call_ids from events in the "old" portion and
+    # check if any responses are in the "recent" portion.
+    old_call_ids: set[str] = set()
+    for event in events[:split_idx]:
+        if event.has_tool_calls:
+            for tc in event.tool_calls:
+                if tc.tool_call_id:
+                    old_call_ids.add(tc.tool_call_id)
+
+    # Walk the recent portion backwards to find orphaned responses.
+    # Move the split point earlier to include any tool calls whose
+    # responses landed in the recent portion.
+    while split_idx > 0:
+        orphaned = False
+        for event in events[split_idx:]:
+            if event.type == EventType.TOOL_RESPONSE:
+                for tr in event.content.tool_responses:
+                    if tr.tool_call_id and tr.tool_call_id in old_call_ids:
+                        orphaned = True
+                        break
+            if orphaned:
+                break
+        if not orphaned:
+            break
+        # Move split point earlier by one event and recompute.
+        split_idx -= 1
+        # Recompute old_call_ids.
+        old_call_ids.clear()
+        for event in events[:split_idx]:
+            if event.has_tool_calls:
+                for tc in event.tool_calls:
+                    if tc.tool_call_id:
+                        old_call_ids.add(tc.tool_call_id)
 
     return events[:split_idx], events[split_idx:]
 

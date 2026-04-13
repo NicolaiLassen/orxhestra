@@ -150,60 +150,60 @@ async def _repl(
         pass
 
     while True:
-            try:
-                if prompt_session:
-                    user_input: str = await prompt_session.prompt_async(
-                        prompt_style or "orx> "
-                    )
-                else:
-                    user_input = input("orx> ")
-            except (EOFError, KeyboardInterrupt):
-                console.print("\n[orx.status]Goodbye![/orx.status]")
-                break
+        try:
+            if prompt_session:
+                user_input: str = await prompt_session.prompt_async(
+                    prompt_style or "orx> "
+                )
+            else:
+                user_input = input("orx> ")
+        except (EOFError, KeyboardInterrupt):
+            console.print("\n[orx.status]Goodbye![/orx.status]")
+            break
 
-            user_input = user_input.strip()
+        user_input = user_input.strip()
+        if not user_input:
+            continue
+
+        if user_input.startswith('"""') or user_input.startswith("'''"):
+            user_input = await _read_multiline(
+                user_input, prompt_session
+            )
             if not user_input:
                 continue
 
-            if user_input.startswith('"""') or user_input.startswith("'''"):
-                user_input = await _read_multiline(
-                    user_input, prompt_session
-                )
-                if not user_input:
-                    continue
-
-            if user_input.startswith("/"):
-                cmd_parts: list[str] = user_input.split(maxsplit=1)
-                cmd_arg: str | None = (
-                    cmd_parts[1].strip() if len(cmd_parts) > 1 else None
-                )
-                await handle_slash_command(
-                    cmd_parts[0].lower(),
-                    cmd_arg,
-                    state,
-                    console=console,
-                    orx_path=orx_path,
-                    workspace=workspace,
-                )
-                if not state.should_continue:
-                    break
-                if state.retry_message:
-                    user_input = state.retry_message
-                    state.retry_message = None
-                else:
-                    continue
-
-            auto_approve = await stream_response(
-                state.runner,
-                state.session_id,
-                user_input,
-                console,
-                Markdown,
-                todo_list=state.todo_list,
-                auto_approve=auto_approve,
+        if user_input.startswith("/"):
+            cmd_parts: list[str] = user_input.split(maxsplit=1)
+            cmd_arg: str | None = (
+                cmd_parts[1].strip() if len(cmd_parts) > 1 else None
             )
-            state.turn_count += 1
-            console.print()
+            await handle_slash_command(
+                cmd_parts[0].lower(),
+                cmd_arg,
+                state,
+                console=console,
+                orx_path=orx_path,
+                workspace=workspace,
+            )
+            if not state.should_continue:
+                break
+            if state.retry_message:
+                user_input = state.retry_message
+                state.retry_message = None
+            else:
+                continue
+
+        auto_approve = await stream_response(
+            state.runner,
+            state.session_id,
+            user_input,
+            console,
+            Markdown,
+            todo_list=state.todo_list,
+            auto_approve=auto_approve,
+        )
+        state.turn_count += 1
+        console.print()
 
 
 async def _read_multiline(

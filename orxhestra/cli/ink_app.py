@@ -7,7 +7,7 @@ import threading
 from typing import TYPE_CHECKING, Any
 
 from pyink import Box, Spacer, Static, Text, component, render
-from pyink.hooks import use_animation, use_app, use_input, use_ref, use_state
+from pyink.hooks import use_animation, use_app, use_input, use_ref, use_state, use_window_size
 
 if TYPE_CHECKING:
     from rich.console import Console
@@ -99,8 +99,11 @@ def orx_repl(
     orx_path_ref,
     workspace_ref,
 ):
+    win = use_window_size()
+
     history, set_history = use_state(initial_history)
     buf, set_buf = use_state("")
+    cursor, set_cursor = use_state(0)
     phase, set_phase = use_state("idle")
     spinner_text, set_spinner_text = use_state("")
     stream_buf, set_stream = use_state("")
@@ -203,6 +206,7 @@ def orx_repl(
             if not msg:
                 return
             set_buf("")
+            set_cursor(0)
             cmd_hist.current = [*cmd_hist.current, msg]
             hist_idx.current = -1
 
@@ -248,16 +252,38 @@ def orx_repl(
                 else:
                     hist_idx.current = -1
                     set_buf("")
+                    set_cursor(0)
+            return
+
+        # Left/right cursor movement.
+        if key.left_arrow:
+            set_cursor(lambda c: max(0, c - 1))
+            return
+        if key.right_arrow:
+            set_cursor(lambda c: min(len(buf), c + 1))
+            return
+
+        # Home/End.
+        if key.home:
+            set_cursor(0)
+            return
+        if key.end:
+            set_cursor(len(buf))
             return
 
         if key.backspace or key.delete:
             ac_idx.current = 0
-            set_buf(lambda t: t[:-1] if t else t)
+            if cursor > 0:
+                pos = cursor
+                set_buf(lambda t: t[:pos - 1] + t[pos:])
+                set_cursor(lambda c: max(0, c - 1))
             return
 
         if ch and not key.ctrl and not key.meta and not key.escape:
             ac_idx.current = 0
-            set_buf(lambda t: t + ch)
+            pos = cursor
+            set_buf(lambda t: t[:pos] + ch + t[pos:])
+            set_cursor(lambda c: c + 1)
 
     use_input(on_key)
 
@@ -288,12 +314,17 @@ def orx_repl(
     children.append(Spacer())
 
     # Input area with border above and below.
+    # Render input with cursor overlaying the character at position.
+    before = buf[:cursor]
+    char_at = buf[cursor] if cursor < len(buf) else " "
+    after = buf[cursor + 1:] if cursor < len(buf) else ""
     input_children = [
         Text(_SEPARATOR, color=_MUTED, dim=True),
         Box(
             Text("  \u276f ", color=_ACCENT, bold=True),
-            Text(buf, bold=True),
-            Text("\u2588", color=_MUTED),
+            Text(before, bold=True),
+            Text(char_at, bold=True, inverse=True),
+            Text(after, bold=True),
             flex_direction="row",
         ),
     ]
@@ -305,7 +336,7 @@ def orx_repl(
     input_children.append(Text(_SEPARATOR, color=_MUTED, dim=True))
     children.append(Box(*input_children, flex_direction="column"))
 
-    return Box(*children, flex_direction="column")
+    return Box(*children, flex_direction="column", min_height=win.rows)
 
 
 def _make_approval_callback(

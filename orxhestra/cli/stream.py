@@ -8,7 +8,7 @@ import time
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
-from orxhestra.cli.approval import APPROVE_REQUIRED, format_approval_prompt
+from orxhestra.cli.approval import APPROVE_REQUIRED
 from orxhestra.cli.config import DEFAULT_USER_ID
 from orxhestra.cli.render import (
     render_todos,

@@ -14,10 +14,10 @@ if TYPE_CHECKING:
 
     from orxhestra.cli.state import ReplState
 
-_ACCENT = "#6C8EBF"
-_MUTED = "#6c6c6c"
 import shutil as _shutil
 
+_ACCENT = "#6C8EBF"
+_MUTED = "#6c6c6c"
 _SEPARATOR = "─" * (_shutil.get_terminal_size().columns - 1)
 
 APPROVAL_OPTIONS = ["Yes", "Yes, allow all edits during this session (shift+tab)", "No"]
@@ -185,7 +185,9 @@ def orx_repl(
                 set_phase("idle")
                 set_spinner_text("")
                 set_stream("")
-                set_history(lambda h: [*h, {"type": "plain", "ansi": "  Interrupted.", "color": _MUTED}])
+                set_history(lambda h: [
+                    *h, {"type": "plain", "ansi": "  Interrupted.", "color": _MUTED},
+                ])
             return
 
         # Tab — accept autocomplete.
@@ -222,7 +224,9 @@ def orx_repl(
                     set_history, set_phase, running, console_ref.current,
                 )
             else:
-                set_history(lambda h: [*h, {"type": "plain", "ansi": "  Agent is still running.", "color": _MUTED}])
+                set_history(lambda h: [
+                    *h, {"type": "plain", "ansi": "  Agent is still running.", "color": _MUTED},
+                ])
             return
 
         # Arrow keys for autocomplete.
@@ -376,7 +380,8 @@ def run_ink_app(
 
     initial_history = [
         {"type": "rich", "ansi": banner_ansi},
-        {"type": "plain", "ansi": "  type /help for commands, Ctrl+D to exit", "color": _MUTED, "dim": True},
+        {"type": "plain", "ansi": "  type /help for commands, Ctrl+D to exit",
+         "color": _MUTED, "dim": True},
         {"type": "separator"},
     ]
 
@@ -437,7 +442,8 @@ def _dispatch_agent(message, state, writer, set_history, set_phase, running_ref,
             ))
             state.turn_count += 1
         except Exception as exc:
-            set_history(lambda h: [*h, {"type": "plain", "ansi": f"  Error: {exc}"}])
+            err_msg = str(exc)
+            set_history(lambda h: [*h, {"type": "plain", "ansi": f"  Error: {err_msg}"}])
         finally:
             running_ref.current = False
             set_phase("idle")

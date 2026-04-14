@@ -10,8 +10,8 @@ implementations:
 
 from __future__ import annotations
 
-import asyncio
-from typing import TYPE_CHECKING, Any, Callable, Protocol, runtime_checkable
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
 if TYPE_CHECKING:
     from rich.console import Console

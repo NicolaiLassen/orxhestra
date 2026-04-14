@@ -382,6 +382,9 @@ class InkWriter:
     async def prompt_input(self, label: str) -> str:
         """Prompt user for input via the selector UI.
 
+        Runs the blocking selector callback in a thread executor so
+        it doesn't freeze the agent's asyncio event loop.
+
         Parameters
         ----------
         label : str
@@ -392,6 +395,11 @@ class InkWriter:
         str
             The user's response.
         """
+        import asyncio
+
         if self._approval_callback:
-            return self._approval_callback(label)
+            loop = asyncio.get_event_loop()
+            return await loop.run_in_executor(
+                None, self._approval_callback, label,
+            )
         return input(label)

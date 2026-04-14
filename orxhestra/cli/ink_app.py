@@ -388,12 +388,12 @@ def orx_repl(
                 set_cursor(lambda c: max(0, c - 1))
             return
 
-        # Regular character.
+        # Regular character (or pasted text — ch may be multiple chars).
         if ch and not key.ctrl and not key.meta and not key.escape:
             ac_idx.current = 0
-            pos = cursor
-            set_buf(lambda t: t[:pos] + ch + t[pos:])
-            set_cursor(lambda c: c + 1)
+            text = ch
+            set_cursor(lambda c: c + len(text))
+            set_buf(lambda t: t + text if cursor >= len(t) else t[:cursor] + text + t[cursor:])
 
     use_input(on_key)
 
@@ -552,7 +552,7 @@ def run_ink_app(
         selector_state_ref=Ref(sel_state),
     )
 
-    render(vnode)
+    render(vnode, max_fps=15)
 
 
 def _dispatch_slash(text, state, writer, orx_path, workspace,

@@ -189,6 +189,11 @@ def orx_repl(
         if selector_state_ref and selector_state_ref.current is not None:
             selector_state_ref.current["callback"] = selector_cb
 
+        # Wire into permission system approval holder if present on state.
+        _state = state_ref.current
+        if hasattr(_state, "_approval_holder") and _state._approval_holder:
+            _state._approval_holder["fn"] = selector_cb
+
     # Spinner animation.
     anim = use_animation(interval=200, is_active=(phase == "spinning"))
     fi = anim.frame % len(spinner_frames) if spinner_frames else 0

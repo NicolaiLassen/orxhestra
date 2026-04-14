@@ -1,6 +1,6 @@
 [project]
 name = "orxhestra"
-version = "0.0.73"
+version = "0.0.74"
 description = "Multi-Agent Orchestration Framework for Python"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -20,7 +20,6 @@ classifiers = [
 dependencies = [
     "langchain>=1.2.12",
     "pydantic>=2.12.5",
-    "pyinklib>=0.0.5",
 ]
 
 [project.optional-dependencies]

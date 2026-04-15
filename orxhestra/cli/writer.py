@@ -95,7 +95,11 @@ def rich_to_ansi(console: Console, *args: Any, **kwargs: Any) -> str:
         theme=theme,
     )
     tmp.print(*args, **kwargs)
-    return buf.getvalue().rstrip("\n")
+    # Strip trailing whitespace per line — Rich pads each line to
+    # console width with spaces, which breaks yoga flex-row layout
+    # (the padded text is measured as full-width, squeezing siblings).
+    raw = buf.getvalue().rstrip("\n")
+    return "\n".join(line.rstrip() for line in raw.split("\n"))
 
 
 class _ConsoleSpinner:

@@ -398,17 +398,21 @@ def orx_repl(
     use_input(on_key)
 
     # ── Build component tree ──
-    children = [Static(items=history, render_item=_history_item)]
+    # Ink pattern: Static on top, dynamic Box below with
+    # height = win.rows - static_items so total fits exactly in viewport.
+
+    # Dynamic content.
+    dynamic = []
 
     # Spinner.
     if phase == "spinning" and spinner_text:
-        children.append(
+        dynamic.append(
             Text(f"{frame_char} {spinner_text}", color=_ACCENT),
         )
 
     # Streaming response.
     if phase == "streaming" and stream_buf:
-        children.append(Box(
+        dynamic.append(Box(
             Text("\u25cf ", color=_ACCENT),
             Text(stream_buf),
             flex_direction="row",
@@ -416,15 +420,12 @@ def orx_repl(
 
     # Selector (approval or human_input).
     if sel_active:
-        children.append(_selector_view(
+        dynamic.append(_selector_view(
             prompt_text=sel_prompt,
             options=sel_options,
             selected_idx=sel_idx,
             show_type_option=sel_show_type.current,
         ))
-
-    # Flex-grow spacer pushes input to the bottom.
-    children.append(Box(flex_grow=1))
 
     # Input area with border + cursor.
     before = buf[:cursor]
@@ -449,9 +450,13 @@ def orx_repl(
             selected_idx=ac_sel,
         ))
     input_children.append(Text(_SEPARATOR, color=_MUTED, dim=True))
-    children.append(Box(*input_children, flex_direction="column"))
+    dynamic.append(Box(*input_children, flex_direction="column"))
 
-    return Box(*children, flex_direction="column", min_height=win.rows)
+    return Box(
+        Static(items=history, render_item=_history_item),
+        Box(*dynamic, flex_direction="column"),
+        flex_direction="column",
+    )
 
 
 def _make_selector_callback(

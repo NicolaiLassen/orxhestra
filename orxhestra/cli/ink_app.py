@@ -73,7 +73,9 @@ def _history_item(item, _index=0):
         )
     if t == "rich":
         return Text(ansi)
-    if t == "tool_done":
+    if t in ("tool_done", "tool_done_last"):
+        return Text(ansi)
+    if t == "tasks":
         return Box(Text(ansi), margin_bottom=1)
     if t == "plain":
         return Text(

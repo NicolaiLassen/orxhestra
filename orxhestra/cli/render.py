@@ -122,14 +122,14 @@ def render_tool_call(event: Event, writer: Writer) -> None:
         if len(read_tools) > 4:
             collapsed += f" +{len(read_tools) - 4} more"
         writer.print_rich(
-            f"  [orx.tool.read]{TOOL_TOP} {collapsed}[/orx.tool.read]"
+            f"[orx.tool.read]{TOOL_TOP} {collapsed}[/orx.tool.read]"
         )
 
     # Render other tools normally.
     for tool_name, summary, style in other_tools:
-        writer.print_rich(f"  [{style}]{TOOL_TOP} {tool_name}[/{style}]")
+        writer.print_rich(f"[{style}]{TOOL_TOP} {tool_name}[/{style}]")
         if summary:
-            writer.print_rich(f"  [{style}]{TOOL_MID} {summary}[/{style}]")
+            writer.print_rich(f"[{style}]{TOOL_MID} {summary}[/{style}]")
 
 
 def render_tool_response(
@@ -137,6 +137,7 @@ def render_tool_response(
     writer: Writer,
     *,
     elapsed: float | None = None,
+    is_last: bool = False,
 ) -> None:
     """Render a truncated tool response with optional timing.
 
@@ -148,6 +149,10 @@ def render_tool_response(
         Output writer.
     elapsed : float, optional
         Seconds the tool took to execute.
+    is_last : bool, optional
+        Whether this is the last pending tool response. When True,
+        the item is tagged as ``"tool_done_last"`` so the UI adds
+        margin after it.
     """
     text: str = (event.text or "")[:500]
     if elapsed is not None and elapsed < 0.1:
@@ -156,17 +161,20 @@ def render_tool_response(
         elapsed_str = f" ({elapsed:.1f}s)"
     else:
         elapsed_str = ""
+    tag = "tool_done_last" if is_last else "tool_done"
     if text:
         lines: list[str] = text.splitlines()
         first_line: str = lines[0][:200]
         if len(lines) > 1:
             first_line += f"  ({len(lines)} lines)"
         writer.print_rich(
-            f"  [orx.muted]{TOOL_BOT} {first_line}{elapsed_str}[/orx.muted]"
+            f"[orx.muted]{TOOL_BOT} {first_line}{elapsed_str}[/orx.muted]",
+            item_type=tag,
         )
     else:
         writer.print_rich(
-            f"  [orx.muted]{TOOL_BOT} done{elapsed_str}[/orx.muted]"
+            f"[orx.muted]{TOOL_BOT} done{elapsed_str}[/orx.muted]",
+            item_type=tag,
         )
 
 
@@ -186,7 +194,9 @@ def render_todos(todo_list: TodoList, writer: Writer) -> None:
         return
     rendered: str = todo_list.render()
     if rendered:
-        writer.print_rich(f"\n[bold]Tasks:[/bold]\n{rendered}")
+        writer.print_rich(
+            f"\n[bold]Tasks:[/bold]\n{rendered}", item_type="tasks",
+        )
 
 
 def render_turn_summary(

@@ -156,6 +156,7 @@ class ConsoleWriter:
 
     def print_rich(self, *args: Any, **kwargs: Any) -> None:
         """Print Rich content to the console."""
+        kwargs.pop("item_type", None)
         self.console.print(*args, **kwargs)
 
     def start_spinner(self, text: str) -> _ConsoleSpinner:
@@ -330,15 +331,16 @@ class InkWriter:
         self._console = console
         self._approval_callback = approval_callback
 
-    def print_rich(self, *args: Any, **kwargs: Any) -> None:
+    def print_rich(self, *args: Any, item_type: str | None = None, **kwargs: Any) -> None:
         """Render Rich content and append to history.
 
         Tool response lines (containing ``U+2514``) are tagged as
-        ``"tool_done"`` so the UI can add margin after them.
+        ``"tool_done"`` so the UI can distinguish them.
         """
         ansi = rich_to_ansi(self._console, *args, **kwargs)
         if ansi:
-            item_type = "tool_done" if "\u2514" in ansi else "rich"
+            if item_type is None:
+                item_type = "tool_done" if "\u2514" in ansi else "rich"
             self._set_history(lambda h: [*h, {"type": item_type, "ansi": ansi}])
 
     def start_spinner(self, text: str) -> _InkSpinnerHandle:

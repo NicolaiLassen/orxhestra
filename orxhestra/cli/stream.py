@@ -330,7 +330,9 @@ async def stream_response(
                 if is_last and s.tool_start > 0:
                     elapsed = time.monotonic() - s.tool_start
                 if is_last:
-                    render_tool_response(event, writer, elapsed=elapsed)
+                    render_tool_response(
+                        event, writer, elapsed=elapsed, is_last=True,
+                    )
 
                 if event.tool_name == "write_todos" and todo_list is not None:
                     render_todos(todo_list, writer)

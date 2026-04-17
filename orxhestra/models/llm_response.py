@@ -86,7 +86,7 @@ class LlmResponse(BaseModel):
         """
         from orxhestra.models.content_parser import parse_content_blocks
 
-        text, _ = parse_content_blocks(message.content)
+        text, _ = parse_content_blocks(message.content_blocks)
 
         usage = getattr(message, "usage_metadata", None) or {}
         input_tokens = usage.get("input_tokens") if usage else None

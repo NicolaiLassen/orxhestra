@@ -221,6 +221,9 @@ class InMemoryFilesystemBackend(FilesystemBackend):
     async def exists(self, path: str) -> bool:
         """Return True if ``path`` exists. See :class:`FilesystemBackend`."""
         key = _normalize(path)
+        if key == ".":
+            # Root always exists, even when the backend is empty.
+            return True
         return (
             key in self._files
             or key in self._dirs

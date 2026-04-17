@@ -332,7 +332,7 @@ class LlmAgent(BaseAgent):
             if has_tool_calls:
                 continue
 
-            chunk_text, chunk_thinking = parse_content_blocks(chunk.content)
+            chunk_text, chunk_thinking = parse_content_blocks(chunk.content_blocks)
 
             # Detect accumulated content: if new text starts with all
             # of the previous text, it's accumulated — extract the delta.

@@ -16,7 +16,6 @@ from orxhestra.middleware.stack import MiddlewareStack
 from orxhestra.runner import Runner
 from orxhestra.sessions.in_memory_session_service import InMemorySessionService
 
-
 # ── Helpers ──────────────────────────────────────────────────────────
 
 class _RecorderAgent(BaseAgent):
@@ -53,12 +52,14 @@ async def _run(runner: Runner) -> list[Event]:
 
 # ── MiddlewareStack direct tests ─────────────────────────────────────
 
+@pytest.mark.asyncio
 async def test_empty_stack_is_falsy():
     stack = MiddlewareStack()
     assert not stack
     assert len(stack) == 0
 
 
+@pytest.mark.asyncio
 async def test_stack_extend_returns_new_instance():
     class _M(BaseMiddleware): ...
 
@@ -69,6 +70,7 @@ async def test_stack_extend_returns_new_instance():
     assert len(new_stack) == 1
 
 
+@pytest.mark.asyncio
 async def test_stack_on_event_threads_transforms():
     class _Append(BaseMiddleware):
         def __init__(self, suffix: str) -> None:
@@ -88,6 +90,7 @@ async def test_stack_on_event_threads_transforms():
     assert out.text == "x-A-B"
 
 
+@pytest.mark.asyncio
 async def test_stack_on_event_can_drop():
     class _Drop(BaseMiddleware):
         async def on_event(self, ctx, event):
@@ -98,6 +101,7 @@ async def test_stack_on_event_can_drop():
     assert out is None
 
 
+@pytest.mark.asyncio
 async def test_stack_wrap_tool_onion_order():
     order: list[str] = []
 
@@ -128,6 +132,7 @@ async def test_stack_wrap_tool_onion_order():
     ]
 
 
+@pytest.mark.asyncio
 async def test_stack_wrap_tool_empty_stack_passthrough():
     stack = MiddlewareStack()
 
@@ -138,6 +143,7 @@ async def test_stack_wrap_tool_empty_stack_passthrough():
     assert result == "bare"
 
 
+@pytest.mark.asyncio
 async def test_stack_after_invoke_reverses_order():
     order: list[str] = []
 
@@ -157,6 +163,7 @@ async def test_stack_after_invoke_reverses_order():
     assert order == ["before-A", "before-B", "after-B", "after-A"]
 
 
+@pytest.mark.asyncio
 async def test_stack_tolerates_partial_implementations():
     """A Middleware that only defines on_event must not break other hooks."""
     class _Partial:
@@ -169,6 +176,7 @@ async def test_stack_tolerates_partial_implementations():
     await stack.after_invoke(None)  # type: ignore[arg-type]
 
 
+@pytest.mark.asyncio
 async def test_before_model_threads_value():
     class _M(BaseMiddleware):
         async def before_model(self, ctx, request):
@@ -183,6 +191,7 @@ async def test_before_model_threads_value():
 
 # ── Runner integration ───────────────────────────────────────────────
 
+@pytest.mark.asyncio
 async def test_runner_without_middleware_is_unchanged():
     """Empty middleware stack must produce identical behavior."""
     events = [_make_event("hello", "s1")]
@@ -195,6 +204,7 @@ async def test_runner_without_middleware_is_unchanged():
     assert out[0].text == "hello"
 
 
+@pytest.mark.asyncio
 async def test_runner_fires_before_and_after_invoke():
     calls: list[str] = []
 
@@ -216,6 +226,7 @@ async def test_runner_fires_before_and_after_invoke():
     assert calls == ["before:root", "after:None"]
 
 
+@pytest.mark.asyncio
 async def test_runner_on_event_can_transform():
     class _Upper(BaseMiddleware):
         async def on_event(self, ctx, event):
@@ -237,6 +248,7 @@ async def test_runner_on_event_can_transform():
     assert out[0].text == "HI"
 
 
+@pytest.mark.asyncio
 async def test_runner_on_event_can_drop():
     class _Drop(BaseMiddleware):
         async def on_event(self, ctx, event):
@@ -253,6 +265,7 @@ async def test_runner_on_event_can_drop():
     assert out == []
 
 
+@pytest.mark.asyncio
 async def test_runner_after_invoke_sees_error():
     class _BoomAgent(BaseAgent):
         async def astream(self, new_message, ctx):  # type: ignore[override]
@@ -280,6 +293,7 @@ async def test_runner_after_invoke_sees_error():
 
 # ── CallbackMiddleware backward compat ───────────────────────────────
 
+@pytest.mark.asyncio
 async def test_callback_middleware_forwards_before_after_model():
     from orxhestra.agents.invocation_context import InvocationContext
     from orxhestra.models.llm_request import LlmRequest
@@ -308,6 +322,7 @@ async def test_callback_middleware_forwards_before_after_model():
     assert seen == ["before", "after"]
 
 
+@pytest.mark.asyncio
 async def test_callback_middleware_wraps_tool_calls():
     from orxhestra.agents.invocation_context import InvocationContext
 
@@ -337,6 +352,7 @@ async def test_callback_middleware_wraps_tool_calls():
 
 # ── LoggingMiddleware smoke test ─────────────────────────────────────
 
+@pytest.mark.asyncio
 async def test_logging_middleware_does_not_raise(caplog):
     import logging
 

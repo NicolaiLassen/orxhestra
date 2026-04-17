@@ -143,6 +143,164 @@ async def test_runner_get_or_create_session():
     assert session2.id == session.id
 
 
+class TransferAgent(BaseAgent):
+    """Agent that emits a transfer_to_agent action on its single event."""
+
+    def __init__(self, name: str, target_name: str):
+        super().__init__(name=name)
+        self._target_name = target_name
+
+    async def astream(self, input, config=None, *, ctx=None):
+        ctx = self._ensure_ctx(config, ctx)
+        yield self._emit_event(
+            ctx,
+            EventType.AGENT_MESSAGE,
+            content=Content.from_text(f"transferring to {self._target_name}"),
+            actions=EventActions(transfer_to_agent=self._target_name),
+        )
+
+
+@pytest.mark.asyncio
+async def test_runner_active_agent_key_persists_on_transfer():
+    """When active_agent_state_key is set, a transfer writes the target name
+    into session.state so the next turn resumes there."""
+    svc = InMemorySessionService()
+    child = StubAgent(name="child", answer="child-reply")
+    root = TransferAgent(name="root", target_name="child")
+    root.register_sub_agent(child)
+
+    runner = Runner(
+        agent=root,
+        app_name="app",
+        session_service=svc,
+        active_agent_state_key="_active",
+    )
+
+    async for _ in runner.astream(user_id="u1", session_id="s1", new_message="go"):
+        pass
+
+    session = await svc.get_session(app_name="app", user_id="u1", session_id="s1")
+    assert session.state["_active"] == "child"
+
+
+@pytest.mark.asyncio
+async def test_runner_active_agent_key_resumes_subagent_on_next_turn():
+    """When a previous turn left a sub-agent active, the next astream() starts
+    at that sub-agent instead of the root."""
+    svc = InMemorySessionService()
+
+    # Seed the session with _active = "child" directly
+    await svc.create_session(
+        app_name="app", user_id="u1", session_id="s1", state={"_active": "child"}
+    )
+
+    child = StubAgent(name="child", answer="child-reply")
+    root = StubAgent(name="root", answer="root-reply")
+    root.register_sub_agent(child)
+
+    runner = Runner(
+        agent=root,
+        app_name="app",
+        session_service=svc,
+        active_agent_state_key="_active",
+    )
+
+    events = [
+        e async for e in runner.astream(
+            user_id="u1", session_id="s1", new_message="hi"
+        )
+    ]
+    # The sub-agent should answer, not the root.
+    agent_events = [e for e in events if e.type == EventType.AGENT_MESSAGE]
+    assert len(agent_events) == 1
+    assert agent_events[0].text == "child-reply"
+
+
+@pytest.mark.asyncio
+async def test_runner_active_agent_key_cleared_on_transfer_back_to_root():
+    """Transferring back to the root agent clears the active-agent key."""
+    svc = InMemorySessionService()
+
+    await svc.create_session(
+        app_name="app", user_id="u1", session_id="s1", state={"_active": "child"}
+    )
+
+    # Sub-agent transfers back to root.
+    child = TransferAgent(name="child", target_name="root")
+    root = StubAgent(name="root", answer="back-at-root")
+    root.register_sub_agent(child)
+
+    runner = Runner(
+        agent=root,
+        app_name="app",
+        session_service=svc,
+        active_agent_state_key="_active",
+    )
+
+    async for _ in runner.astream(user_id="u1", session_id="s1", new_message="done"):
+        pass
+
+    session = await svc.get_session(app_name="app", user_id="u1", session_id="s1")
+    assert session.state["_active"] is None
+
+
+@pytest.mark.asyncio
+async def test_runner_active_agent_key_none_default_unchanged():
+    """Without active_agent_state_key, behavior is unchanged: every turn starts at root."""
+    svc = InMemorySessionService()
+
+    # Pretend a previous turn marked a sub-agent active via state. With the
+    # feature OFF (default), this should be ignored.
+    await svc.create_session(
+        app_name="app", user_id="u1", session_id="s1", state={"_active": "child"}
+    )
+
+    child = StubAgent(name="child", answer="child-reply")
+    root = StubAgent(name="root", answer="root-reply")
+    root.register_sub_agent(child)
+
+    runner = Runner(agent=root, app_name="app", session_service=svc)  # no key
+
+    events = [
+        e async for e in runner.astream(
+            user_id="u1", session_id="s1", new_message="hi"
+        )
+    ]
+    agent_events = [e for e in events if e.type == EventType.AGENT_MESSAGE]
+    assert len(agent_events) == 1
+    assert agent_events[0].text == "root-reply"
+
+
+@pytest.mark.asyncio
+async def test_runner_active_agent_key_ignored_when_unknown_agent():
+    """If the persisted name isn't in the tree, fall back to root (don't crash)."""
+    svc = InMemorySessionService()
+
+    await svc.create_session(
+        app_name="app",
+        user_id="u1",
+        session_id="s1",
+        state={"_active": "deleted-agent"},
+    )
+
+    root = StubAgent(name="root", answer="root-reply")
+    runner = Runner(
+        agent=root,
+        app_name="app",
+        session_service=svc,
+        active_agent_state_key="_active",
+    )
+
+    events = [
+        e async for e in runner.astream(
+            user_id="u1", session_id="s1", new_message="hi"
+        )
+    ]
+    agent_events = [e for e in events if e.type == EventType.AGENT_MESSAGE]
+    assert len(agent_events) == 1
+    assert agent_events[0].text == "root-reply"
+
+
 @pytest.mark.asyncio
 async def test_runner_passes_config_to_agent():
     """Config dict reaches the agent context via run_config."""

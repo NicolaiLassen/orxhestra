@@ -39,6 +39,7 @@ from orxhestra.agents.invocation_context import InvocationContext
 from orxhestra.agents.tracing import end_agent_span, error_agent_span, start_agent_span
 from orxhestra.artifacts.base_artifact_service import BaseArtifactService
 from orxhestra.events.event import Event, EventType
+from orxhestra.events.event_actions import EventActions
 from orxhestra.models.part import Content
 from orxhestra.sessions.base_session_service import BaseSessionService
 from orxhestra.sessions.compaction import CompactionConfig, compact_session
@@ -73,6 +74,14 @@ class Runner:
     compaction_config : CompactionConfig, optional
         If set, enables automatic session compaction after each
         invocation.
+    active_agent_state_key : str, optional
+        If set, the runner persists the name of the currently-active
+        agent at ``session.state[active_agent_state_key]`` and resumes
+        from it on the next ``astream()`` call. This turns transfer-based
+        sub-agent interactions into multi-turn flows (interviews, wizards)
+        without the root agent having to re-transfer on every user turn.
+        Default ``None`` preserves today's behavior (every turn starts
+        at the root agent).
     """
 
     def __init__(
@@ -84,12 +93,14 @@ class Runner:
         artifact_service: BaseArtifactService | None = None,
         compaction_config: CompactionConfig | None = None,
         default_config: dict | None = None,
+        active_agent_state_key: str | None = None,
     ) -> None:
         self.agent = agent
         self.app_name = app_name
         self.session_service = session_service
         self.artifact_service = artifact_service
         self.compaction_config = compaction_config
+        self.active_agent_state_key = active_agent_state_key
         self._base_config = default_config or {}
 
     async def get_or_create_session(
@@ -176,16 +187,27 @@ class Runner:
         meta.setdefault("app_name", self.app_name)
         run_config["metadata"] = meta
 
+        # Pick the starting agent. Defaults to the root, but when
+        # active_agent_state_key is configured we honor a previously-persisted
+        # active-agent name so sub-agent interactions can span multiple turns.
+        starting_agent = self.agent
+        if self.active_agent_state_key:
+            active_name = (session.state or {}).get(self.active_agent_state_key)
+            if active_name and active_name != self.agent.name:
+                found = self.agent.find_agent(active_name)
+                if found is not None:
+                    starting_agent = found
+
         ctx = InvocationContext(
             session_id=session.id,
             user_id=user_id,
             app_name=self.app_name,
-            agent_name=self.agent.name,
+            agent_name=starting_agent.name,
             state=dict(session.state),
             input_content=new_message,
             session=session,
             run_config=run_config,
-            current_agent=self.agent,
+            current_agent=starting_agent,
             artifact_service=self.artifact_service,
         )
 
@@ -202,7 +224,7 @@ class Runner:
             ctx, f"Runner:{self.agent.name}", "Runner", {"input": new_message},
         )
 
-        current_agent = self.agent
+        current_agent = starting_agent
         last_text: str = ""
 
         _span_err: BaseException | None = None
@@ -225,6 +247,25 @@ class Runner:
                 target = self.agent.find_agent(transfer_target)
                 if target is None:
                     break
+
+                # When active-agent persistence is enabled, mark every resolved
+                # transfer in session.state so the next astream() resumes at the
+                # right place. A transfer back to the root clears the key.
+                if self.active_agent_state_key:
+                    new_active: str | None = (
+                        None if target is self.agent else target.name
+                    )
+                    marker_event = Event(
+                        type=EventType.AGENT_MESSAGE,
+                        author="system",
+                        session_id=session.id,
+                        invocation_id=ctx.invocation_id,
+                        content=Content(parts=[]),
+                        actions=EventActions(
+                            state_delta={self.active_agent_state_key: new_active}
+                        ),
+                    )
+                    await self.session_service.append_event(session, marker_event)
 
                 current_agent = target
                 ctx = ctx.model_copy(update={"agent_name": target.name})

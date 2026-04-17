@@ -1,5 +1,7 @@
 """Tests for ReadonlyContext and CallbackContext."""
 
+from __future__ import annotations
+
 from types import MappingProxyType
 
 import pytest

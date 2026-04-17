@@ -1,5 +1,7 @@
 """Tests for gather_with_event_queue concurrency utility."""
 
+from __future__ import annotations
+
 import asyncio
 
 import pytest

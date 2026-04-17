@@ -1,5 +1,7 @@
 """Tests for content parser — parse_content_blocks."""
 
+from __future__ import annotations
+
 from orxhestra.models.content_parser import parse_content_blocks
 
 

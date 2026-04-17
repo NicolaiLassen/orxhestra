@@ -1,5 +1,7 @@
 """Tests for tools: function_tool, ToolRegistry, ToolContext, exit_loop."""
 
+from __future__ import annotations
+
 import pytest
 
 from orxhestra.agents.base_agent import BaseAgent  # noqa: F401

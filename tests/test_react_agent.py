@@ -1,5 +1,6 @@
 """Tests for ReActAgent: reasoning loop, tool execution, max iterations, inheritance."""
 
+from __future__ import annotations
 
 import pytest
 from langchain_core.language_models import BaseChatModel

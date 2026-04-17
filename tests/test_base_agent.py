@@ -1,5 +1,7 @@
 """Tests for BaseAgent: ainvoke, astream, find_agent, _emit_event."""
 
+from __future__ import annotations
+
 import pytest
 
 from orxhestra.agents.base_agent import BaseAgent

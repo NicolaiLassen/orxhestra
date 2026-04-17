@@ -29,12 +29,20 @@ class MiddlewareStack:
     Parameters
     ----------
     middleware : list[Middleware]
-        Middleware to run, in outer-to-inner order.
+        :class:`Middleware` instances to run, in outer-to-inner order.
 
     Notes
     -----
     Empty stacks are zero-overhead: every hook short-circuits when the
-    middleware tuple is empty.
+    middleware tuple is empty. Partial implementations are also
+    supported — missing hooks fall back to :class:`BaseMiddleware`'s
+    pass-through defaults.
+
+    See Also
+    --------
+    Middleware : Protocol each entry must satisfy.
+    BaseMiddleware : Default pass-through implementation.
+    Runner : Hosts a stack at the invocation boundary.
     """
 
     def __init__(self, middleware: list[Middleware] | None = None) -> None:

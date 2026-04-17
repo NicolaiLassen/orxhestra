@@ -177,12 +177,19 @@ class BaseAgent(ABC):
         config : RunnableConfig, optional
             LangChain-compatible config dict (tags, callbacks, etc.).
         ctx : InvocationContext, optional
-            Invocation context. Auto-created if not provided.
+            Invocation context. Auto-created via :meth:`_ensure_ctx`
+            if not provided.
 
         Yields
         ------
         Event
-            Events emitted during execution.
+            :class:`Event` objects emitted during execution.
+
+        See Also
+        --------
+        Runner.astream : Preferred entry point when you need session
+            persistence.
+        InvocationContext : Runtime state passed through the agent tree.
         """
         yield  # type: ignore[misc]  # pragma: no cover
 

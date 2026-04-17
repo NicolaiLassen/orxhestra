@@ -28,10 +28,16 @@ class CallbackMiddleware(BaseMiddleware):
 
     Notes
     -----
-    ``on_model_error`` is intentionally not exposed on the middleware
-    protocol — error recovery is still the agent's responsibility and
-    stays on the callback interface. This adapter only maps the four
-    synchronous lifecycle hooks.
+    ``on_model_error`` is intentionally not exposed on the
+    :class:`Middleware` protocol — error recovery is still the agent's
+    responsibility and stays on the callback interface. This adapter
+    only maps the four synchronous lifecycle hooks.
+
+    See Also
+    --------
+    Middleware : The protocol this adapter implements.
+    LlmAgentCallbacks : Source callback bundle.
+    MiddlewareStack : Ordered execution of multiple middleware.
     """
 
     def __init__(self, callbacks: LlmAgentCallbacks) -> None:

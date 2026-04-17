@@ -66,30 +66,42 @@ class Runner:
     Parameters
     ----------
     agent : BaseAgent
-        The root agent to run.
+        The root :class:`BaseAgent` to run.
     app_name : str
         Application identifier. Used to namespace sessions.
     session_service : BaseSessionService
-        Where sessions are stored and retrieved.
+        Where sessions are stored and retrieved. See
+        :class:`InMemorySessionService` and
+        :class:`DatabaseSessionService` for the built-in backends.
     artifact_service : BaseArtifactService, optional
-        Where artifacts (files, blobs) are stored.
+        Where artifacts (files, blobs) are stored. Required for
+        :meth:`CallContext.save_artifact` and friends.
     compaction_config : CompactionConfig, optional
         If set, enables automatic session compaction after each
-        invocation.
+        invocation. Internally calls :func:`compact_session`.
     active_agent_state_key : str, optional
         If set, the runner persists the name of the currently-active
         agent at ``session.state[active_agent_state_key]`` and resumes
-        from it on the next ``astream()`` call. This turns transfer-based
+        from it on the next :meth:`astream` call. This turns transfer-based
         sub-agent interactions into multi-turn flows (interviews, wizards)
         without the root agent having to re-transfer on every user turn.
         Default ``None`` preserves today's behavior (every turn starts
         at the root agent).
     middleware : list[Middleware], optional
-        Composable interceptors for the invocation lifecycle. Middleware
-        receive ``before_invoke`` / ``after_invoke`` hooks and can
-        transform or drop events via ``on_event``. An empty or omitted
-        list is zero-overhead — behavior is identical to not passing
-        the parameter. See :mod:`orxhestra.middleware`.
+        Composable interceptors for the invocation lifecycle. See
+        :class:`Middleware`. Middleware receive ``before_invoke`` /
+        ``after_invoke`` hooks and can transform or drop events via
+        ``on_event``. An empty or omitted list is zero-overhead —
+        behavior is identical to not passing the parameter.
+
+    See Also
+    --------
+    BaseAgent : Root agent interface.
+    BaseSessionService : Persistent session storage interface.
+    BaseArtifactService : Artifact storage interface.
+    CompactionConfig : Tunes when/how session compaction runs.
+    Middleware : Lifecycle interception protocol.
+    Composer : YAML-based alternative for constructing a full Runner.
     """
 
     def __init__(

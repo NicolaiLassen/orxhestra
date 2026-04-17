@@ -68,6 +68,12 @@ class Skill(BaseModel):
       - ``directory``: Loaded from a SKILL.md directory on disk.
       - ``mcp``: Fetched from a remote MCP server.
 
+    See Also
+    --------
+    SkillFrontmatter : Parsed YAML header for directory-source skills.
+    SkillResource : Declared resource file (L3) inside a skill dir.
+    BaseSkillStore : Interface for looking up skills at runtime.
+
     Attributes
     ----------
     id : str

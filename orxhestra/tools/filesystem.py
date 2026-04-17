@@ -156,14 +156,43 @@ def make_filesystem_tools(workspace: str | None = None) -> list[BaseTool]:
         return f"{header}\n{content}"
 
     async def write_file(path: str, content: str) -> str:
-        """Write content to a file, creating parent directories as needed."""
+        """Write content to a file, creating parent directories as needed.
+
+        Parameters
+        ----------
+        path : str
+            Path relative to the workspace.
+        content : str
+            Full file contents. Overwrites any existing file.
+
+        Returns
+        -------
+        str
+            Confirmation message including byte count.
+        """
         target = _resolve_path(path, ws)
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(content, encoding="utf-8")
         return f"Wrote {len(content)} characters to {path}"
 
     async def edit_file(path: str, old: str, new: str) -> str:
-        """Replace the first occurrence of 'old' with 'new' in a file."""
+        """Replace the first occurrence of ``old`` with ``new`` in a file.
+
+        Parameters
+        ----------
+        path : str
+            Path relative to the workspace.
+        old : str
+            Exact substring to replace. Must occur in the file.
+        new : str
+            Replacement text.
+
+        Returns
+        -------
+        str
+            A compact diff summary showing the removed and added lines,
+            or an error message if the file or substring is missing.
+        """
         target = _resolve_path(path, ws)
         if not target.exists():
             return f"Error: '{path}' does not exist"
@@ -193,7 +222,19 @@ def make_filesystem_tools(workspace: str | None = None) -> list[BaseTool]:
         return "\n".join(diff_lines)
 
     async def mkdir(path: str) -> str:
-        """Create a directory and any missing parents."""
+        """Create a directory and any missing parents.
+
+        Parameters
+        ----------
+        path : str
+            Directory path relative to the workspace.
+
+        Returns
+        -------
+        str
+            Confirmation message. Idempotent — no error if the
+            directory already exists.
+        """
         target = _resolve_path(path, ws)
         target.mkdir(parents=True, exist_ok=True)
         return f"Created directory {path}"

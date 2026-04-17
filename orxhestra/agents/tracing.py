@@ -165,6 +165,19 @@ def trace(agent_type: str):
     def decorator(
         fn: Any,
     ) -> Any:
+        """Wrap ``fn`` (an ``astream`` coroutine) with trace span management.
+
+        Parameters
+        ----------
+        fn : callable
+            The agent's ``astream`` method being decorated.
+
+        Returns
+        -------
+        callable
+            A replacement coroutine that opens a span, forwards events,
+            and closes the span on success or error.
+        """
         @functools.wraps(fn)
         async def wrapper(
             self: Any,
@@ -173,6 +186,12 @@ def trace(agent_type: str):
             *,
             ctx: Any = None,
         ) -> AsyncIterator[Event]:
+            """Run the wrapped ``astream`` under an agent span.
+
+            Creates a trace span, yields every event from ``fn``, and
+            closes the span with the final event text on success or
+            the exception on error.
+            """
             ctx = self._ensure_ctx(config, ctx)
             ctx, run_mgr = await start_agent_span(
                 ctx, self.name, agent_type, {"input": input},

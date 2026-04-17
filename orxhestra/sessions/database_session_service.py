@@ -69,9 +69,17 @@ class DatabaseSessionService(BaseSessionService):
         from sqlalchemy.orm import DeclarativeBase
 
         class Base(DeclarativeBase):
-            pass
+            """Declarative base for ORM row definitions in this service."""
 
         class SessionRow(Base):
+            """ORM row for the ``orx_sessions`` table.
+
+            Stores the session envelope (id, app/user namespace,
+            JSON-encoded state, last-update timestamp). Events live
+            in a separate :class:`EventRow` table joined by
+            ``session_id`` to keep session updates light.
+            """
+
             __tablename__ = "orx_sessions"
             id = Column(String, primary_key=True)
             app_name = Column(String, nullable=False, index=True)
@@ -80,6 +88,14 @@ class DatabaseSessionService(BaseSessionService):
             last_update_time = Column(Float, default=0.0)
 
         class EventRow(Base):
+            """ORM row for the ``orx_events`` table.
+
+            Stores one event per row keyed by ``session_id``. The full
+            :class:`Event` is serialized as JSON in ``event_json``;
+            ``created_at`` is indexed implicitly via the natural
+            timestamp order of inserts.
+            """
+
             __tablename__ = "orx_events"
             id = Column(String, primary_key=True)
             session_id = Column(String, nullable=False, index=True)

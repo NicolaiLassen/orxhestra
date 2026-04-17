@@ -81,7 +81,24 @@ def make_shell_tools(
         return text
 
     async def shell_exec(command: str, timeout_seconds: int | None = None) -> str:
-        """Run a shell command and return stdout + stderr."""
+        """Run a shell command in the workspace and return its output.
+
+        Parameters
+        ----------
+        command : str
+            Shell command to execute. Subject to the allowlist if one
+            was configured on the tool factory.
+        timeout_seconds : int, optional
+            Per-call timeout in seconds. Clamped to the factory's
+            ``max_timeout``. ``None`` uses the factory default.
+
+        Returns
+        -------
+        str
+            Combined stdout and stderr, truncated to
+            ``max_output_bytes``. On failure, the return value is an
+            error string (command rejected, timeout, or non-zero exit).
+        """
         err: str | None = _validate_command(command)
         if err:
             return err

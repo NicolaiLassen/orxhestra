@@ -101,7 +101,17 @@ class AgentTool(BaseTool):
         object.__setattr__(self, "_ctx", None)
 
     def inject_context(self, ctx: InvocationContext) -> None:
-        """Inject the parent invocation context before tool execution."""
+        """Inject the parent invocation context before tool execution.
+
+        Called by :class:`LlmAgent` just before the tool runs so the
+        wrapped sub-agent can derive a child context that preserves
+        branch attribution and session identity.
+
+        Parameters
+        ----------
+        ctx : InvocationContext
+            The parent agent's invocation context.
+        """
         object.__setattr__(self, "_ctx", ctx)
 
     def _run(self, request: str, **kwargs: Any) -> str:

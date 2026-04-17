@@ -73,6 +73,13 @@ class ParallelAgent(BaseAgent):
         merged: asyncio.Queue[Event | None] = asyncio.Queue()
 
         async def run_and_forward(agent: BaseAgent) -> None:
+            """Stream events from one sub-agent into the merged queue.
+
+            Parameters
+            ----------
+            agent : BaseAgent
+                The sub-agent to run.
+            """
             child_ctx = ctx.derive(agent_name=agent.name)
             async for event in agent.astream(input, ctx=child_ctx):
                 await merged.put(event)

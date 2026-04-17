@@ -125,4 +125,14 @@ class CallbackContext(ReadonlyContext):
 
     @state.setter
     def state(self, value: dict[str, Any]) -> None:
+        """Merge ``value`` into the invocation state (in place).
+
+        Parameters
+        ----------
+        value : dict[str, Any]
+            Keys to merge into the existing state dict. Existing keys
+            are overwritten; missing keys are preserved. The state
+            dict itself is not reassigned — callers still observe
+            their shared reference.
+        """
         self._ctx.state.update(value)

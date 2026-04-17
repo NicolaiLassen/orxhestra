@@ -121,6 +121,14 @@ class MCPToolAdapter:
         input_model = _build_input_model(tool_name, input_schema)
 
         class WrappedMCPTool(BaseTool):
+            """LangChain tool that proxies calls to a remote MCP tool.
+
+            The tool's name, description, and input schema are derived
+            from the MCP tool descriptor. This class is async-only —
+            ``_run`` raises ``NotImplementedError`` because MCP calls
+            are always awaited.
+            """
+
             name: str = tool_name
             description: str = tool_description
             args_schema: type[BaseModel] = input_model

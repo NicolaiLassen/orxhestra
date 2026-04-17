@@ -59,7 +59,16 @@ class TaskPlanner(BasePlanner):
         self._seeded: bool = False
 
     def set_todo_list(self, todo_list: Any) -> None:
-        """Set the shared TodoList instance (late binding)."""
+        """Set the shared TodoList instance (late binding).
+
+        Used by the composer when wiring the planner together with a
+        ``write_todos`` tool that must share the same backing list.
+
+        Parameters
+        ----------
+        todo_list : TodoList
+            The mutable task list shared between planner and tool.
+        """
         self._todo_list = todo_list
 
     def _ensure_seeded(self) -> None:

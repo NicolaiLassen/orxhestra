@@ -40,13 +40,28 @@ class InMemoryFilesystemBackend(FilesystemBackend):
     """Dict-backed filesystem for tests and sandboxing.
 
     Directories exist implicitly — any path with a file under it
-    creates the directory structure in ``ls``. Explicit ``mkdir`` is
-    supported for empty directories.
+    creates the directory structure in :meth:`ls`. Explicit
+    :meth:`mkdir` is supported for empty directories. Paths are
+    normalized via :func:`_normalize` so ``.`` and ``..`` segments
+    collapse without ever touching the real disk.
 
     Parameters
     ----------
     initial : dict[str, str], optional
         Seed files. Keys are paths, values are UTF-8 string contents.
+
+    See Also
+    --------
+    FilesystemBackend : The protocol this implements.
+    LocalFilesystemBackend : Real-disk alternative.
+
+    Examples
+    --------
+    >>> fs = InMemoryFilesystemBackend({"src/main.py": "print('hi')\\n"})
+    >>> await fs.ls("src")
+    ['main.py']
+    >>> await fs.edit("src/main.py", "hi", "hello")
+    1
     """
 
     def __init__(self, initial: dict[str, str] | None = None) -> None:

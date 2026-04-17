@@ -22,15 +22,32 @@ class SequentialAgent(BaseAgent):
     The output (final event's text) of each agent becomes the input
     to the next. All events from all agents are yielded upstream.
 
-    Escalate events from children (e.g. exit_loop inside a LoopAgent)
-    are yielded but do NOT stop the pipeline — only the child that
-    escalated stops. The sequential pipeline always continues to the
-    next step.
+    Escalate events from children (e.g. :func:`exit_loop_tool` inside
+    a :class:`LoopAgent`) are yielded but do NOT stop the pipeline —
+    only the child that escalated stops. The sequential pipeline
+    always continues to the next step.
 
     Attributes
     ----------
     agents : list[BaseAgent]
         Ordered list of agents to run in sequence.
+
+    See Also
+    --------
+    BaseAgent : Base class this extends.
+    ParallelAgent : Run sub-agents concurrently instead.
+    LoopAgent : Repeat sub-agents until a stop condition.
+    InvocationContext.derive : Used to build per-step child contexts.
+
+    Examples
+    --------
+    >>> pipeline = SequentialAgent(
+    ...     name="extract_then_summarize",
+    ...     agents=[extractor_agent, summarizer_agent],
+    ... )
+    >>> async for event in pipeline.astream("Analyze this doc"):
+    ...     if event.is_final_response():
+    ...         print(event.text)
     """
 
     def __init__(

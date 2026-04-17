@@ -89,10 +89,10 @@ Rules:
 class ReActAgent(LlmAgent):
     """Agent that uses explicit structured reasoning before each action.
 
-    Extends ``LlmAgent``, inheriting support for custom instructions,
-    planners, skills, callbacks, and output schemas. Uses LangChain
-    ``with_structured_output()`` to enforce a typed ``ReActStep`` at
-    every iteration.
+    Extends :class:`LlmAgent`, inheriting support for custom
+    instructions, planners, skills, callbacks, and output schemas.
+    Uses LangChain ``with_structured_output()`` to enforce a typed
+    :class:`ReActStep` at every iteration.
 
     Parameters
     ----------
@@ -107,8 +107,25 @@ class ReActAgent(LlmAgent):
     max_iterations : int
         Maximum ReAct loop iterations before yielding an error.
     **kwargs
-        All other keyword arguments are passed to ``LlmAgent``, including
-        ``instructions``, ``planner``, ``output_schema``, and callbacks.
+        All other keyword arguments are passed to :class:`LlmAgent`,
+        including ``instructions``, ``planner``, ``output_schema``,
+        and callbacks.
+
+    See Also
+    --------
+    LlmAgent : Base class this extends.
+    ReActStep : Typed schema for each reason/act step.
+    PlanReActPlanner : Planner that complements the ReAct pattern.
+
+    Examples
+    --------
+    >>> agent = ReActAgent(
+    ...     name="researcher",
+    ...     model=llm,
+    ...     tools=[search_tool, fetch_tool],
+    ...     max_iterations=8,
+    ... )
+    >>> result = await agent.ainvoke("When did X happen?")
     """
 
     def __init__(

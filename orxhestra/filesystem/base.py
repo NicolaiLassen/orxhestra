@@ -33,6 +33,22 @@ class FilesystemBackend(Protocol):
     agent invocation. Path semantics are backend-specific — the local
     backend enforces a workspace jail, the in-memory backend treats
     every path as a key.
+
+    See Also
+    --------
+    LocalFilesystemBackend : Real-disk implementation.
+    InMemoryFilesystemBackend : Dict-backed implementation for tests.
+    GrepMatch : Return type of :meth:`grep`.
+
+    Examples
+    --------
+    >>> from orxhestra.filesystem import InMemoryFilesystemBackend
+    >>> fs: FilesystemBackend = InMemoryFilesystemBackend()
+    >>> await fs.write("notes/todo.md", "- buy milk\\n- write docs\\n")
+    >>> await fs.read("notes/todo.md")
+    '- buy milk\\n- write docs\\n'
+    >>> [m.line for m in await fs.grep("docs")]
+    ['- write docs']
     """
 
     async def read(

@@ -16,11 +16,26 @@ _MAX_GREP_RESULTS = 200
 class LocalFilesystemBackend(FilesystemBackend):
     """Real-disk backend jailed to a workspace directory.
 
+    Every operation resolves paths through :meth:`_resolve`, which
+    rejects any target outside ``workspace`` (even via absolute paths
+    or ``..`` segments).
+
     Parameters
     ----------
     workspace : str or Path
         Root directory. All operations are confined to this tree.
         The directory is created on first use.
+
+    See Also
+    --------
+    FilesystemBackend : The protocol this implements.
+    InMemoryFilesystemBackend : Dict-backed alternative for tests.
+
+    Examples
+    --------
+    >>> fs = LocalFilesystemBackend("/tmp/agent-workspace")
+    >>> await fs.write("report.md", "# Findings\\n")
+    >>> files = await fs.glob("**/*.md")
     """
 
     def __init__(self, workspace: str | Path) -> None:

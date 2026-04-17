@@ -1,5 +1,7 @@
 """Tests for LlmAgent: tool loop, streaming, sentinels."""
 
+from __future__ import annotations
+
 import asyncio
 
 import pytest

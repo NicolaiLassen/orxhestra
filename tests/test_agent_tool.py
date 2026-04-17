@@ -1,5 +1,7 @@
 """Tests for AgentTool - wrapping agents as LangChain tools."""
 
+from __future__ import annotations
+
 import pytest
 
 from orxhestra.agents.base_agent import BaseAgent

@@ -20,9 +20,18 @@ from orxhestra.artifacts.base_artifact_service import BaseArtifactService
 class InvocationContext(BaseModel):
     """Runtime context propagated through an agent's execution tree.
 
-    Each agent invocation receives a context.  Child agents (sub-agents,
-    AgentTool) receive a derived context via ``derive()`` with an updated
-    branch and agent_name — enabling event attribution across the hierarchy.
+    Each agent invocation receives a context. Child agents (sub-agents,
+    :class:`AgentTool`) receive a derived context via :meth:`derive`
+    with an updated branch and agent_name — enabling event attribution
+    across the hierarchy.
+
+    See Also
+    --------
+    ReadonlyContext : Read-only view used in planners.
+    CallbackContext : Mutable view used in callbacks.
+    CallContext : Tool-scoped view used during tool execution.
+    BaseAgent : Receives the context in :meth:`~BaseAgent.astream`.
+    Runner : Constructs the root context for every invocation.
 
     Attributes
     ----------

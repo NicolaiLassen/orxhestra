@@ -1,8 +1,17 @@
 """Unified content block parser for LangChain message formats.
 
-Handles both Chat Completions (string content or Anthropic-style
-thinking blocks) and OpenAI Response API (``responses/v1``) content
-blocks in a single function.
+Handles plain strings (Chat Completions), LangChain v1 standardized
+content blocks (``message.content_blocks``), and raw provider formats
+that may appear on ``message.content`` before translation:
+
+* Anthropic raw: ``{"type": "thinking", "thinking": "..."}``
+* OpenAI Responses raw: ``{"type": "reasoning", "summary": [...]}``
+* Bedrock Converse raw: ``{"type": "reasoning_content", ...}``
+* LangChain v1 standard: ``{"type": "reasoning", "reasoning": "..."}``
+
+Prefer passing ``message.content_blocks`` when available — it pulls
+reasoning from ``additional_kwargs`` (Groq, Ollama, DeepSeek, XAI)
+into v1 reasoning blocks that this parser can see.
 """
 
 from __future__ import annotations
@@ -50,14 +59,25 @@ def parse_content_blocks(content: str | list[Any]) -> tuple[str, str]:
             thinking_parts.append(block.get("thinking", ""))
 
         elif btype == "reasoning":
-            # OpenAI Response API: nested summary list
-            # {"type": "reasoning", "summary": [{"type": "summary_text", ...}]}
-            for summary in block.get("summary", []):
-                if isinstance(summary, dict):
-                    thinking_parts.append(summary.get("text", ""))
+            if "reasoning" in block:
+                # LangChain v1 standard (all providers, post-translation)
+                thinking_parts.append(block.get("reasoning", ""))
+            else:
+                # OpenAI Responses raw: nested summary list
+                # {"type": "reasoning", "summary": [{"type": "summary_text", ...}]}
+                for summary in block.get("summary", []):
+                    if isinstance(summary, dict):
+                        thinking_parts.append(summary.get("text", ""))
+
+        elif btype == "reasoning_content":
+            # Bedrock Converse raw:
+            # {"type": "reasoning_content", "reasoning_content": {"text": "..."}}
+            rc = block.get("reasoning_content", {})
+            if isinstance(rc, dict):
+                thinking_parts.append(rc.get("text", ""))
 
         # Skip non-text block types:
         # function_call, web_search_call, code_interpreter_call,
-        # file_search_call, refusal, etc.
+        # file_search_call, refusal, tool_call, image, audio, file, etc.
 
     return "".join(text_parts), "".join(thinking_parts)

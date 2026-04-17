@@ -236,3 +236,59 @@ def make_todo_tool(
             "Mark completed IMMEDIATELY after finishing."
         ),
     )
+
+
+def make_read_todos_tool(todo_list: TodoList) -> BaseTool:
+    """Create the ``read_todos`` tool backed by a shared TodoList.
+
+    Parameters
+    ----------
+    todo_list : TodoList
+        Shared mutable todo list instance.
+
+    Returns
+    -------
+    BaseTool
+        A ``read_todos`` structured tool that returns the current list
+        as JSON.
+    """
+
+    async def read_todos() -> str:
+        """Return the current task list as a JSON array."""
+        return json.dumps(todo_list.todos, indent=2)
+
+    return StructuredTool.from_function(
+        coroutine=read_todos,
+        name="read_todos",
+        description=(
+            "Return the current structured task list as JSON. "
+            "Each item has 'content', 'status', 'id', and optionally "
+            "'description', 'required', 'updated_by', 'updated_at'."
+        ),
+    )
+
+
+def make_todo_tools(
+    todo_list: TodoList | None = None,
+    agent_name: str = "",
+) -> list[BaseTool]:
+    """Create both ``write_todos`` and ``read_todos`` tools.
+
+    Parameters
+    ----------
+    todo_list : TodoList, optional
+        Shared mutable todo list instance. If None, a new one is created.
+    agent_name : str
+        Agent name recorded as ``updated_by`` on each task.
+
+    Returns
+    -------
+    list[BaseTool]
+        The write and read tools sharing the same ``TodoList``.
+    """
+    if todo_list is None:
+        todo_list = TodoList()
+    return [
+        make_todo_tool(todo_list, agent_name=agent_name),
+        make_read_todos_tool(todo_list),
+    ]

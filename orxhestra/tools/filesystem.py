@@ -1,23 +1,37 @@
 """Filesystem tools for agent file operations.
 
 Provides sandboxed file system access: list, read, write, edit, mkdir,
-glob, and grep. All operations are restricted to a configurable workspace
-root directory.
+glob, and grep. All operations route through a
+:class:`FilesystemBackend` — the default is
+:class:`LocalFilesystemBackend` (workspace-jailed pathlib) but any
+backend can be swapped in for tests, sandboxes, or remote execution.
 
-Large file reads are paginated via ``offset`` and ``limit`` parameters.
-Output is line-numbered (``cat -n`` style) so the agent can reference
-specific locations.
+The tool factory keeps the rich LLM-friendly output formatting
+(line-numbered reads, diff summaries, context-line grep) on top of
+whatever backend is provided.
+
+See Also
+--------
+FilesystemBackend : Protocol the backend must satisfy.
+LocalFilesystemBackend : Default backend — real disk, workspace-jailed.
+InMemoryFilesystemBackend : Dict-backed alternative for tests.
+orxhestra.filesystem.make_tools : Lower-level factory that maps each
+    backend method 1:1 to a tool. Use when the rich formatting here
+    isn't needed.
 """
 
 from __future__ import annotations
 
-import base64
 import fnmatch
-import mimetypes
 import os
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 from langchain_core.tools import BaseTool, StructuredTool
+
+from orxhestra.filesystem.local import LocalFilesystemBackend
+
+if TYPE_CHECKING:
+    from orxhestra.filesystem.base import FilesystemBackend
 
 # Maximum file size (bytes) before requiring offset/limit.
 _MAX_FILE_SIZE: int = 256 * 1024  # 256 KB
@@ -35,31 +49,6 @@ def _default_workspace() -> str:
     return os.environ.get("AGENT_WORKSPACE", "/tmp/agent-workspace")
 
 
-def _resolve_path(path: str, workspace: str) -> Path:
-    """Resolve and validate a path within the workspace (writes)."""
-    ws = Path(workspace).resolve()
-    ws.mkdir(parents=True, exist_ok=True)
-    target = (ws / path).resolve()
-    if not str(target).startswith(str(ws)):
-        msg = f"Path '{path}' is outside the workspace"
-        raise ValueError(msg)
-    return target
-
-
-def _resolve_read_path(path: str, workspace: str) -> Path:
-    """Resolve a path for reading — allows absolute paths.
-
-    Like Claude Code, read operations are not sandboxed to the
-    workspace. Absolute paths are resolved directly; relative
-    paths are resolved within the workspace.
-    """
-    p = Path(path)
-    if p.is_absolute():
-        return p.resolve()
-    ws = Path(workspace).resolve()
-    return (ws / path).resolve()
-
-
 def _add_line_numbers(text: str, offset: int = 0) -> str:
     """Add line numbers to text (1-based, tab-separated)."""
     lines = text.splitlines()
@@ -67,37 +56,76 @@ def _add_line_numbers(text: str, offset: int = 0) -> str:
     return "\n".join(numbered)
 
 
-def make_filesystem_tools(workspace: str | None = None) -> list[BaseTool]:
-    """Create filesystem tools sandboxed to a workspace directory.
+def make_filesystem_tools(
+    workspace: str | None = None,
+    *,
+    backend: FilesystemBackend | None = None,
+) -> list[BaseTool]:
+    """Create filesystem tools backed by a :class:`FilesystemBackend`.
+
+    Defaults to a :class:`LocalFilesystemBackend` rooted at ``workspace``
+    (or ``$AGENT_WORKSPACE`` / ``/tmp/agent-workspace``), which matches
+    the pathlib-on-disk behavior of earlier versions. Pass ``backend=``
+    to swap in any other implementation — for example
+    :class:`InMemoryFilesystemBackend` for tests.
 
     Parameters
     ----------
     workspace : str, optional
-        Root directory for file operations. Defaults to ``$AGENT_WORKSPACE``
-        or ``/tmp/agent-workspace``.
+        Root directory for the default local backend. Ignored when
+        ``backend`` is provided.
+    backend : FilesystemBackend, optional
+        Pre-built backend. Takes precedence over ``workspace``.
 
     Returns
     -------
     list[BaseTool]
-        Seven tools: ``ls``, ``read_file``, ``write_file``, ``edit_file``,
-        ``mkdir``, ``glob``, ``grep``.
+        Seven tools: ``ls``, ``read_file``, ``write_file``,
+        ``edit_file``, ``mkdir``, ``glob``, ``grep``.
+
+    Raises
+    ------
+    ValueError
+        If both ``workspace`` and ``backend`` are provided.
+
+    See Also
+    --------
+    FilesystemBackend : Protocol the backend must satisfy.
+    LocalFilesystemBackend : Default backend.
+    InMemoryFilesystemBackend : Dict-backed alternative for tests.
+    orxhestra.filesystem.make_tools : Lower-level factory without the
+        rich formatting layer.
+
+    Examples
+    --------
+    Default local backend:
+
+    >>> tools = make_filesystem_tools(workspace="/tmp/agent-ws")
+
+    In-memory backend for tests:
+
+    >>> from orxhestra.filesystem import InMemoryFilesystemBackend
+    >>> fs = InMemoryFilesystemBackend({"src/main.py": "print('hi')\\n"})
+    >>> tools = make_filesystem_tools(backend=fs)
     """
-    ws = workspace or _default_workspace()
+    if backend is not None and workspace is not None:
+        msg = "Pass either 'workspace' or 'backend', not both."
+        raise ValueError(msg)
+
+    if backend is None:
+        ws: str = workspace or _default_workspace()
+        backend = LocalFilesystemBackend(ws)
+
+    fs: FilesystemBackend = backend
 
     async def ls(path: str = ".") -> str:
         """List files and directories at the given path."""
-        target = _resolve_read_path(path, ws)
-        if not target.exists():
+        if not await fs.exists(path):
             return f"Error: '{path}' does not exist"
-        if not target.is_dir():
-            return f"Error: '{path}' is not a directory"
-        entries = sorted(target.iterdir())
-        lines: list[str] = []
-        for entry in entries:
-            suffix = "/" if entry.is_dir() else ""
-            rel = entry.relative_to(Path(ws).resolve())
-            lines.append(f"{rel}{suffix}")
-        return "\n".join(lines) if lines else "(empty directory)"
+        names = await fs.ls(path)
+        if not names:
+            return "(empty directory)"
+        return "\n".join(names)
 
     async def read_file(
         path: str,
@@ -115,71 +143,99 @@ def make_filesystem_tools(workspace: str | None = None) -> list[BaseTool]:
         limit : int
             Max number of lines to read. Default 2000.
         """
-        target = _resolve_read_path(path, ws)
-        if not target.exists():
+        if not await fs.exists(path):
             return f"Error: '{path}' does not exist"
-        if not target.is_file():
-            return f"Error: '{path}' is not a file"
 
-        # Images → base64 (no pagination).
-        mime, _ = mimetypes.guess_type(str(target))
-        if mime and mime.startswith("image/"):
-            data = base64.b64encode(target.read_bytes()).decode("ascii")
-            return f"data:{mime};base64,{data}"
+        # Full raw content first (backends are expected to stream
+        # large files efficiently via offset/limit, but we need the
+        # total count for the pagination header).
+        try:
+            full = await fs.read(path)
+        except IsADirectoryError:
+            return f"Error: '{path}' is not a file"
+        except FileNotFoundError:
+            return f"Error: '{path}' does not exist"
 
         # Guard against huge files without explicit offset/limit.
-        file_size = target.stat().st_size
-        if file_size > _MAX_FILE_SIZE and offset == 0 and limit == _DEFAULT_LINE_LIMIT:
-            size_kb = file_size // 1024
+        byte_size = len(full.encode("utf-8"))
+        if (
+            byte_size > _MAX_FILE_SIZE
+            and offset == 0
+            and limit == _DEFAULT_LINE_LIMIT
+        ):
+            size_kb = byte_size // 1024
             return (
-                f"Error: File is {size_kb} KB ({file_size:,} bytes). "
+                f"Error: File is {size_kb} KB ({byte_size:,} bytes). "
                 f"Use 'offset' and 'limit' parameters to read specific "
                 f"portions, or use 'grep' to search for specific content."
             )
 
-        # Read and slice lines.
-        text = target.read_text(encoding="utf-8")
-        all_lines = text.splitlines()
+        all_lines = full.splitlines()
         total = len(all_lines)
-
-        # Apply offset and limit.
         start = min(offset, total)
         end = min(start + limit, total)
         selected = all_lines[start:end]
 
         content = _add_line_numbers("\n".join(selected), offset=start)
-
-        # Metadata header.
         header = f"Lines {start + 1}-{end} of {total}"
         if end < total:
             header += f" (use offset={end} to read more)"
         return f"{header}\n{content}"
 
     async def write_file(path: str, content: str) -> str:
-        """Write content to a file, creating parent directories as needed."""
-        target = _resolve_path(path, ws)
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(content, encoding="utf-8")
+        """Write content to a file, creating parent directories as needed.
+
+        Parameters
+        ----------
+        path : str
+            Path relative to the workspace.
+        content : str
+            Full file contents. Overwrites any existing file.
+
+        Returns
+        -------
+        str
+            Confirmation message including byte count.
+        """
+        await fs.write(path, content)
         return f"Wrote {len(content)} characters to {path}"
 
     async def edit_file(path: str, old: str, new: str) -> str:
-        """Replace the first occurrence of 'old' with 'new' in a file."""
-        target = _resolve_path(path, ws)
-        if not target.exists():
+        """Replace the first occurrence of ``old`` with ``new`` in a file.
+
+        Parameters
+        ----------
+        path : str
+            Path relative to the workspace.
+        old : str
+            Exact substring to replace. Must occur in the file.
+        new : str
+            Replacement text.
+
+        Returns
+        -------
+        str
+            A compact diff summary showing the removed and added lines,
+            or an error message if the file or substring is missing.
+        """
+        if not await fs.exists(path):
             return f"Error: '{path}' does not exist"
-        text = target.read_text(encoding="utf-8")
+        try:
+            text = await fs.read(path)
+        except (FileNotFoundError, IsADirectoryError):
+            return f"Error: '{path}' does not exist or is not a file"
         if old not in text:
             return f"Error: '{old}' not found in {path}"
 
-        # Find the line range of the edit for context.
+        # Compute edit context before mutating.
         before_lines = text[: text.index(old)].count("\n")
         old_line_count = old.count("\n") + 1
         new_line_count = new.count("\n") + 1
 
-        text = text.replace(old, new, 1)
-        target.write_text(text, encoding="utf-8")
+        # First-occurrence replace (matches pre-refactor semantics).
+        updated = text.replace(old, new, 1)
+        await fs.write(path, updated)
 
-        # Build a compact diff summary.
         start_line = before_lines + 1
         diff_lines: list[str] = [f"Edited {path} (line {start_line}):"]
         for line in old.splitlines():
@@ -193,9 +249,20 @@ def make_filesystem_tools(workspace: str | None = None) -> list[BaseTool]:
         return "\n".join(diff_lines)
 
     async def mkdir(path: str) -> str:
-        """Create a directory and any missing parents."""
-        target = _resolve_path(path, ws)
-        target.mkdir(parents=True, exist_ok=True)
+        """Create a directory and any missing parents.
+
+        Parameters
+        ----------
+        path : str
+            Directory path relative to the workspace.
+
+        Returns
+        -------
+        str
+            Confirmation message. Idempotent — no error if the
+            directory already exists.
+        """
+        await fs.mkdir(path, exist_ok=True)
         return f"Created directory {path}"
 
     async def glob(pattern: str, max_results: int = _MAX_GLOB_RESULTS) -> str:
@@ -208,19 +275,14 @@ def make_filesystem_tools(workspace: str | None = None) -> list[BaseTool]:
         max_results : int
             Maximum number of results. Default 100.
         """
-        ws_path = Path(ws).resolve()
-        ws_path.mkdir(parents=True, exist_ok=True)
-        matches: list[str] = []
-        for match in sorted(ws_path.glob(pattern)):
-            if not str(match.resolve()).startswith(str(ws_path)):
-                continue
-            rel = match.relative_to(ws_path)
-            suffix = "/" if match.is_dir() else ""
-            matches.append(f"{rel}{suffix}")
-            if len(matches) >= max_results:
-                matches.append(f"(truncated — {max_results} results shown)")
-                break
-        return "\n".join(matches) if matches else "(no matches)"
+        matches = await fs.glob(pattern)
+        if not matches:
+            return "(no matches)"
+        if len(matches) > max_results:
+            head = matches[:max_results]
+            head.append(f"(truncated — {max_results} results shown)")
+            return "\n".join(head)
+        return "\n".join(matches)
 
     async def grep(
         pattern: str,
@@ -238,7 +300,7 @@ def make_filesystem_tools(workspace: str | None = None) -> list[BaseTool]:
         Parameters
         ----------
         pattern : str
-            Text to search for (literal string).
+            Text or regex pattern to search for.
         path : str
             Directory to search in, relative to workspace.
         glob_filter : str
@@ -254,47 +316,39 @@ def make_filesystem_tools(workspace: str | None = None) -> list[BaseTool]:
         max_results : int
             Maximum number of matching lines. Default 50.
         """
-        target = _resolve_read_path(path, ws)
-        if not target.exists():
-            return f"Error: '{path}' does not exist"
-
         ctx_before = before or context
         ctx_after = after or context
         search_pattern = pattern.lower() if case_insensitive else pattern
 
+        # Enumerate candidate files via the backend. ``*`` matches all
+        # paths in both backends because fnmatch's ``*`` crosses ``/``.
+        search_path = None if path == "." else path
+        candidates = await fs.glob("*", path=search_path)
+        candidates = [
+            c for c in candidates
+            if fnmatch.fnmatch(c.rsplit("/", 1)[-1], glob_filter)
+        ]
+
         results: list[str] = []
         match_count = 0
-        files = sorted(target.rglob("*")) if target.is_dir() else [target]
 
-        ws_resolved = Path(ws).resolve()
-        for file in files:
-            if not file.is_file():
-                continue
-            if not str(file.resolve()).startswith(str(ws_resolved)):
-                continue
-            if not fnmatch.fnmatch(file.name, glob_filter):
-                continue
+        for rel in candidates:
             try:
-                text = file.read_text(encoding="utf-8")
-            except (UnicodeDecodeError, PermissionError):
+                text = await fs.read(rel)
+            except (IsADirectoryError, FileNotFoundError, UnicodeDecodeError):
                 continue
 
             lines = text.splitlines()
-            rel = file.relative_to(Path(ws).resolve())
-
             for i, line in enumerate(lines):
                 compare = line.lower() if case_insensitive else line
                 if search_pattern in compare:
-                    # Context lines.
                     start = max(0, i - ctx_before)
                     end = min(len(lines), i + ctx_after + 1)
 
                     if ctx_before or ctx_after:
                         for j in range(start, end):
                             marker = ">" if j == i else " "
-                            results.append(
-                                f"{rel}:{j + 1}:{marker} {lines[j]}"
-                            )
+                            results.append(f"{rel}:{j + 1}:{marker} {lines[j]}")
                         results.append("--")
                     else:
                         results.append(f"{rel}:{i + 1}: {line}")
@@ -357,3 +411,5 @@ def make_filesystem_tools(workspace: str | None = None) -> list[BaseTool]:
             ),
         ),
     ]
+
+

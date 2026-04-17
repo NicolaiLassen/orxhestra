@@ -54,12 +54,69 @@ class Writer(Protocol):
     All rendering code (``stream.py``, ``render.py``, ``commands.py``)
     writes through this protocol so the same logic works for both the
     pyink TUI and the Rich console fallback.
+
+    See Also
+    --------
+    ConsoleWriter : Rich-based implementation for ``-c`` single-shot mode.
+    InkWriter : pyink-based implementation for the interactive REPL.
+    SpinnerHandle : Returned by :meth:`start_spinner`.
+    LiveHandle : Returned by :meth:`start_live`.
     """
 
-    def print_rich(self, *args: Any, **kwargs: Any) -> None: ...
-    def start_spinner(self, text: str) -> SpinnerHandle: ...
-    def start_live(self) -> LiveHandle: ...
-    async def prompt_input(self, label: str) -> str: ...
+    def print_rich(self, *args: Any, **kwargs: Any) -> None:
+        """Write Rich-formatted content to the output stream.
+
+        Parameters
+        ----------
+        *args : Any
+            Rich renderables or strings forwarded to the underlying
+            ``Console.print``.
+        **kwargs : Any
+            Keyword arguments forwarded to ``Console.print``
+            (e.g. ``style``, ``end``). The pyink implementation also
+            accepts ``item_type`` to tag the history entry.
+        """
+        ...
+
+    def start_spinner(self, text: str) -> SpinnerHandle:
+        """Start a spinner with the given label.
+
+        Parameters
+        ----------
+        text : str
+            Text shown next to the animated spinner.
+
+        Returns
+        -------
+        SpinnerHandle
+            Handle used to update the label or stop the spinner.
+        """
+        ...
+
+    def start_live(self) -> LiveHandle:
+        """Start a live-updating region for streaming output.
+
+        Returns
+        -------
+        LiveHandle
+            Handle used to replace the region's content or end it.
+        """
+        ...
+
+    async def prompt_input(self, label: str) -> str:
+        """Prompt the user for a line of input.
+
+        Parameters
+        ----------
+        label : str
+            Prompt shown to the user. May contain numbered options.
+
+        Returns
+        -------
+        str
+            The line entered by the user.
+        """
+        ...
 
 
 def rich_to_ansi(console: Console, *args: Any, **kwargs: Any) -> str:
@@ -149,6 +206,11 @@ class ConsoleWriter:
     ----------
     console : Console
         Rich console to write to.
+
+    See Also
+    --------
+    Writer : Protocol this class implements.
+    InkWriter : pyink-based alternative for the interactive REPL.
     """
 
     def __init__(self, console: Console) -> None:
@@ -316,6 +378,12 @@ class InkWriter:
         Rich console for rendering content to ANSI.
     approval_callback : callable, optional
         Blocking callback for approval/human-input prompts.
+
+    See Also
+    --------
+    Writer : Protocol this class implements.
+    ConsoleWriter : Rich-based alternative for ``-c`` mode.
+    rich_to_ansi : Helper used to serialize Rich content for pyink.
     """
 
     def __init__(

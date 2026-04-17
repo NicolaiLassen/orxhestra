@@ -1,5 +1,7 @@
 """Tests for content parser — parse_content_blocks."""
 
+from __future__ import annotations
+
 from orxhestra.models.content_parser import parse_content_blocks
 
 
@@ -51,6 +53,47 @@ class TestParseContentBlocks:
 
     def test_response_api_reasoning_empty_summary(self):
         content = [{"type": "reasoning", "id": "rs_123", "summary": []}]
+        assert parse_content_blocks(content) == ("", "")
+
+    def test_v1_standard_reasoning_block(self):
+        """LangChain v1 standardized reasoning block (all providers post-translation)."""
+        content = [
+            {"type": "reasoning", "reasoning": "Let me think..."},
+            {"type": "text", "text": "The answer is 42."},
+        ]
+        text, thinking = parse_content_blocks(content)
+        assert text == "The answer is 42."
+        assert thinking == "Let me think..."
+
+    def test_v1_standard_reasoning_multiple_blocks(self):
+        """OpenAI Responses `_explode_reasoning` emits one block per summary part."""
+        content = [
+            {"type": "reasoning", "reasoning": "First I considered..."},
+            {"type": "reasoning", "reasoning": " Then I decided..."},
+            {"type": "text", "text": "Done."},
+        ]
+        text, thinking = parse_content_blocks(content)
+        assert text == "Done."
+        assert thinking == "First I considered... Then I decided..."
+
+    def test_bedrock_converse_reasoning_content(self):
+        """Bedrock Converse raw reasoning block before v1 translation."""
+        content = [
+            {
+                "type": "reasoning_content",
+                "reasoning_content": {
+                    "text": "Analyzing the request...",
+                    "signature": "sig_abc",
+                },
+            },
+            {"type": "text", "text": "Here is the answer."},
+        ]
+        text, thinking = parse_content_blocks(content)
+        assert text == "Here is the answer."
+        assert thinking == "Analyzing the request..."
+
+    def test_bedrock_converse_reasoning_content_missing(self):
+        content = [{"type": "reasoning_content"}]
         assert parse_content_blocks(content) == ("", "")
 
     def test_function_call_skipped(self):

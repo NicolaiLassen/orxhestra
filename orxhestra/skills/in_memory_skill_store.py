@@ -13,6 +13,12 @@ class InMemorySkillStore(BaseSkillStore):
     ----------
     skills : list[Skill], optional
         Initial skills to seed the store with.
+
+    See Also
+    --------
+    BaseSkillStore : Interface this implements.
+    Skill : Individual skill entries stored here.
+    discover_skills : Load skills from disk into a store.
     """
 
     def __init__(self, skills: list[Skill] | None = None) -> None:

@@ -7,6 +7,12 @@ from orxhestra.tools.function_tool import function_tool
 from orxhestra.tools.long_running_tool import LongRunningFunctionTool
 from orxhestra.tools.output import truncate_output
 from orxhestra.tools.shell import make_shell_tools
+from orxhestra.tools.todo_tool import (
+    TodoList,
+    make_read_todos_tool,
+    make_todo_tool,
+    make_todo_tools,
+)
 from orxhestra.tools.tool_registry import ToolRegistry, register_tool, tool_registry
 from orxhestra.tools.transfer_tool import make_transfer_tool
 
@@ -26,4 +32,8 @@ __all__ = [
     "EXIT_LOOP_SENTINEL",
     "LongRunningFunctionTool",
     "truncate_output",
+    "TodoList",
+    "make_todo_tool",
+    "make_read_todos_tool",
+    "make_todo_tools",
 ]

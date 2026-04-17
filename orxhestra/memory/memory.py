@@ -8,21 +8,29 @@ from pydantic import BaseModel, Field
 
 
 class Memory(BaseModel):
-    """Represents one memory.
+    """A single memory entry persisted across sessions.
+
+    Memories are opaque blobs of text that agents can save and retrieve
+    by semantic search. Only ``content`` is required — everything else
+    is optional metadata the memory service may use to filter, rank,
+    or display results.
 
     Attributes
     ----------
     content : str
         The main content of the memory.
     metadata : dict[str, Any]
-        Optional metadata associated with the memory.
+        Optional metadata associated with the memory. Keys are
+        service-specific; common keys include ``source`` and ``tags``.
     id : str, optional
-        The unique identifier of the memory.
+        The unique identifier of the memory. Typically assigned by the
+        memory service on save.
     author : str, optional
-        The author of the memory.
+        The author of the memory (often an agent or user name).
     timestamp : str, optional
-        The timestamp when the original content of this memory happened.
-        This string will be forwarded to LLM. Preferred format is ISO 8601.
+        The timestamp when the original content of this memory
+        happened. This string is forwarded to the LLM at recall time.
+        Preferred format is ISO 8601.
     """
 
     content: str

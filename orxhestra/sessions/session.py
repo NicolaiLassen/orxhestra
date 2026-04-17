@@ -13,9 +13,10 @@ from orxhestra.events.event import Event
 class Session(BaseModel):
     """A single conversation session between a user and an agent.
 
-    Holds the full event history and any persisted state from the agent's
-    execution. Designed to be serializable - pass `session.state` back into
-    the next invocation to resume where the agent left off.
+    Holds the full event history and any persisted state from the
+    agent's execution. Designed to be serializable — pass
+    :attr:`Session.state` back into the next invocation to resume
+    where the agent left off.
 
     Attributes
     ----------
@@ -28,9 +29,16 @@ class Session(BaseModel):
     state : dict[str, Any]
         Arbitrary key-value state persisted across turns.
     events : list[Event]
-        Ordered list of events in this conversation.
+        Ordered list of :class:`Event` objects in this conversation.
     last_update_time : float
         Unix timestamp of the last update.
+
+    See Also
+    --------
+    BaseSessionService : Persistence interface over this model.
+    InMemorySessionService : Non-persistent backend.
+    DatabaseSessionService : SQLAlchemy-backed persistent backend.
+    Runner : Uses sessions for multi-turn state continuity.
     """
 
     id: str = Field(default_factory=lambda: str(uuid4()))

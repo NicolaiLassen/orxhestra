@@ -120,6 +120,13 @@ def format_approval_prompt(tool_name: str, args: dict[str, Any]) -> str:
 class ApprovalWrapper(BaseTool):
     """Wraps a tool to require human approval before execution.
 
+    See Also
+    --------
+    wrap_tools_with_approval : Convenience that wraps every tool in
+        :data:`APPROVE_REQUIRED`.
+    format_approval_prompt : Renders the confirmation panel shown
+        to the user.
+
     Attributes
     ----------
     name : str
@@ -151,6 +158,7 @@ class ApprovalWrapper(BaseTool):
         )
 
     def _run(self, **kwargs: Any) -> str:
+        """Raise — ``ApprovalWrapper`` is async-only."""
         raise NotImplementedError("Use async ainvoke.")
 
     async def _arun(
@@ -158,8 +166,21 @@ class ApprovalWrapper(BaseTool):
         run_manager: AsyncCallbackManagerForToolRun | None = None,
         **kwargs: Any,
     ) -> str:
-        """Execute with approval check."""
-        # Delegate to inner tool - approval is handled at the CLI level
+        """Execute the wrapped tool after the CLI approval gate.
+
+        Parameters
+        ----------
+        run_manager : AsyncCallbackManagerForToolRun, optional
+            LangChain callback manager for the tool run.
+        **kwargs : Any
+            Arguments forwarded to the wrapped tool.
+
+        Returns
+        -------
+        str
+            The wrapped tool's return value (as a string).
+        """
+        # Delegate to inner tool - approval is handled at the CLI level.
         return await self.inner_tool.ainvoke(kwargs)
 
 

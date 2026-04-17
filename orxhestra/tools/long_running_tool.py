@@ -15,25 +15,14 @@ from langchain_core.tools import BaseTool, StructuredTool
 class LongRunningFunctionTool:
     """A function tool for long-running operations.
 
-    Wraps an async function and marks it as long-running. The framework
-    uses ``is_long_running`` to handle the tool differently — for example,
-    by not re-invoking it while a previous call is still pending.
+    Wraps an async function and marks it as long-running. The
+    framework uses ``is_long_running`` to handle the tool
+    differently — for example, by not re-invoking it while a previous
+    call is still pending.
 
     The tool description is automatically appended with an instruction
-    telling the LLM not to call the tool again if it has already returned
-    an intermediate or pending status.
-
-    Example
-    -------
-    ::
-
-        async def deploy_service(env: str) -> str:
-            '''Deploy the service to the given environment.'''
-            await some_long_operation(env)
-            return f"Deployed to {env}"
-
-        tool = LongRunningFunctionTool(deploy_service)
-        agent = LlmAgent(name="deployer", model=model, tools=[tool.as_tool()])
+    telling the LLM not to call the tool again if it has already
+    returned an intermediate or pending status.
 
     Parameters
     ----------
@@ -43,6 +32,20 @@ class LongRunningFunctionTool:
         Tool name. Defaults to the function name.
     description : str, optional
         Tool description. Defaults to the function docstring.
+
+    See Also
+    --------
+    function_tool : Wrapper for short, synchronous-feeling tools.
+    AgentTool : Wrap a whole agent as a tool.
+
+    Examples
+    --------
+    >>> async def deploy_service(env: str) -> str:
+    ...     '''Deploy the service to the given environment.'''
+    ...     await some_long_operation(env)
+    ...     return f"Deployed to {env}"
+    >>> tool = LongRunningFunctionTool(deploy_service)
+    >>> agent = LlmAgent(name="deployer", model=model, tools=[tool.as_tool()])
     """
 
     _LONG_RUNNING_NOTE = (

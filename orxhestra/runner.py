@@ -40,6 +40,7 @@ from orxhestra.agents.tracing import end_agent_span, error_agent_span, start_age
 from orxhestra.artifacts.base_artifact_service import BaseArtifactService
 from orxhestra.events.event import Event, EventType
 from orxhestra.events.event_actions import EventActions
+from orxhestra.middleware.stack import MiddlewareStack
 from orxhestra.models.part import Content
 from orxhestra.sessions.base_session_service import BaseSessionService
 from orxhestra.sessions.compaction import CompactionConfig, compact_session
@@ -47,6 +48,7 @@ from orxhestra.sessions.session import Session
 
 if TYPE_CHECKING:
     from orxhestra.agents.base_agent import BaseAgent
+    from orxhestra.middleware.base import Middleware
 
 
 class Runner:
@@ -64,24 +66,42 @@ class Runner:
     Parameters
     ----------
     agent : BaseAgent
-        The root agent to run.
+        The root :class:`BaseAgent` to run.
     app_name : str
         Application identifier. Used to namespace sessions.
     session_service : BaseSessionService
-        Where sessions are stored and retrieved.
+        Where sessions are stored and retrieved. See
+        :class:`InMemorySessionService` and
+        :class:`DatabaseSessionService` for the built-in backends.
     artifact_service : BaseArtifactService, optional
-        Where artifacts (files, blobs) are stored.
+        Where artifacts (files, blobs) are stored. Required for
+        :meth:`CallContext.save_artifact` and friends.
     compaction_config : CompactionConfig, optional
         If set, enables automatic session compaction after each
-        invocation.
+        invocation. Internally calls :func:`compact_session`.
     active_agent_state_key : str, optional
         If set, the runner persists the name of the currently-active
         agent at ``session.state[active_agent_state_key]`` and resumes
-        from it on the next ``astream()`` call. This turns transfer-based
+        from it on the next :meth:`astream` call. This turns transfer-based
         sub-agent interactions into multi-turn flows (interviews, wizards)
         without the root agent having to re-transfer on every user turn.
         Default ``None`` preserves today's behavior (every turn starts
         at the root agent).
+    middleware : list[Middleware], optional
+        Composable interceptors for the invocation lifecycle. See
+        :class:`Middleware`. Middleware receive ``before_invoke`` /
+        ``after_invoke`` hooks and can transform or drop events via
+        ``on_event``. An empty or omitted list is zero-overhead —
+        behavior is identical to not passing the parameter.
+
+    See Also
+    --------
+    BaseAgent : Root agent interface.
+    BaseSessionService : Persistent session storage interface.
+    BaseArtifactService : Artifact storage interface.
+    CompactionConfig : Tunes when/how session compaction runs.
+    Middleware : Lifecycle interception protocol.
+    Composer : YAML-based alternative for constructing a full Runner.
     """
 
     def __init__(
@@ -94,6 +114,7 @@ class Runner:
         compaction_config: CompactionConfig | None = None,
         default_config: dict | None = None,
         active_agent_state_key: str | None = None,
+        middleware: list[Middleware] | None = None,
     ) -> None:
         self.agent = agent
         self.app_name = app_name
@@ -102,6 +123,7 @@ class Runner:
         self.compaction_config = compaction_config
         self.active_agent_state_key = active_agent_state_key
         self._base_config = default_config or {}
+        self._middleware = MiddlewareStack(middleware)
 
     async def get_or_create_session(
         self,
@@ -227,6 +249,9 @@ class Runner:
         current_agent = starting_agent
         last_text: str = ""
 
+        if self._middleware:
+            await self._middleware.before_invoke(ctx)
+
         _span_err: BaseException | None = None
         try:
             while True:
@@ -236,7 +261,14 @@ class Runner:
                     await self.session_service.append_event(session, event)
                     if event.text:
                         last_text = event.text
-                    yield event
+
+                    if self._middleware:
+                        transformed = await self._middleware.on_event(ctx, event)
+                        if transformed is None:
+                            continue
+                        yield transformed
+                    else:
+                        yield event
 
                     if event.actions and event.actions.transfer_to_agent:
                         transfer_target = event.actions.transfer_to_agent
@@ -270,10 +302,16 @@ class Runner:
                 current_agent = target
                 ctx = ctx.model_copy(update={"agent_name": target.name})
         except GeneratorExit:
-            pass
+            if self._middleware:
+                await self._middleware.after_invoke(ctx, None)
         except BaseException as exc:
             _span_err = exc
+            if self._middleware:
+                await self._middleware.after_invoke(ctx, exc)
             raise
+        else:
+            if self._middleware:
+                await self._middleware.after_invoke(ctx, None)
         finally:
             if _span_err is not None:
                 await error_agent_span(run_manager, _span_err)

@@ -27,14 +27,19 @@ def make_artifact_tools() -> list[BaseTool]:
     """Create artifact tools for saving, loading, and listing artifacts.
 
     The tools operate on the artifact service attached to the current
-    ``InvocationContext``.  Context is injected automatically by the
-    agent runtime via ``inject_context()``.
+    :class:`InvocationContext`. Context is injected automatically by
+    the agent runtime via :meth:`AgentTool.inject_context`.
 
     Returns
     -------
     list[BaseTool]
         Three tools: ``save_artifact``, ``load_artifact``,
         ``list_artifacts``.
+
+    See Also
+    --------
+    BaseArtifactService : Backend the tools delegate to.
+    CallContext.save_artifact : High-level save API used inside tools.
     """
     from orxhestra.tools.call_context import CallContext
 

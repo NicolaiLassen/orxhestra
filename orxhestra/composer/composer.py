@@ -44,8 +44,15 @@ class Composer:
     """Parse a YAML orx file and build a live agent tree.
 
     Uses the builder registry (``orxhestra.composer.builders``) to
-    delegate construction of each agent type.  Custom types can be added
-    via ``register_builder``.
+    delegate construction of each agent type. Custom types can be
+    added via ``register_builder``.
+
+    See Also
+    --------
+    ComposeSpec : Pydantic schema of the YAML file.
+    BaseAgent : Root interface of every agent the composer produces.
+    Runner : Built by :meth:`runner_from_yaml` when the YAML declares
+        a ``runner:`` section.
     """
 
     def __init__(self, spec: ComposeSpec) -> None:

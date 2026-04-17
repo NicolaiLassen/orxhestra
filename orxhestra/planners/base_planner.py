@@ -27,9 +27,16 @@ if TYPE_CHECKING:
 class BasePlanner(ABC):
     """Abstract base class for all planners.
 
-    A planner allows planning logic to be attached to an LlmAgent without
-    embedding that logic in the agent itself. Subclass and implement
-    ``build_planning_instruction()`` at minimum.
+    A planner allows planning logic to be attached to an
+    :class:`LlmAgent` without embedding that logic in the agent
+    itself. Subclass and implement :meth:`build_planning_instruction`
+    at minimum.
+
+    See Also
+    --------
+    TaskPlanner : Built-in planner backed by a shared ``TodoList``.
+    PlanReActPlanner : Built-in Plan-ReAct style planner.
+    LlmAgent : Pass the planner via the ``planner`` constructor arg.
     """
 
     @abstractmethod

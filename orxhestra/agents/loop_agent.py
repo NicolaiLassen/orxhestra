@@ -23,15 +23,16 @@ from orxhestra.models.part import Content
 class LoopAgent(BaseAgent):
     """Runs sub-agents in a loop until a stop condition is met.
 
-    Sub-agents run in order each iteration, exactly like SequentialAgent
-    within a single loop. Between iterations the same input is reused
-    (unless a sub-agent updates ctx.state which an instruction provider
-    can use to build new input).
+    Sub-agents run in order each iteration, exactly like
+    :class:`SequentialAgent` within a single loop. Between iterations
+    the same input is reused (unless a sub-agent updates
+    :attr:`InvocationContext.state` which an instruction provider can
+    use to build new input).
 
     Termination:
-      - Any event with actions.escalate = True stops the loop.
-      - max_iterations reached stops the loop (yields an error event).
-      - should_continue callback returning False stops the loop.
+      - Any event with :attr:`EventActions.escalate` = True stops the loop.
+      - ``max_iterations`` reached stops the loop (yields an error event).
+      - ``should_continue`` callback returning False stops the loop.
 
     Attributes
     ----------
@@ -42,6 +43,23 @@ class LoopAgent(BaseAgent):
     should_continue : callable, optional
         Optional callable inspecting the last event to decide whether to
         keep looping. Return False to stop.
+
+    See Also
+    --------
+    BaseAgent : Base class this extends.
+    SequentialAgent : Runs sub-agents once, in order.
+    ParallelAgent : Runs sub-agents concurrently.
+    exit_loop_tool : Tool a sub-agent calls to escalate and stop.
+    EventActions.escalate : Flag that terminates the loop.
+
+    Examples
+    --------
+    >>> researcher = LoopAgent(
+    ...     name="iterative_research",
+    ...     agents=[critic_agent, refiner_agent],
+    ...     max_iterations=5,
+    ... )
+    >>> final = await researcher.ainvoke("Research question X")
     """
 
     def __init__(

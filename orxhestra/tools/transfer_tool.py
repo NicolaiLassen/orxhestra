@@ -57,6 +57,18 @@ def make_transfer_tool(available_agents: list[BaseAgent]) -> BaseTool:
     AgentNameEnum = Enum("AgentName", {n: n for n in agent_names})  # type: ignore[misc]
 
     class TransferInput(BaseModel):
+        """Schema for the ``transfer_to_agent`` tool arguments.
+
+        Attributes
+        ----------
+        agent_name : AgentNameEnum
+            The target agent. Constrained to the enum of valid names
+            so the LLM cannot hallucinate a missing agent.
+        reason : str
+            Optional free-form explanation of why this agent is being
+            called. Shown in traces and event metadata.
+        """
+
         agent_name: AgentNameEnum = Field(  # type: ignore[valid-type]
             description=(
                 f"The agent to transfer to. Choose from:\n{agent_descriptions}"
@@ -68,6 +80,14 @@ def make_transfer_tool(available_agents: list[BaseAgent]) -> BaseTool:
         )
 
     class TransferToAgentTool(BaseTool):
+        """LangChain tool that signals a transfer via a sentinel prefix.
+
+        ``LlmAgent`` intercepts return values starting with
+        ``TRANSFER_SENTINEL`` and converts them into an
+        ``EventActions.transfer_to_agent`` side-effect, rerouting the
+        next turn to the named sub-agent.
+        """
+
         name: str = "transfer_to_agent"
         description: str = (
             "Transfer the conversation to a specialized agent. "
@@ -76,13 +96,26 @@ def make_transfer_tool(available_agents: list[BaseAgent]) -> BaseTool:
         args_schema: type[BaseModel] = TransferInput
 
         def _run(self, agent_name: str, reason: str = "") -> str:
-            """Return the transfer sentinel string."""
+            """Return the transfer sentinel string.
+
+            Parameters
+            ----------
+            agent_name : str
+                Target agent name (or an enum member of the same).
+            reason : str
+                Ignored at runtime; captured by the schema for logs.
+
+            Returns
+            -------
+            str
+                ``TRANSFER_SENTINEL`` concatenated with the target name.
+            """
             # agent_name may arrive as an enum member — extract .value
             raw = agent_name.value if isinstance(agent_name, Enum) else agent_name
             return f"{TRANSFER_SENTINEL}{raw}"
 
         async def _arun(self, agent_name: str, reason: str = "") -> str:
-            """Async version of _run."""
+            """Async variant of :meth:`_run`. Delegates to the sync path."""
             return self._run(agent_name, reason)
 
     return TransferToAgentTool()

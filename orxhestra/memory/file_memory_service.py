@@ -277,7 +277,18 @@ class FileMemoryService(BaseMemoryService):
         self._dir = memory_dir
 
     async def add_session_to_memory(self, session: Any) -> None:
-        """Not implemented — use save_memory_file() directly."""
+        """Not implemented — use :func:`save_memory_file` directly.
+
+        Sessions are not auto-ingested into file memory. Memories are
+        authored explicitly via ``save_memory_file`` because file
+        memories are human-curated markdown with YAML frontmatter.
+
+        Parameters
+        ----------
+        session : Any
+            Unused. Present to satisfy the ``BaseMemoryService``
+            interface.
+        """
 
     async def search_memory(
         self,
@@ -286,7 +297,28 @@ class FileMemoryService(BaseMemoryService):
         user_id: str,
         query: str,
     ) -> SearchMemoryResponse:
-        """Search memories by keyword matching on name and description."""
+        """Search memories by keyword matching on name and description.
+
+        Performs a case-insensitive substring match over each memory
+        file's ``name`` and ``description`` frontmatter fields.
+
+        Parameters
+        ----------
+        app_name : str
+            Application namespace. Currently ignored — the file store
+            is a single flat directory shared across apps.
+        user_id : str
+            User identifier. Currently ignored.
+        query : str
+            Keyword query. Matched as a lower-case substring against
+            each memory's ``name`` and ``description``.
+
+        Returns
+        -------
+        SearchMemoryResponse
+            Wrapper containing matching :class:`Memory` entries in
+            directory-listing order.
+        """
         headers = scan_memory_files(self._dir)
         query_lower = query.lower()
         matches: list[Memory] = []

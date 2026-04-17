@@ -32,6 +32,12 @@ def function_tool(
     BaseTool
         A LangChain BaseTool instance.
 
+    See Also
+    --------
+    LongRunningFunctionTool : Similar wrapper for long-running
+        operations that should stream progress events.
+    AgentTool : Wrap a whole :class:`BaseAgent` as a tool instead.
+
     Examples
     --------
     >>> async def search(query: str) -> str:

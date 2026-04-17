@@ -33,13 +33,22 @@ logger = logging.getLogger(__name__)
 class CallContext:
     """Context object passed to tools during execution.
 
-    Wraps ``Context`` with a tool-scoped ``EventActions`` and provides
-    a high-level API for artifacts, credentials, and memory services.
+    Wraps :class:`InvocationContext` with a tool-scoped
+    :class:`EventActions` and provides a high-level API for
+    :class:`BaseArtifactService`, credentials, and
+    :class:`BaseMemoryService` services.
 
     Parameters
     ----------
     ctx : InvocationContext
         The parent invocation context for this agent run.
+
+    See Also
+    --------
+    InvocationContext : Lower-level runtime state.
+    EventActions : Side-effects this tool can signal.
+    BaseArtifactService : Backend used by :meth:`save_artifact`.
+    BaseMemoryService : Backend used by :meth:`search_memory`.
 
     Attributes
     ----------

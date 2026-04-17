@@ -71,9 +71,26 @@ _INSTRUCTION = _build_instruction()
 class PlanReActPlanner(BasePlanner):
     """Injects structured Plan-Re-Act instructions before each LLM call.
 
-    Requires the model to produce a plan, then reason and act step-by-step,
-    and finally deliver the answer under a ``/*FINAL_ANSWER*/`` tag. The
-    tag structure is lightweight and works with any LangChain chat model.
+    Requires the model to produce a plan, then reason and act
+    step-by-step, and finally deliver the answer under a
+    ``/*FINAL_ANSWER*/`` tag. The tag structure is lightweight and
+    works with any LangChain chat model.
+
+    See Also
+    --------
+    BasePlanner : Interface this implements.
+    TaskPlanner : Alternative planner reading from a shared TodoList.
+    ReActAgent : Pairs well with this planner for structured reasoning.
+
+    Examples
+    --------
+    >>> from orxhestra.planners import PlanReActPlanner
+    >>> agent = LlmAgent(
+    ...     name="analyst",
+    ...     model=model,
+    ...     tools=[search_tool],
+    ...     planner=PlanReActPlanner(),
+    ... )
     """
 
     def build_planning_instruction(

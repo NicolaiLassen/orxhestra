@@ -122,7 +122,27 @@ class Role(str, Enum):
 
 
 class Message(A2AModel):
-    """A2A v1.0 Message."""
+    """A2A v1.0 Message — a single turn from a user or agent.
+
+    Attributes
+    ----------
+    message_id : str
+        Unique ID for this message. Auto-generated.
+    role : Role
+        Speaker role: ``USER`` or ``AGENT``.
+    parts : list[Part]
+        Ordered content parts (text, data, files).
+    context_id : str, optional
+        Conversation/context identifier grouping related messages.
+    task_id : str, optional
+        ID of the task this message belongs to.
+    reference_task_ids : list[str], optional
+        IDs of earlier tasks this message references.
+    extensions : list[str], optional
+        A2A protocol extensions in use.
+    metadata : dict[str, Any], optional
+        Arbitrary implementation-specific metadata.
+    """
 
     message_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     role: Role
@@ -137,7 +157,23 @@ class Message(A2AModel):
 
 
 class Artifact(A2AModel):
-    """A2A v1.0 Artifact."""
+    """A2A v1.0 Artifact — a durable output produced by a task.
+
+    Attributes
+    ----------
+    artifact_id : str
+        Unique ID for this artifact. Auto-generated.
+    name : str, optional
+        Human-readable filename or identifier.
+    description : str, optional
+        Short description of what the artifact contains.
+    parts : list[Part]
+        Ordered content parts holding the artifact payload.
+    extensions : list[str], optional
+        A2A protocol extensions attached to this artifact.
+    metadata : dict[str, Any], optional
+        Arbitrary implementation-specific metadata.
+    """
 
     artifact_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     name: str | None = None
@@ -150,7 +186,35 @@ class Artifact(A2AModel):
 
 
 class TaskState(str, Enum):
-    """A2A v1.0 task states (SCREAMING_SNAKE_CASE)."""
+    """A2A v1.0 task lifecycle states.
+
+    States progress roughly as ``SUBMITTED`` → ``WORKING`` →
+    (``COMPLETED`` | ``FAILED`` | ``CANCELED`` | ``REJECTED``). The
+    ``INPUT_REQUIRED`` and ``AUTH_REQUIRED`` states represent pauses
+    waiting for external input; the task returns to ``WORKING`` once
+    the input is provided.
+
+    Values
+    ------
+    UNSPECIFIED
+        Placeholder when state has not been set.
+    SUBMITTED
+        Task accepted by the server, not yet started.
+    WORKING
+        Task actively executing.
+    COMPLETED
+        Terminal — task finished successfully.
+    FAILED
+        Terminal — task errored.
+    CANCELED
+        Terminal — task was cancelled.
+    INPUT_REQUIRED
+        Task is paused waiting for user input.
+    REJECTED
+        Terminal — task was refused before starting.
+    AUTH_REQUIRED
+        Task is paused waiting for authentication.
+    """
 
     UNSPECIFIED = "TASK_STATE_UNSPECIFIED"
     SUBMITTED = "TASK_STATE_SUBMITTED"
@@ -172,7 +236,17 @@ TERMINAL_STATES = {
 
 
 class TaskStatus(A2AModel):
-    """A2A v1.0 TaskStatus."""
+    """A2A v1.0 TaskStatus — current state snapshot of a task.
+
+    Attributes
+    ----------
+    state : TaskState
+        Lifecycle state of the task.
+    message : Message, optional
+        Last message emitted by the task (often an error or prompt).
+    timestamp : str, optional
+        ISO 8601 timestamp of the status transition.
+    """
 
     state: TaskState
     message: Message | None = None
@@ -180,7 +254,23 @@ class TaskStatus(A2AModel):
 
 
 class Task(A2AModel):
-    """A2A v1.0 Task."""
+    """A2A v1.0 Task — a unit of work tracked on an A2A server.
+
+    Attributes
+    ----------
+    id : str
+        Unique task ID. Auto-generated.
+    context_id : str
+        Conversation/context identifier grouping related tasks.
+    status : TaskStatus
+        Current lifecycle state.
+    history : list[Message], optional
+        Chronological messages exchanged during execution.
+    artifacts : list[Artifact], optional
+        Outputs produced by the task.
+    metadata : dict[str, Any], optional
+        Arbitrary implementation-specific metadata.
+    """
 
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     context_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
@@ -223,7 +313,25 @@ class AgentProvider(A2AModel):
 
 
 class AgentSkill(A2AModel):
-    """A2A v1.0 AgentSkill."""
+    """A2A v1.0 AgentSkill — a capability advertised on an agent card.
+
+    Attributes
+    ----------
+    id : str
+        Unique skill identifier within the agent.
+    name : str
+        Human-readable skill name.
+    description : str
+        What the skill does. Used by remote callers for selection.
+    tags : list[str]
+        Tags for discovery and filtering.
+    examples : list[str], optional
+        Sample prompts demonstrating the skill.
+    input_modes : list[str], optional
+        MIME types the skill accepts as input.
+    output_modes : list[str], optional
+        MIME types the skill produces as output.
+    """
 
     id: str
     name: str
@@ -235,7 +343,17 @@ class AgentSkill(A2AModel):
 
 
 class AgentCapabilities(A2AModel):
-    """A2A v1.0 AgentCapabilities."""
+    """A2A v1.0 AgentCapabilities — feature flags on an agent card.
+
+    Attributes
+    ----------
+    streaming : bool, optional
+        True if the agent supports streaming task updates.
+    push_notifications : bool, optional
+        True if the agent can push updates to a callback URL.
+    extended_agent_card : bool, optional
+        True if the agent exposes extended card metadata beyond v1.0.
+    """
 
     streaming: bool | None = None
     push_notifications: bool | None = None
@@ -252,7 +370,34 @@ class AgentInterface(A2AModel):
 
 
 class AgentCard(A2AModel):
-    """A2A v1.0 Agent Card."""
+    """A2A v1.0 Agent Card — discovery manifest for a remote agent.
+
+    Attributes
+    ----------
+    name : str
+        Agent display name.
+    description : str
+        What this agent does.
+    supported_interfaces : list[AgentInterface]
+        Protocol bindings (e.g. JSON-RPC endpoints) where the agent
+        can be reached.
+    version : str
+        Semantic version of the agent.
+    capabilities : AgentCapabilities
+        Feature flags (streaming, push notifications, etc.).
+    skills : list[AgentSkill]
+        Skills advertised by the agent.
+    default_input_modes : list[str]
+        MIME types accepted by default when a skill does not override.
+    default_output_modes : list[str]
+        MIME types produced by default when a skill does not override.
+    provider : AgentProvider, optional
+        Organization hosting the agent.
+    documentation_url : str, optional
+        Link to agent documentation.
+    icon_url : str, optional
+        Link to an icon displayed in clients.
+    """
 
     name: str
     description: str

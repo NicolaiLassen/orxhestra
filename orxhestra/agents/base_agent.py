@@ -58,6 +58,23 @@ class BaseAgent(ABC):
         signing_key: Any | None = None,
         signing_did: str = "",
     ) -> None:
+        """Initialize the agent.
+
+        Parameters
+        ----------
+        name : str
+            Unique name for this agent within its tree.
+        description : str
+            Short description used by LLMs for routing decisions.
+        signing_key : Ed25519PrivateKey, optional
+            Ed25519 private key giving this agent its own identity.
+            When set, events emitted by this agent are signed with
+            this key (takes priority over any context-level key).
+            Requires ``orxhestra[auth]``.
+        signing_did : str
+            The ``did:key`` identifier that corresponds to
+            ``signing_key``. Required when ``signing_key`` is set.
+        """
         self.name = name
         self.description = description
         self.sub_agents: list[BaseAgent] = []
@@ -70,7 +87,21 @@ class BaseAgent(ABC):
         config: RunnableConfig | None = None,
         ctx: InvocationContext | None = None,
     ) -> InvocationContext:
-        """Return the provided ctx or create a fresh one."""
+        """Return the provided ``ctx`` or create a fresh one.
+
+        Parameters
+        ----------
+        config : RunnableConfig, optional
+            LangChain run config attached to a fresh context.
+        ctx : InvocationContext, optional
+            Pre-existing context. Returned unchanged if provided.
+
+        Returns
+        -------
+        InvocationContext
+            ``ctx`` if given; otherwise a new context with a random
+            session id and this agent's name.
+        """
         if ctx is not None:
             return ctx
         from orxhestra.agents.invocation_context import InvocationContext as _IC
@@ -146,12 +177,19 @@ class BaseAgent(ABC):
         config : RunnableConfig, optional
             LangChain-compatible config dict (tags, callbacks, etc.).
         ctx : InvocationContext, optional
-            Invocation context. Auto-created if not provided.
+            Invocation context. Auto-created via :meth:`_ensure_ctx`
+            if not provided.
 
         Yields
         ------
         Event
-            Events emitted during execution.
+            :class:`Event` objects emitted during execution.
+
+        See Also
+        --------
+        Runner.astream : Preferred entry point when you need session
+            persistence.
+        InvocationContext : Runtime state passed through the agent tree.
         """
         yield  # type: ignore[misc]  # pragma: no cover
 
@@ -271,7 +309,14 @@ class BaseAgent(ABC):
 
     @property
     def root_agent(self) -> BaseAgent:
-        """Walk up to the root of the agent tree."""
+        """Walk up to the root of the agent tree.
+
+        Returns
+        -------
+        BaseAgent
+            The top-most ancestor (an agent with no parent). Returns
+            ``self`` if this agent has no parent.
+        """
         agent = self
         while agent.parent_agent is not None:
             agent = agent.parent_agent

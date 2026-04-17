@@ -9,8 +9,14 @@ from orxhestra.memory.memory import Memory
 class InMemoryMemoryService(BaseMemoryService):
     """Dict-backed memory service.
 
-    Stores memories keyed by (app_name, user_id). Search is naive
-    substring matching - swap for a vector store in production.
+    Stores memories keyed by ``(app_name, user_id)``. Search is
+    naive substring matching — swap for a vector store in production.
+
+    See Also
+    --------
+    BaseMemoryService : Interface this implements.
+    FileMemoryService : Markdown-on-disk alternative.
+    Memory : Individual memory entry stored here.
     """
 
     def __init__(self) -> None:

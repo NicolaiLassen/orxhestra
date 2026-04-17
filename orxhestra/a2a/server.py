@@ -57,7 +57,7 @@ def _now_iso() -> str:
 
 
 class A2AServer:
-    """Spec-compliant A2A v1.0 server that adapts a BaseAgent.
+    """Spec-compliant A2A v1.0 server that adapts a :class:`BaseAgent`.
 
     Implements:
       - ``SendMessage``            — run agent, return completed Task
@@ -65,6 +65,24 @@ class A2AServer:
       - ``GetTask``                — retrieve task by ID
       - ``CancelTask``             — cancel a running task
       - Agent Card at ``/.well-known/agent-card.json``
+
+    See Also
+    --------
+    A2AAgent : Client-side counterpart for calling remote servers.
+    AgentCard : Discovery manifest served at the well-known URL.
+    Task : Task object returned by ``SendMessage``.
+    events_to_a2a_stream : Converter from SDK events to A2A events.
+
+    Examples
+    --------
+    >>> from orxhestra import InMemorySessionService
+    >>> from orxhestra.a2a.server import A2AServer
+    >>> server = A2AServer(
+    ...     agent=my_agent,
+    ...     session_service=InMemorySessionService(),
+    ...     url="http://localhost:8000",
+    ... )
+    >>> app = server.app  # FastAPI instance ready for uvicorn
     """
 
     def __init__(

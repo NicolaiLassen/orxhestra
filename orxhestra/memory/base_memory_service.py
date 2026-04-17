@@ -27,10 +27,22 @@ class SearchMemoryResponse(BaseModel):
 class BaseMemoryService(ABC):
     """Abstract base class for agent memory services.
 
+    Memory services are long-term stores that outlive a single
+    session. Agents search memory at the start of a turn to recall
+    relevant context, and write memory after a turn to persist new
+    information.
+
     Attributes
     ----------
     memories : list[Memory]
         The list of memories held in this service.
+
+    See Also
+    --------
+    Memory : Individual memory entry.
+    SearchMemoryResponse : Return type of :meth:`search_memory`.
+    InMemoryMemoryService : Non-persistent backend.
+    FileMemoryService : Markdown-on-disk backend.
     """
 
     memories: list[Memory] = []

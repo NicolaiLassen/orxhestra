@@ -58,15 +58,39 @@ class TaskStore:
         self._tasks: dict[str, BackgroundTask] = {}
 
     def add(self, task: BackgroundTask) -> None:
-        """Add a task to the store."""
+        """Add a task to the store.
+
+        Parameters
+        ----------
+        task : BackgroundTask
+            The task to register. Indexed by ``task.id``; existing
+            entries with the same id are overwritten.
+        """
         self._tasks[task.id] = task
 
     def get(self, task_id: str) -> BackgroundTask | None:
-        """Get a task by ID."""
+        """Get a task by ID.
+
+        Parameters
+        ----------
+        task_id : str
+            The task identifier.
+
+        Returns
+        -------
+        BackgroundTask or None
+            The task, or ``None`` if no task with that id exists.
+        """
         return self._tasks.get(task_id)
 
     def list_all(self) -> list[BackgroundTask]:
-        """List all tasks, newest first."""
+        """List all tasks, newest first.
+
+        Returns
+        -------
+        list[BackgroundTask]
+            All registered tasks sorted by ``created_at`` descending.
+        """
         return sorted(
             self._tasks.values(),
             key=lambda t: t.created_at,
@@ -74,7 +98,13 @@ class TaskStore:
         )
 
     def remove(self, task_id: str) -> None:
-        """Remove a task from the store."""
+        """Remove a task from the store.
+
+        Parameters
+        ----------
+        task_id : str
+            The task identifier. Idempotent — missing ids are ignored.
+        """
         self._tasks.pop(task_id, None)
 
 

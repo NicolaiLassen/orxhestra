@@ -38,7 +38,7 @@ Composer::
     from orxhestra.composer import Composer
 """
 
-__version__ = "0.1.2"
+__version__ = "0.1.3"
 
 from orxhestra.agents import (
     AgentConfig,
@@ -61,6 +61,19 @@ from orxhestra.decorators.deprecation import (
 )
 from orxhestra.events.event import Event, EventType
 from orxhestra.events.event_actions import EventActions
+from orxhestra.filesystem import (
+    FilesystemBackend,
+    GrepMatch,
+    InMemoryFilesystemBackend,
+    LocalFilesystemBackend,
+)
+from orxhestra.middleware import (
+    CallbackMiddleware,
+    LoggingMiddleware,
+    Middleware,
+    MiddlewareStack,
+    ToolCall,
+)
 from orxhestra.models.part import (
     Content,
     DataPart,
@@ -116,6 +129,17 @@ __all__ = [
     "InMemorySessionService",
     # Composer
     "Composer",
+    # Middleware
+    "Middleware",
+    "MiddlewareStack",
+    "ToolCall",
+    "CallbackMiddleware",
+    "LoggingMiddleware",
+    # Filesystem
+    "FilesystemBackend",
+    "GrepMatch",
+    "LocalFilesystemBackend",
+    "InMemoryFilesystemBackend",
     # Decorators
     "deprecated",
     "deprecated_param",

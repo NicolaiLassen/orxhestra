@@ -33,7 +33,9 @@ class TextPart(BaseModel):
 class DataPart(BaseModel):
     """A structured data content part (JSON-serializable dict).
 
-    Used for structured output, tool results with structured data, etc.
+    Use this when the payload is structured (e.g. a schema-constrained
+    LLM response, a tool result with fields). Use :class:`TextPart`
+    for free-form prose and :class:`FilePart` for binary/file data.
 
     Attributes
     ----------
@@ -52,6 +54,11 @@ class DataPart(BaseModel):
 
 class FilePart(BaseModel):
     """A file content part — either inline bytes or a URI reference.
+
+    Use ``inline_bytes`` for small payloads that should travel with
+    the event (images under ~100 KB, brief attachments). Use ``uri``
+    for larger files stored in an artifact service or object store —
+    this keeps the event small and lets consumers fetch on demand.
 
     Attributes
     ----------
@@ -153,7 +160,7 @@ Part = TextPart | DataPart | FilePart | ThinkingPart | ToolCallPart | ToolRespon
 class Content(BaseModel):
     """Container for multimodal content — a list of typed parts.
 
-    Mirrors the A2A protocol's ``Message.parts``.
+    Mirrors the A2A protocol's :attr:`Message.parts`.
 
     Attributes
     ----------
@@ -161,6 +168,16 @@ class Content(BaseModel):
         Who produced this content: "user", "model", or "agent".
     parts : list[Part]
         Ordered list of content parts.
+
+    See Also
+    --------
+    TextPart : Plain text.
+    DataPart : Structured JSON-serializable data.
+    FilePart : File reference (URL or inline bytes).
+    ThinkingPart : Reasoning/chain-of-thought payload.
+    ToolCallPart : Tool-call request from the model.
+    ToolResponsePart : Tool-call result payload.
+    Event.content : Field that carries a ``Content`` on every event.
     """
 
     role: str | None = None
@@ -168,17 +185,56 @@ class Content(BaseModel):
 
     @staticmethod
     def from_text(text: str, *, role: str | None = None) -> Content:
-        """Create a Content with a single TextPart."""
+        """Create a Content with a single :class:`TextPart`.
+
+        Parameters
+        ----------
+        text : str
+            Text payload.
+        role : str, optional
+            Message role (``"user"``, ``"model"``, ``"agent"``).
+
+        Returns
+        -------
+        Content
+            A new ``Content`` wrapping a single ``TextPart``.
+        """
         return Content(role=role, parts=[TextPart(text=text)])
 
     @staticmethod
     def from_thinking(thinking: str, *, role: str | None = None) -> Content:
-        """Create a Content with a single ThinkingPart."""
+        """Create a Content with a single :class:`ThinkingPart`.
+
+        Parameters
+        ----------
+        thinking : str
+            Chain-of-thought or reasoning text.
+        role : str, optional
+            Message role.
+
+        Returns
+        -------
+        Content
+            A new ``Content`` wrapping a single ``ThinkingPart``.
+        """
         return Content(role=role, parts=[ThinkingPart(thinking=thinking)])
 
     @staticmethod
     def from_data(data: dict[str, Any], *, role: str | None = None) -> Content:
-        """Create a Content with a single DataPart."""
+        """Create a Content with a single :class:`DataPart`.
+
+        Parameters
+        ----------
+        data : dict[str, Any]
+            JSON-serializable structured payload.
+        role : str, optional
+            Message role.
+
+        Returns
+        -------
+        Content
+            A new ``Content`` wrapping a single ``DataPart``.
+        """
         return Content(role=role, parts=[DataPart(data=data)])
 
     @property

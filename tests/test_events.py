@@ -1,5 +1,7 @@
 """Tests for unified event model."""
 
+from __future__ import annotations
+
 from orxhestra.events.event import Event, EventType
 from orxhestra.events.event_actions import EventActions
 from orxhestra.models.part import Content, ToolCallPart, ToolResponsePart

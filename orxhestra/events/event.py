@@ -29,7 +29,27 @@ from orxhestra.models.part import Content, ToolCallPart, ToolResponsePart
 
 
 class EventType(str, Enum):
-    """All possible event types emitted during agent execution."""
+    """All possible event types emitted during agent execution.
+
+    Values
+    ------
+    USER_MESSAGE
+        Input from the user that starts or continues a turn.
+    AGENT_MESSAGE
+        Output from an agent — either a streaming token chunk
+        (``partial=True``) or a final answer.
+    TOOL_RESPONSE
+        Result from a tool invocation. Matches a prior tool call
+        by ``ToolCallPart.tool_call_id``.
+    AGENT_START
+        Internal lifecycle marker — an agent has begun its turn.
+    AGENT_END
+        Internal lifecycle marker — an agent has finished its turn.
+
+    See Also
+    --------
+    Event : Envelope that carries one of these types.
+    """
 
     USER_MESSAGE = "user_message"
     AGENT_MESSAGE = "agent_message"
@@ -41,9 +61,18 @@ class EventType(str, Enum):
 class Event(BaseModel):
     """Single event type for everything emitted during agent execution.
 
-    Carries a ``content: Content`` field with typed parts (TextPart,
-    DataPart, FilePart, ToolCallPart, ToolResponsePart). Use
-    ``metadata`` for extra context (react steps, error info, etc.).
+    Carries a :class:`Content` payload with typed parts
+    (:class:`TextPart`, :class:`DataPart`, :class:`FilePart`,
+    :class:`ToolCallPart`, :class:`ToolResponsePart`). Use ``metadata``
+    for extra context (react steps, error info, etc.).
+
+    See Also
+    --------
+    EventType : Enum of event categories.
+    EventActions : Side-effects attached to the event.
+    Content : Container holding the event's typed parts.
+    Runner.astream : Primary producer of events.
+    Middleware.on_event : Hook for transforming or dropping events.
 
     Attributes
     ----------
@@ -150,7 +179,15 @@ class Event(BaseModel):
         return bool(self.text or self.data)
 
     def to_langchain_message(self) -> BaseMessage:
-        """Convert this event to the appropriate LangChain message type."""
+        """Convert this event to the appropriate LangChain message type.
+
+        Returns
+        -------
+        BaseMessage
+            ``HumanMessage`` for ``USER_MESSAGE``, ``ToolMessage`` for
+            ``TOOL_RESPONSE``, or ``AIMessage`` otherwise. Tool calls
+            are preserved on ``AIMessage`` via its ``tool_calls`` field.
+        """
         if self.type == EventType.USER_MESSAGE:
             return HumanMessage(content=self.text)
         elif self.type == EventType.TOOL_RESPONSE:
@@ -178,7 +215,23 @@ class Event(BaseModel):
 
     @staticmethod
     def from_langchain_message(msg: BaseMessage, **kwargs: Any) -> Event:
-        """Create an Event from a LangChain message."""
+        """Create an Event from a LangChain message.
+
+        Parameters
+        ----------
+        msg : BaseMessage
+            A ``HumanMessage``, ``ToolMessage``, or ``AIMessage``.
+        **kwargs : Any
+            Extra fields forwarded to the :class:`Event` constructor
+            (e.g. ``session_id``, ``invocation_id``, ``agent_name``).
+
+        Returns
+        -------
+        Event
+            ``USER_MESSAGE`` for ``HumanMessage``, ``TOOL_RESPONSE`` for
+            ``ToolMessage``, ``AGENT_MESSAGE`` otherwise. Tool calls on
+            ``AIMessage`` are preserved as ``ToolCallPart`` entries.
+        """
         if isinstance(msg, HumanMessage):
             return Event(
                 type=EventType.USER_MESSAGE,
@@ -316,5 +369,11 @@ class Event(BaseModel):
 
     @staticmethod
     def new_id() -> str:
-        """Generate a new unique event ID."""
+        """Generate a new unique event ID.
+
+        Returns
+        -------
+        str
+            UUID4 hex string suitable for :attr:`Event.id`.
+        """
         return str(uuid4())

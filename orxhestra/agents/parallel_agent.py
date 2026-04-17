@@ -21,12 +21,29 @@ class ParallelAgent(BaseAgent):
     """Runs sub-agents concurrently, merging their event streams.
 
     All sub-agents start at the same time. Their events are merged
-    in the order they are produced.
+    in the order they are produced. Events from different sub-agents
+    carry distinct ``branch`` attribution so consumers can demultiplex.
 
     Attributes
     ----------
     agents : list[BaseAgent]
         Agents to run concurrently.
+
+    See Also
+    --------
+    BaseAgent : Base class this extends.
+    SequentialAgent : Chain agents instead of running them in parallel.
+    LoopAgent : Iterate over sub-agents until a stop condition.
+    Event.branch : Carries the originating sub-agent path.
+
+    Examples
+    --------
+    >>> fanout = ParallelAgent(
+    ...     name="research_fanout",
+    ...     agents=[web_agent, docs_agent, code_agent],
+    ... )
+    >>> async for event in fanout.astream("Find info about X"):
+    ...     print(f"[{event.branch}] {event.text}")
     """
 
     def __init__(
@@ -73,6 +90,13 @@ class ParallelAgent(BaseAgent):
         merged: asyncio.Queue[Event | None] = asyncio.Queue()
 
         async def run_and_forward(agent: BaseAgent) -> None:
+            """Stream events from one sub-agent into the merged queue.
+
+            Parameters
+            ----------
+            agent : BaseAgent
+                The sub-agent to run.
+            """
             child_ctx = ctx.derive(agent_name=agent.name)
             async for event in agent.astream(input, ctx=child_ctx):
                 await merged.put(event)

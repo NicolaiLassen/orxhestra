@@ -12,6 +12,12 @@ class SessionNotFoundError(NotFoundError):
     ----------
     session_id : str, optional
         The session ID that could not be found.
+
+    See Also
+    --------
+    NotFoundError : Parent error class.
+    BaseSessionService.get_session : Producer of this error when a
+        session lookup fails.
     """
 
     def __init__(self, session_id: str = "") -> None:

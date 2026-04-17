@@ -27,14 +27,35 @@ A2AResponse = dict[str, Any]
 class A2AAgent(BaseAgent):
     """Agent that delegates to a remote A2A v1.0 server over HTTP.
 
+    Sends a JSON-RPC ``SendMessage`` request per turn and converts
+    the server's response stream back into :class:`Event` objects.
+
     Parameters
     ----------
     name : str
         Local name for this agent in the agent tree.
     url : str
-        Base URL of the remote A2A server (e.g. ``"http://localhost:9000"``).
+        Base URL of the remote A2A server
+        (e.g. ``"http://localhost:9000"``).
     description : str
         Description used for routing decisions.
+
+    See Also
+    --------
+    BaseAgent : Base class this extends.
+    AgentCard : Remote card the server publishes for discovery.
+    Message : A2A-wire message type sent on each turn.
+    Task : Remote task wrapping the message execution.
+
+    Examples
+    --------
+    >>> remote = A2AAgent(
+    ...     name="remote_researcher",
+    ...     url="https://researcher.example.com",
+    ...     description="Web research specialist.",
+    ... )
+    >>> async for event in remote.astream("Summarize arxiv:2024.12345"):
+    ...     print(event.text)
     """
 
     def __init__(

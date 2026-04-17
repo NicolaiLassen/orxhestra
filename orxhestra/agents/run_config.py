@@ -13,9 +13,15 @@ from langchain_core.runnables import RunnableConfig
 class AgentConfig(RunnableConfig, total=False):
     """LangChain ``RunnableConfig`` extended with max LLM calls.
 
-    All standard LangChain config keys (``callbacks``, ``tags``, ``metadata``,
-    ``run_name``, ``max_concurrency``, ``configurable``, ``run_id``,
-    ``recursion_limit``) are inherited from ``RunnableConfig``.
+    All standard LangChain config keys (``callbacks``, ``tags``,
+    ``metadata``, ``run_name``, ``max_concurrency``, ``configurable``,
+    ``run_id``, ``recursion_limit``) are inherited from
+    ``RunnableConfig``.
+
+    See Also
+    --------
+    BaseAgent.astream : Accepts this config on every invocation.
+    Runner : Passes this through to the agent on each turn.
 
     Attributes
     ----------

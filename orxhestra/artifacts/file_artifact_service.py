@@ -40,6 +40,12 @@ class FileArtifactService(BaseArtifactService):
     ----------
     root : str or Path
         Root directory for artifact storage.
+
+    See Also
+    --------
+    BaseArtifactService : Interface this implements.
+    InMemoryArtifactService : Ephemeral dict-backed alternative.
+    ArtifactVersion : Metadata stored in the ``.meta.json`` sidecar.
     """
 
     def __init__(self, root: str | Path) -> None:

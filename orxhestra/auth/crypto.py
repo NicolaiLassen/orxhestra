@@ -65,6 +65,12 @@ def generate_ed25519_keypair() -> tuple[Ed25519PrivateKey, Ed25519PublicKey]:
     ------
     ImportError
         If ``cryptography`` is not installed.
+
+    See Also
+    --------
+    load_or_create_signing_key : Persist keys across runs.
+    public_key_to_did_key : Derive a ``did:key`` identity.
+    sign_json_payload : Sign a payload with the private key.
     """
     _check_crypto_deps()
     private_key: Ed25519PrivateKey = Ed25519PrivateKey.generate()

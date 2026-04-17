@@ -36,8 +36,9 @@ if TYPE_CHECKING:
 class TaskPlanner(BasePlanner):
     """Planner that injects TodoList status into the system prompt.
 
-    Reads from a shared ``TodoList`` instance (the same one backing
-    the ``write_todos`` tool) to build per-turn planning instructions.
+    Reads from a shared :class:`TodoList` instance (the same one
+    backing the ``write_todos`` tool) to build per-turn planning
+    instructions.
 
     Parameters
     ----------
@@ -46,6 +47,27 @@ class TaskPlanner(BasePlanner):
         instructions and reports no pending tasks).
     tasks : list[dict[str, Any]], optional
         Initial tasks to seed into the todo list on the first call.
+
+    See Also
+    --------
+    BasePlanner : Interface this implements.
+    PlanReActPlanner : Alternative planner using structured tags.
+    TodoList : Shared mutable task list this planner reads from.
+    make_todo_tool : Builds the ``write_todos`` tool the agent uses
+        to update the list.
+
+    Examples
+    --------
+    >>> from orxhestra.tools import TodoList, make_todo_tool
+    >>> from orxhestra.planners import TaskPlanner
+    >>> todos = TodoList()
+    >>> planner = TaskPlanner(todo_list=todos)
+    >>> agent = LlmAgent(
+    ...     name="coder",
+    ...     model=model,
+    ...     tools=[make_todo_tool(todos)],
+    ...     planner=planner,
+    ... )
     """
 
     def __init__(
@@ -59,7 +81,16 @@ class TaskPlanner(BasePlanner):
         self._seeded: bool = False
 
     def set_todo_list(self, todo_list: Any) -> None:
-        """Set the shared TodoList instance (late binding)."""
+        """Set the shared TodoList instance (late binding).
+
+        Used by the composer when wiring the planner together with a
+        ``write_todos`` tool that must share the same backing list.
+
+        Parameters
+        ----------
+        todo_list : TodoList
+            The mutable task list shared between planner and tool.
+        """
         self._todo_list = todo_list
 
     def _ensure_seeded(self) -> None:

@@ -1,5 +1,7 @@
 """Tests for Memory, BaseMemoryService, and InMemoryMemoryService."""
 
+from __future__ import annotations
+
 import pytest
 
 from orxhestra.events.event import Event, EventType

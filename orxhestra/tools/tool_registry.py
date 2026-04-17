@@ -14,8 +14,13 @@ class ToolRegistry:
     """Central registry for LangChain tools.
 
     Provides name-based lookup and listing of all registered tools.
-    Use the module-level `tool_registry` singleton, or create a local
-    registry for test isolation.
+    Use the module-level :data:`tool_registry` singleton, or create a
+    local registry for test isolation.
+
+    See Also
+    --------
+    register_tool : Decorator that auto-registers a tool on import.
+    tool_registry : Module-level singleton.
     """
 
     def __init__(self) -> None:

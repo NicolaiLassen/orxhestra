@@ -1,5 +1,7 @@
 """Tests for PromptContext and build_system_prompt."""
 
+from __future__ import annotations
+
 from orxhestra.prompts.catalog import build_system_prompt
 from orxhestra.prompts.context import PromptContext
 

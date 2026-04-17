@@ -1,5 +1,7 @@
 """Tests for Session and InMemorySessionService."""
 
+from __future__ import annotations
+
 import pytest
 
 from orxhestra.events.event import Event, EventType

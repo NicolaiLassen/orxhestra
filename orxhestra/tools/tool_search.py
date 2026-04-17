@@ -24,6 +24,11 @@ def make_tool_search_tool(
     -------
     BaseTool
         A ``tool_search`` structured tool.
+
+    See Also
+    --------
+    ToolRegistry : Shared registry typically used as the source of
+        ``available_tools``.
     """
 
     async def tool_search(query: str, max_results: int = 5) -> str:

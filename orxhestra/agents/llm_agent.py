@@ -82,17 +82,33 @@ class LlmAgent(BaseAgent):
 
     Uses any LangChain ``BaseChatModel`` as the LLM backend. Supports
     static or dynamic system instructions, arbitrary LangChain tools,
-    before/after callbacks at the model and tool level, an optional planner
-    for per-turn planning instructions, and token-level streaming.
+    before/after callbacks at the model and tool level, an optional
+    planner for per-turn planning instructions, and token-level
+    streaming.
 
     The heavy lifting is delegated to composable helpers:
 
-    * ``MessageBuilder`` — instruction resolution and history assembly.
-    * ``ToolExecutor`` — concurrent tool execution with event streaming.
-    * ``PlannerAdapter`` — prompt enrichment, response processing, and
-      continuation decisions.
-    * ``StructuredOutputParser`` — Pydantic output schema parsing.
-    * ``LlmAgentCallbacks`` — grouped lifecycle callbacks.
+    * :class:`MessageBuilder` — instruction resolution and history
+      assembly.
+    * :class:`ToolExecutor` — concurrent tool execution with event
+      streaming.
+    * :class:`PlannerAdapter` — prompt enrichment, response
+      processing, and continuation decisions (wraps a
+      :class:`BasePlanner`).
+    * :class:`StructuredOutputParser` — Pydantic output schema parsing.
+    * :class:`LlmAgentCallbacks` — grouped lifecycle callbacks. Prefer
+      wrapping these as a :class:`CallbackMiddleware` when building new
+      code.
+
+    See Also
+    --------
+    BaseAgent : Base class this extends.
+    Runner : Wraps an ``LlmAgent`` with session persistence.
+    AgentTool : Wrap another agent as a tool this agent can call.
+    make_transfer_tool : Build a ``transfer_to_agent`` tool for
+        handing off to sub-agents.
+    BasePlanner : Planner interface attached via the ``planner``
+        constructor argument.
 
     Attributes
     ----------
@@ -316,7 +332,7 @@ class LlmAgent(BaseAgent):
             if has_tool_calls:
                 continue
 
-            chunk_text, chunk_thinking = parse_content_blocks(chunk.content)
+            chunk_text, chunk_thinking = parse_content_blocks(chunk.content_blocks)
 
             # Detect accumulated content: if new text starts with all
             # of the previous text, it's accumulated — extract the delta.

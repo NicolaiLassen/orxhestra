@@ -1,5 +1,7 @@
 """Tests for DatabaseSessionService (SQLite backend)."""
 
+from __future__ import annotations
+
 import pytest
 
 sqlalchemy = pytest.importorskip("sqlalchemy")

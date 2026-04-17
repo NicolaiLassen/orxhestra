@@ -29,7 +29,13 @@ class InMemoryArtifactService(BaseArtifactService):
     """In-memory artifact storage for development and testing.
 
     Artifacts are stored in a plain dictionary and lost when the
-    process exits.  Not suitable for production.
+    process exits. Not suitable for production.
+
+    See Also
+    --------
+    BaseArtifactService : Interface this implements.
+    FileArtifactService : Persistent local-disk alternative.
+    ArtifactVersion : Metadata carried on each stored version.
     """
 
     def __init__(self) -> None:

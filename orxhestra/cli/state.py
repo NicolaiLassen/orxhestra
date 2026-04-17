@@ -1,5 +1,7 @@
 """Shared REPL state — passed between app, commands, and builder."""
 
+from __future__ import annotations
+
 from langchain_core.language_models import BaseChatModel
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -9,6 +11,12 @@ from orxhestra.tools.todo_tool import TodoList
 
 class ReplState(BaseModel):
     """Mutable state for the interactive REPL.
+
+    See Also
+    --------
+    Runner : Wraps the active agent with session persistence.
+    TodoList : Shared task list rendered in the CLI.
+    orxhestra.cli.commands : Slash-command handlers that mutate this state.
 
     Attributes
     ----------

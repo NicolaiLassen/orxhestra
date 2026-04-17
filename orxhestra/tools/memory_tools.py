@@ -32,6 +32,11 @@ def make_memory_tools(memory_dir: Path) -> list[BaseTool]:
     list[BaseTool]
         Four tools: ``save_memory``, ``load_memory``, ``list_memories``,
         ``delete_memory``.
+
+    See Also
+    --------
+    FileMemoryService : On-disk memory service these tools call into.
+    Memory : Individual memory entry returned by ``load_memory``.
     """
 
     async def save_memory(

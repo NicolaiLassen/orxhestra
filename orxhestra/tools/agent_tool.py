@@ -38,7 +38,7 @@ class AgentToolInput(BaseModel):
 
 
 class AgentTool(BaseTool):
-    """Wraps a BaseAgent as a LangChain tool.
+    """Wraps a :class:`BaseAgent` as a LangChain tool.
 
     When invoked, runs the wrapped agent with the given request and
     returns the final answer text as the tool result. Sub-agent events
@@ -55,7 +55,7 @@ class AgentTool(BaseTool):
     output_limit : int, optional
         Maximum number of characters in the returned answer. If the
         sub-agent's response exceeds this limit, it is truncated at
-        a newline boundary using ``truncate_output()``. ``None``
+        a newline boundary using :func:`truncate_output`. ``None``
         (default) means no limit.
     before_agent_callback : callable, optional
         Called with ``(event, child_ctx)`` for each child event before
@@ -66,6 +66,22 @@ class AgentTool(BaseTool):
         Called with ``(event, child_ctx)`` after the child agent
         finishes streaming all events. Supports both sync and async
         callables.
+
+    See Also
+    --------
+    BaseAgent : The class of agent being wrapped.
+    make_transfer_tool : Alternative — hand off control instead of
+        calling a sub-agent and returning its result.
+    LlmAgent : Primary caller of :class:`AgentTool`.
+
+    Examples
+    --------
+    >>> research = AgentTool(agent=research_agent, output_limit=4000)
+    >>> coder = LlmAgent(
+    ...     name="coder",
+    ...     model=model,
+    ...     tools=[research],
+    ... )
     """
 
     name: str

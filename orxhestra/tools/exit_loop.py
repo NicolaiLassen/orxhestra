@@ -22,7 +22,19 @@ def make_exit_loop_tool() -> BaseTool:
     -------
     BaseTool
         A LangChain tool that, when invoked, signals the parent
-        ``LoopAgent`` to stop iterating.
+        :class:`LoopAgent` to stop iterating.
+
+    See Also
+    --------
+    LoopAgent : The agent whose iteration this tool terminates.
+    EventActions.escalate : The flag this tool triggers.
+    exit_loop_tool : Pre-built module-level singleton.
+
+    Examples
+    --------
+    >>> from orxhestra import LoopAgent, LlmAgent, exit_loop_tool
+    >>> writer = LlmAgent(name="writer", model=m, tools=[exit_loop_tool])
+    >>> loop = LoopAgent(name="retry_writer", agents=[writer])
     """
 
     async def exit_loop() -> str:

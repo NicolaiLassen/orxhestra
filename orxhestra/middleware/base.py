@@ -33,9 +33,9 @@ class ToolCall:
 class Middleware(Protocol):
     """Composable interceptor for agent lifecycle events.
 
-    All methods are optional — middleware implementations subclass
-    ``object`` and override only the hooks they need. Default
-    implementations are pass-throughs.
+    All methods are optional — middleware implementations can inherit
+    from :class:`BaseMiddleware` and override only the hooks they need.
+    Default implementations are pass-throughs.
 
     Lifecycle order for a single invocation:
 
@@ -45,6 +45,24 @@ class Middleware(Protocol):
        - ``wrap_tool`` around each tool call
        - ``on_event`` for every event emitted
     3. ``after_invoke`` (innermost unwraps to outermost)
+
+    See Also
+    --------
+    BaseMiddleware : Default pass-through base for new middleware.
+    MiddlewareStack : Ordered dispatch over multiple middleware.
+    CallbackMiddleware : Adapter wrapping :class:`LlmAgentCallbacks`.
+    LoggingMiddleware : Simple example middleware.
+    Runner : Hosts the stack at the invocation boundary.
+
+    Examples
+    --------
+    >>> class TimingMiddleware(BaseMiddleware):
+    ...     async def before_invoke(self, ctx):
+    ...         self._started = time.monotonic()
+    ...     async def after_invoke(self, ctx, error=None):
+    ...         dur = time.monotonic() - self._started
+    ...         print(f"{ctx.agent_name} took {dur:.2f}s")
+    >>> runner = Runner(agent=my_agent, middleware=[TimingMiddleware()])
     """
 
     async def before_invoke(self, ctx: InvocationContext) -> None:

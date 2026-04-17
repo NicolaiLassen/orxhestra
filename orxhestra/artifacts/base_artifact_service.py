@@ -52,8 +52,16 @@ class BaseArtifactService(ABC):
     """Abstract interface for artifact storage.
 
     Subclasses implement the storage backend (in-memory, filesystem,
-    cloud storage, etc.).  All methods accept ``app_name``, ``user_id``,
+    cloud storage, etc.). All methods accept ``app_name``, ``user_id``,
     and an optional ``session_id`` to scope artifacts.
+
+    See Also
+    --------
+    ArtifactVersion : Metadata returned for each stored version.
+    InMemoryArtifactService : Non-persistent backend.
+    FileArtifactService : Local-disk backend.
+    CallContext.save_artifact : High-level save API used inside tools.
+    EventActions.artifact_delta : Records saves in the event stream.
     """
 
     @abstractmethod

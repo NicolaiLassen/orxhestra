@@ -29,7 +29,27 @@ from orxhestra.models.part import Content, ToolCallPart, ToolResponsePart
 
 
 class EventType(str, Enum):
-    """All possible event types emitted during agent execution."""
+    """All possible event types emitted during agent execution.
+
+    Values
+    ------
+    USER_MESSAGE
+        Input from the user that starts or continues a turn.
+    AGENT_MESSAGE
+        Output from an agent — either a streaming token chunk
+        (``partial=True``) or a final answer.
+    TOOL_RESPONSE
+        Result from a tool invocation. Matches a prior tool call
+        by ``ToolCallPart.tool_call_id``.
+    AGENT_START
+        Internal lifecycle marker — an agent has begun its turn.
+    AGENT_END
+        Internal lifecycle marker — an agent has finished its turn.
+
+    See Also
+    --------
+    Event : Envelope that carries one of these types.
+    """
 
     USER_MESSAGE = "user_message"
     AGENT_MESSAGE = "agent_message"

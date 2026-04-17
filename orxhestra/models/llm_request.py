@@ -20,9 +20,16 @@ class LlmRequest(BaseModel):
     """Structured input for a single LangChain model call.
 
     Collect all context needed to call ``BaseChatModel.ainvoke()``:
-    the message history, system instruction, tools, output schema, and
-    model identifier. Agents build one of these per LLM call so the
-    full request is inspectable and loggable.
+    the message history, system instruction, tools, output schema,
+    and model identifier. Agents build one of these per LLM call so
+    the full request is inspectable and loggable.
+
+    See Also
+    --------
+    LlmResponse : Paired response type.
+    LlmAgent : Primary producer of ``LlmRequest`` instances.
+    Middleware.before_model : Hook for transforming a request
+        before it reaches the model.
 
     Attributes
     ----------

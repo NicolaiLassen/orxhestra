@@ -26,11 +26,11 @@ if TYPE_CHECKING:
 
 
 class ReadonlyContext:
-    """Read-only view over a InvocationContext.
+    """Read-only view over an :class:`InvocationContext`.
 
-    Passed to instruction providers (callable instructions) and planners
-    so they can read session state and metadata without being able to
-    mutate the context directly.
+    Passed to instruction providers (callable instructions) and
+    planners so they can read session state and metadata without
+    being able to mutate the context directly.
 
     Parameters
     ----------
@@ -51,6 +51,13 @@ class ReadonlyContext:
         The name of the currently executing agent.
     state : MappingProxyType[str, Any]
         Read-only view of the invocation state.
+
+    See Also
+    --------
+    InvocationContext : The underlying mutable context.
+    CallbackContext : Mutable sibling used in callbacks.
+    BasePlanner : Primary consumer, via
+        :meth:`~BasePlanner.build_planning_instruction`.
     """
 
     def __init__(self, invocation_context: InvocationContext) -> None:
@@ -95,9 +102,10 @@ class ReadonlyContext:
 class CallbackContext(ReadonlyContext):
     """Mutable context passed to before/after callbacks.
 
-    Extends ``ReadonlyContext`` with a writable state dict and a local
-    ``EventActions`` instance. The agent inspects ``actions`` after the
-    callback returns to apply any requested side-effects.
+    Extends :class:`ReadonlyContext` with a writable state dict and a
+    local :class:`EventActions` instance. The agent inspects
+    ``actions`` after the callback returns to apply any requested
+    side-effects.
 
     Parameters
     ----------
@@ -107,11 +115,19 @@ class CallbackContext(ReadonlyContext):
     Attributes
     ----------
     state : dict[str, Any]
-        Mutable reference to the invocation state. Changes are immediately
-        visible to all subsequent agents sharing the same context.
+        Mutable reference to the invocation state. Changes are
+        immediately visible to all subsequent agents sharing the
+        same context.
     actions : EventActions
         Side-effects the callback wants to signal: escalate, transfer,
         state_delta, etc.
+
+    See Also
+    --------
+    ReadonlyContext : Read-only sibling used in planners and
+        instruction providers.
+    LlmAgentCallbacks : Callback bundle that receives this context.
+    EventActions : The shape of side-effects a callback can raise.
     """
 
     def __init__(self, invocation_context: InvocationContext) -> None:

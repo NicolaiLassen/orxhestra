@@ -22,10 +22,17 @@ if TYPE_CHECKING:
 class LlmResponse(BaseModel):
     """Wrapper around a LangChain AIMessage returned by the model.
 
-    Preserves token usage, model version, and raw message content without
-    coupling the rest of the event model to LangChain types directly. Events
-    store this as an optional field - it is only populated for events that
-    are the direct result of an LLM call.
+    Preserves token usage, model version, and raw message content
+    without coupling the rest of the event model to LangChain types
+    directly. Events store this as an optional field — it is only
+    populated for events that are the direct result of an LLM call.
+
+    See Also
+    --------
+    LlmRequest : Paired request type.
+    Event.llm_response : Event attribute that carries this payload.
+    Middleware.after_model : Hook for transforming a response after
+        the model returns.
 
     Parameters
     ----------

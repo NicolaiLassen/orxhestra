@@ -14,7 +14,16 @@ class BaseSessionService(ABC):
     """Abstract base for session storage backends.
 
     Implement this to add persistence (MongoDB, Postgres, Redis, etc.).
-    The SDK ships with InMemorySessionService for local dev and tests.
+    The SDK ships with :class:`InMemorySessionService` for local dev
+    and tests and :class:`DatabaseSessionService` for SQLAlchemy-backed
+    persistence.
+
+    See Also
+    --------
+    Session : The model this service stores.
+    InMemorySessionService : Non-persistent backend.
+    DatabaseSessionService : SQLAlchemy async backend.
+    Runner : Uses a session service to persist every invocation.
     """
 
     @abstractmethod

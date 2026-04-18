@@ -18,12 +18,17 @@ orxhestra.tools.function_tool : Pure-Python alternative when a
 
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from langchain_core.tools import BaseTool
 from pydantic import BaseModel, create_model
 
 from orxhestra.integrations.mcp.client import MCPClient
+
+if TYPE_CHECKING:
+    import datetime
+
+    from fastmcp.client.progress import ProgressHandler
 
 
 def _build_input_model(tool_name: str, json_schema: dict[str, Any]) -> type[BaseModel]:
@@ -88,6 +93,22 @@ def _json_type_to_python(json_type: str) -> type:
 class MCPToolAdapter:
     """Converts an MCP server's tool list into LangChain BaseTool instances.
 
+    Parameters
+    ----------
+    client : MCPClient
+        Source of the tool catalogue.
+    progress_handler : ProgressHandler, optional
+        Default progress handler applied to every ``call_tool`` call
+        made by the wrapped tools.  Overridden per-call by the MCP
+        client's own progress handler when set.
+    timeout : float or timedelta, optional
+        Default per-call timeout applied to every wrapped tool.
+    raise_on_error : bool
+        When ``True`` (default), MCP tool errors surface as
+        exceptions inside ``ainvoke``; when ``False`` the raw
+        ``CallToolResult`` is returned so the agent can inspect
+        ``isError``.
+
     Examples
     --------
     >>> client = MCPClient("http://localhost:8001/mcp")
@@ -96,8 +117,18 @@ class MCPToolAdapter:
     >>> agent = LlmAgent("agent", model=model, tools=tools)
     """
 
-    def __init__(self, client: MCPClient) -> None:
+    def __init__(
+        self,
+        client: MCPClient,
+        *,
+        progress_handler: ProgressHandler | None = None,
+        timeout: float | datetime.timedelta | None = None,
+        raise_on_error: bool = True,
+    ) -> None:
         self._client = client
+        self._progress_handler = progress_handler
+        self._timeout = timeout
+        self._raise_on_error = raise_on_error
 
     async def load_tools(self) -> list[BaseTool]:
         """Fetch tools from the MCP server and wrap them as LangChain tools.
@@ -130,6 +161,9 @@ class MCPToolAdapter:
             mcp_tool.inputSchema if hasattr(mcp_tool, "inputSchema") else {}
         )
         input_model = _build_input_model(tool_name, input_schema)
+        progress_handler = self._progress_handler
+        timeout = self._timeout
+        raise_on_error = self._raise_on_error
 
         class WrappedMCPTool(BaseTool):
             """LangChain tool that proxies calls to a remote MCP tool.
@@ -145,12 +179,18 @@ class MCPToolAdapter:
             args_schema: type[BaseModel] = input_model
 
             def _run(self, **kwargs: Any) -> Any:
-                """Raise an error - WrappedMCPTool is async-only."""
+                """Raise an error — WrappedMCPTool is async-only."""
                 raise NotImplementedError("Use async ainvoke.")
 
             async def _arun(self, **kwargs: Any) -> Any:
                 """Call the MCP tool and return its text content."""
-                result = await client.call_tool(tool_name, kwargs)
+                result = await client.call_tool(
+                    tool_name,
+                    kwargs,
+                    progress_handler=progress_handler,
+                    timeout=timeout,
+                    raise_on_error=raise_on_error,
+                )
                 # Extract text from MCP result
                 content = result
                 # CallToolResult has a .content list

@@ -328,8 +328,8 @@ async def _serve(orx_path: Path, port: int) -> None:
 
     spec: ComposeSpec = ComposeSpec.model_validate(raw)
     composer = Composer(spec)
-    root = await composer._build()
-    app = composer._build_server(root)
+    root = await composer.build()
+    app = await composer.build_server(root)
 
     try:
         import uvicorn

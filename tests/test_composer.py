@@ -211,6 +211,43 @@ class TestToolResolver:
         result = resolve_builtin_tool("my_custom")
         assert result is mock_tool
 
+    async def test_register_tool_resolver_sync(self):
+        """Sync resolvers are awaited transparently by resolve_custom_tool."""
+        from orxhestra.composer import register_tool_resolver
+        from orxhestra.composer.builders.tools import resolve_custom_tool
+
+        mock_tool = MagicMock()
+        register_tool_resolver("widget", lambda config: mock_tool)
+        result = await resolve_custom_tool({"type": "widget", "ratio": 0.5})
+        assert result is mock_tool
+
+    async def test_register_tool_resolver_async(self):
+        """Async resolvers are awaited natively."""
+        from orxhestra.composer import register_tool_resolver
+        from orxhestra.composer.builders.tools import resolve_custom_tool
+
+        mock_tool = MagicMock()
+
+        async def resolver(config):
+            assert config["type"] == "async_widget"
+            return mock_tool
+
+        register_tool_resolver("async_widget", resolver)
+        result = await resolve_custom_tool({"type": "async_widget"})
+        assert result is mock_tool
+
+    async def test_custom_tool_requires_type(self):
+        from orxhestra.composer.builders.tools import resolve_custom_tool
+
+        with pytest.raises(ComposerError, match="'type' key"):
+            await resolve_custom_tool({"url": "x"})
+
+    async def test_custom_tool_unknown_type(self):
+        from orxhestra.composer.builders.tools import resolve_custom_tool
+
+        with pytest.raises(ComposerError, match="No custom tool resolver"):
+            await resolve_custom_tool({"type": "no_such_type_123"})
+
     def test_resolve_function_tool(self):
         tool = resolve_function_tool(
             "os.path.join", name="path_join", description="Join paths"
@@ -643,10 +680,10 @@ class TestComposerBuild:
              "runner": {"app_name": "test-app", "session_service": "memory"}}
         )
         composer = Composer(spec)
-        root = await composer._build()
-        result = composer._build_runner(root)
-        # _build_runner is async — result must be a coroutine, not a Runner
-        assert inspect.isawaitable(result), "_build_runner must be async"
+        root = await composer.build()
+        result = composer.build_runner(root)
+        # build_runner is async — result must be a coroutine, not a Runner
+        assert inspect.isawaitable(result), "build_runner must be async"
         runner = await result
         assert isinstance(runner, Runner)
 
@@ -664,7 +701,10 @@ class TestComposerBuild:
         )
         from orxhestra.composer import Composer
 
-        with pytest.raises(ComposerError, match="must have an 'agents' list"):
+        with pytest.raises(
+            ComposerError,
+            match=r"sequential agents must set a non-empty 'agents' list",
+        ):
             await Composer.from_yaml_async(yaml_path)
 
     @patch("orxhestra.composer.builders.models._resolve_provider")
@@ -903,5 +943,5 @@ class TestComposerBuild:
         )
         from orxhestra.composer import Composer
 
-        with pytest.raises(ComposerError, match="must have a 'url'"):
+        with pytest.raises(ComposerError, match=r"a2a agents must set 'url'"):
             await Composer.from_yaml_async(yaml_path)

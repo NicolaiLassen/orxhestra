@@ -146,7 +146,7 @@ async def build_from_orx(
 
     spec: ComposeSpec = ComposeSpec.model_validate(raw)
     composer = Composer(spec)
-    root = await composer._build()
+    root = await composer.build()
 
     async def _human_input_prompt(question: str) -> str:
         try:
@@ -157,7 +157,7 @@ async def build_from_orx(
     _set_human_input_callbacks(root, _human_input_prompt)
 
     if spec.runner is not None:
-        runner = await composer._build_runner(root)
+        runner = await composer.build_runner(root)
     else:
         from orxhestra.artifacts.in_memory_artifact_service import InMemoryArtifactService
         from orxhestra.runner import Runner

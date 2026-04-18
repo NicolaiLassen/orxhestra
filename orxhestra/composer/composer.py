@@ -1,5 +1,25 @@
 """Build an agent tree from a declarative YAML specification.
 
+The :class:`Composer` reads a validated :class:`ComposeSpec`, walks
+the ``agents:`` map, and dispatches each one to a registered builder
+(see :mod:`orxhestra.composer.builders`).  Tools, models, and skills
+are resolved lazily as each agent is constructed; circular refs are
+detected; and every error is rewrapped as :class:`ComposerError` so
+callers catch a single exception type at the composer boundary.
+
+Public surface:
+
+- :meth:`Composer.from_yaml` / :meth:`from_yaml_async` — one-shot
+  "parse a YAML file, return the root agent".
+- :meth:`Composer.runner_from_yaml` / :meth:`runner_from_yaml_async`
+  — same, but wrap in a :class:`~orxhestra.Runner`.
+- :meth:`Composer.server_from_yaml` / :meth:`server_from_yaml_async`
+  — same, but wrap in an A2A FastAPI server.
+- :meth:`Composer.build` / :meth:`build_runner` / :meth:`build_server`
+  — public hooks for callers (the CLI) that construct a
+  :class:`Composer` manually and need to mutate the spec between
+  construction and build.
+
 Usage::
 
     from orxhestra.composer import Composer
@@ -7,6 +27,15 @@ Usage::
     agent = Composer.from_yaml("orx.yaml")
     async for event in agent.astream("Hello"):
         print(event.text)
+
+See Also
+--------
+orxhestra.composer.schema.ComposeSpec : Root YAML schema.
+orxhestra.composer.register_builder : Add a custom agent type.
+orxhestra.composer.register_provider : Add a custom LLM provider.
+orxhestra.composer.register_builtin_tool : Add a custom built-in tool.
+orxhestra.composer.register_tool_resolver : Add a whole new tool type
+    accessible via ``tools: { ..., custom: { type: ... } }``.
 """
 
 from __future__ import annotations
@@ -16,10 +45,14 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from orxhestra.agents.base_agent import BaseAgent
+from orxhestra.composer.builders.agents import Helpers as _AgentHelpers
+from orxhestra.composer.builders.agents import get as _get_agent_builder
+from orxhestra.composer.builders.agents import registered_types as _registered_agent_types
 from orxhestra.composer.builders.tools import (
     import_object,
     resolve_agent_tool,
     resolve_builtin,
+    resolve_custom_tool,
     resolve_function,
     resolve_mcp,
     resolve_transfer,
@@ -65,7 +98,22 @@ class Composer:
         """
         self._spec = spec
         self._agents: dict[str, BaseAgent] = {}
-        self._building: set[str] = set()
+        # Ordered stack of agent names currently being built, used for
+        # cycle detection *and* for error-message context so the user
+        # knows which agent (and which parent chain) triggered a
+        # failure deep in the resolution pipeline.
+        self._building: list[str] = []
+        # Default model — cached once rather than reconstructing a
+        # Pydantic model on every ``_resolve_model`` call.
+        self._default_model: ModelConfig = spec.defaults.model or ModelConfig()
+        # Single shared helpers bag — method references are stable, so
+        # we don't need to rebuild this object on every ``_build_agent``
+        # call.
+        self._helpers: _AgentHelpers = _AgentHelpers(
+            resolve_tools=self._resolve_tools,
+            resolve_model=self._resolve_model,
+            build_agent=self._build_agent,
+        )
 
 
     @classmethod
@@ -100,7 +148,7 @@ class Composer:
         """
         spec = cls._load_spec(path)
         composer = cls(spec)
-        return await composer._build()
+        return await composer.build()
 
     @classmethod
     def runner_from_yaml(cls, path: str | Path) -> Runner:
@@ -147,8 +195,8 @@ class Composer:
             msg = "No 'runner' section in YAML"
             raise ComposerError(msg)
         composer = cls(spec)
-        root = await composer._build()
-        return await composer._build_runner(root)
+        root = await composer.build()
+        return await composer.build_runner(root)
 
     @classmethod
     def server_from_yaml(cls, path: str | Path) -> Any:
@@ -195,8 +243,8 @@ class Composer:
             msg = "No 'server' section in YAML"
             raise ComposerError(msg)
         composer = cls(spec)
-        root = await composer._build()
-        return await composer._build_server(root)
+        root = await composer.build()
+        return await composer.build_server(root)
 
 
     @classmethod
@@ -210,8 +258,30 @@ class Composer:
 
     @staticmethod
     def _load_spec(path: str | Path) -> ComposeSpec:
-        """Load and validate a YAML orx file."""
+        """Load and validate a YAML orx file.
+
+        Parameters
+        ----------
+        path : str or Path
+            Path to the YAML file.
+
+        Returns
+        -------
+        ComposeSpec
+            The validated spec.
+
+        Raises
+        ------
+        ComposerError
+            When the file is missing, the YAML is not a mapping, or
+            Pydantic validation rejects the spec.  Pydantic's own
+            :class:`~pydantic.ValidationError` is caught and rewrapped
+            so callers can catch a single exception type at the
+            composer boundary.
+        """
         import sys
+
+        from pydantic import ValidationError
 
         try:
             import yaml
@@ -224,7 +294,7 @@ class Composer:
             msg = f"File not found: {path}"
             raise ComposerError(msg)
 
-        # Add the YAML's directory to sys.path so local tools can be imported
+        # Add the YAML's directory to sys.path so local tools can be imported.
         yaml_dir: str = str(path.parent.resolve())
         if yaml_dir not in sys.path:
             sys.path.insert(0, yaml_dir)
@@ -234,51 +304,156 @@ class Composer:
         if not isinstance(raw, dict):
             msg = f"Expected a YAML mapping, got {type(raw).__name__}"
             raise ComposerError(msg)
-        return ComposeSpec.model_validate(raw)
+        try:
+            return ComposeSpec.model_validate(raw)
+        except ValidationError as exc:
+            # Preserve the Pydantic diagnostics but expose a single
+            # ComposerError type to callers.
+            raise ComposerError(f"Invalid orx spec: {exc}") from exc
 
 
-    async def _build(self) -> BaseAgent:
-        """Build the full agent tree and return the root."""
+    async def build(self) -> BaseAgent:
+        """Build the full agent tree from the stored spec.
+
+        Public hook for callers (notably :mod:`orxhestra.cli.builder`)
+        that need to construct a :class:`Composer` manually and drive
+        the build step themselves — e.g. because they want to mutate
+        the spec (inject workspace context, wire up extra tools)
+        between construction and the build.
+
+        For the common case, prefer :meth:`from_yaml` /
+        :meth:`runner_from_yaml` / :meth:`server_from_yaml`.
+
+        Returns
+        -------
+        BaseAgent
+            The root of the composed agent tree (i.e. ``spec.main_agent``).
+        """
         await self._build_agent(self._spec.main_agent)
         return self._agents[self._spec.main_agent]
 
+    async def build_runner(self, root: BaseAgent) -> Runner:
+        """Build a :class:`Runner` around an already-constructed tree.
+
+        Pairs with :meth:`build`.  Separated so callers can do work
+        between building the agent tree and wrapping it in a runner.
+
+        Parameters
+        ----------
+        root : BaseAgent
+            The already-built root agent (typically the return value
+            of :meth:`build`).
+
+        Returns
+        -------
+        Runner
+
+        Raises
+        ------
+        ComposerError
+            When the underlying spec has no ``runner:`` section.
+        """
+        if self._spec.runner is None:
+            msg = "Compose spec has no 'runner' section"
+            raise ComposerError(msg)
+        return await self._build_runner(root)
+
+    async def build_server(self, root: BaseAgent) -> Any:
+        """Build a FastAPI app around an already-constructed tree.
+
+        Public counterpart of :meth:`_build_server`.  Pairs with
+        :meth:`build` so callers can compose the agent tree and the
+        server wrapper in separate steps.
+
+        Parameters
+        ----------
+        root : BaseAgent
+            The already-built root agent.
+
+        Returns
+        -------
+        FastAPI
+
+        Raises
+        ------
+        ComposerError
+            When the underlying spec has no ``server:`` section.
+        """
+        if self._spec.server is None:
+            msg = "Compose spec has no 'server' section"
+            raise ComposerError(msg)
+        return await self._build_server(root)
+
+    # Back-compat alias — some first-party code still reaches for the
+    # private name.  Prefer :meth:`build` in new code.
+    async def _build(self) -> BaseAgent:
+        """Deprecated alias for :meth:`build` — kept for internal callers."""
+        return await self.build()
+
     async def _build_agent(self, name: str) -> BaseAgent:
-        """Recursively build an agent via the builder registry."""
+        """Recursively build an agent via the builder registry.
+
+        Tracks the in-flight build stack in :attr:`_building` so that
+        error messages produced anywhere in the resolution pipeline
+        can cite the agent that triggered the failure.
+        """
         if name in self._agents:
             return self._agents[name]
         if name in self._building:
-            msg = f"Circular agent reference detected: {name}"
+            msg = (
+                f"Circular agent reference detected: {name} "
+                f"(chain: {' -> '.join([*self._building, name])})"
+            )
             raise CircularReferenceError(msg)
 
-        self._building.add(name)
-        agent_def = self._spec.agents.get(name)
-        if agent_def is None:
-            msg = f"Agent '{name}' referenced but not defined"
-            raise ComposerError(msg)
+        self._building.append(name)
+        try:
+            agent_def = self._spec.agents.get(name)
+            if agent_def is None:
+                msg = (
+                    f"Agent '{name}' referenced but not defined in agents: "
+                    f"{self._context_suffix()}"
+                )
+                raise ComposerError(msg)
 
-        from orxhestra.composer.builders.agents import Helpers, get
+            builder = _get_agent_builder(agent_def.type)
+            if builder is None:
+                msg = (
+                    f"Unknown agent type: '{agent_def.type}' on agent "
+                    f"'{name}' (registered types: "
+                    f"{', '.join(_registered_agent_types())})"
+                )
+                raise ComposerError(msg)
 
-        builder = get(agent_def.type)
-        if builder is None:
-            msg = f"Unknown agent type: '{agent_def.type}'"
-            raise ComposerError(msg)
+            agent = await builder(
+                name, agent_def, self._spec, helpers=self._helpers
+            )
 
-        helpers = Helpers(
-            resolve_tools=self._resolve_tools,
-            resolve_model=self._resolve_model,
-            build_agent=self._build_agent,
-        )
+            # Register transfer targets as sub-agents so the SDK can route to them.
+            self._register_transfer_sub_agents(agent, agent_def)
 
-        agent = await builder(
-            name, agent_def, self._spec, helpers=helpers
-        )
+            self._agents[name] = agent
+            return agent
+        finally:
+            # Stack is always balanced since `append` is the first line
+            # of the try block — no need to guard with try/except.
+            self._building.pop()
 
-        # Register transfer targets as sub-agents so the SDK can route to them.
-        self._register_transfer_sub_agents(agent, agent_def)
+    def _context_suffix(self) -> str:
+        """Format the in-flight build stack as a breadcrumb.
 
-        self._agents[name] = agent
-        self._building.discard(name)
-        return agent
+        Returns
+        -------
+        str
+            ``"while building agent 'root -> child'"`` when a build is
+            in progress, otherwise an empty string.  Used by
+            resolution helpers to append YAML context to error
+            messages so the user knows *where* the failure originated.
+        """
+        if not self._building:
+            return ""
+        path = " -> ".join(self._building)
+        return f"while building agent '{path}'"
 
     def _register_transfer_sub_agents(
         self, agent: BaseAgent, agent_def: AgentDef
@@ -300,11 +475,31 @@ class Composer:
         """Resolve the model config for an agent.
 
         The agent ``model`` field can be:
-        - ``None`` — use defaults
-        - ``str`` — reference a named model from the ``models:`` section
-        - ``ModelConfig`` — inline override merged with defaults
+
+        - ``None`` — fall back to the cached default
+          (``spec.defaults.model`` or a bare ``ModelConfig()``).
+        - ``str`` — look up a named model from the YAML ``models:``
+          section.
+        - ``ModelConfig`` — inline override merged over the default,
+          preserving default values for any keys the override leaves
+          unset.
+
+        Parameters
+        ----------
+        agent_def : AgentDef
+            The agent definition whose model is being resolved.
+
+        Returns
+        -------
+        ModelConfig
+
+        Raises
+        ------
+        ComposerError
+            When a string reference doesn't match any entry in the
+            ``models:`` section.
         """
-        default: ModelConfig = self._spec.defaults.model or ModelConfig()
+        default = self._default_model
 
         if agent_def.model is None:
             return default
@@ -313,7 +508,11 @@ class Composer:
         if isinstance(agent_def.model, str):
             named: ModelConfig | None = self._spec.models.get(agent_def.model)
             if named is None:
-                msg = f"Model '{agent_def.model}' not found in models section"
+                known = ", ".join(sorted(self._spec.models)) or "<none>"
+                msg = (
+                    f"Model '{agent_def.model}' not found in models section "
+                    f"(known: {known}) {self._context_suffix()}"
+                )
                 raise ComposerError(msg)
             return named
 
@@ -336,7 +535,11 @@ class Composer:
             if isinstance(ref, str):
                 tool_def = self._spec.tools.get(ref)
                 if tool_def is None:
-                    msg = f"Tool '{ref}' not found in tools section"
+                    known = ", ".join(sorted(self._spec.tools)) or "<none>"
+                    msg = (
+                        f"Tool '{ref}' not found in tools section "
+                        f"(known: {known}) {self._context_suffix()}"
+                    )
                     raise ComposerError(msg)
                 resolved = await self._resolve_tool_def(tool_def)
             else:
@@ -351,7 +554,29 @@ class Composer:
     async def _resolve_tool_def(
         self, td: ToolDef
     ) -> BaseTool | list[BaseTool]:
-        """Resolve a single ``ToolDef`` into ``BaseTool`` instance(s)."""
+        """Resolve a single ``ToolDef`` into ``BaseTool`` instance(s).
+
+        Dispatch order matches the ``ToolDef`` field order: ``function``,
+        ``mcp``, ``builtin``, ``agent``, ``transfer``.  Errors are
+        enriched with :meth:`_context_suffix` so the user can trace
+        which YAML agent referenced the broken tool.
+
+        Parameters
+        ----------
+        td : ToolDef
+            The tool definition to resolve.
+
+        Returns
+        -------
+        BaseTool or list[BaseTool]
+            A single LangChain tool, or a list when the MCP resolver
+            expands one ``ToolDef`` into multiple tools.
+
+        Raises
+        ------
+        ComposerError
+            When the ``ToolDef`` has no recognised type.
+        """
         if td.function:
             return resolve_function(td.function, td.name, td.description)
         if td.mcp:
@@ -366,7 +591,13 @@ class Composer:
             for target_name in td.transfer.targets:
                 targets.append(await self._build_agent(target_name))
             return resolve_transfer(targets)
-        msg = f"ToolDef has no recognized type: {td}"
+        if td.custom:
+            return await resolve_custom_tool(td.custom)
+        msg = (
+            f"ToolDef has no recognised type (set one of "
+            f"function/mcp/builtin/agent/transfer/custom) "
+            f"{self._context_suffix()}"
+        )
         raise ComposerError(msg)
 
 

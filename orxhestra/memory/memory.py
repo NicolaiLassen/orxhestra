@@ -1,4 +1,16 @@
-"""Memory model."""
+"""Memory model — a single persisted recall entry.
+
+A :class:`Memory` is an opaque serializable blob agents can save and
+retrieve by semantic search.  Only ``content`` is required;
+everything else is optional metadata the backing
+:class:`~orxhestra.memory.base_memory_service.BaseMemoryService` may
+use to filter, rank, or display results.
+
+Memories are intentionally schema-lite.  Richer shapes (tagged
+entities, typed facts, provenance chains) belong in a purpose-built
+store; this type is the default-good-enough envelope the built-in
+backends and the ``save_memory`` tool exchange.
+"""
 
 from __future__ import annotations
 

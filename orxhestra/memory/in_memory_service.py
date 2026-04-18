@@ -1,4 +1,23 @@
-"""InMemoryMemoryService - simple in-process memory implementation."""
+"""In-memory memory service — dict-backed, process-local.
+
+Stores memories keyed by ``(app_name, user_id)`` in a plain Python
+dict.  Search is a naive case-insensitive substring match — fine for
+tests and the built-in ``orx`` REPL, not for production use where
+you'd want a vector store or a retrieval-graph backend.
+
+State is lost on process restart.  For durable recall across runs,
+use :class:`~orxhestra.memory.file_memory_service.FileMemoryService`
+(Markdown-on-disk) or plug in your own
+:class:`~orxhestra.memory.base_memory_service.BaseMemoryService`
+implementation.
+
+See Also
+--------
+orxhestra.memory.base_memory_service.BaseMemoryService :
+    Interface this implements.
+orxhestra.memory.file_memory_service.FileMemoryService :
+    Persistent Markdown-on-disk alternative.
+"""
 
 from __future__ import annotations
 

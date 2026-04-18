@@ -1,4 +1,21 @@
-"""In-memory session service - for local dev and tests."""
+"""In-memory session service — dict-backed, process-local.
+
+Stores every :class:`~orxhestra.sessions.session.Session` in a plain
+``dict`` keyed by ``session_id``.  State is lost on process restart,
+which is fine for:
+
+- ``orx`` REPL invocations (the CLI lives for one interactive session).
+- Unit and integration tests.
+- Single-shot automation (``orx -c "..."``).
+
+For anything that needs to resume across processes, use
+:class:`~orxhestra.sessions.database_session_service.DatabaseSessionService`.
+
+See Also
+--------
+orxhestra.sessions.base_session_service.BaseSessionService :
+    Interface this implements.
+"""
 
 from __future__ import annotations
 

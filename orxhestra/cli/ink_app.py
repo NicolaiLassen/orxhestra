@@ -22,8 +22,26 @@ if TYPE_CHECKING:
 
     from orxhestra.cli.state import ReplState
 
-_ACCENT = "#6C8EBF"
-_MUTED = "#6c6c6c"
+from orxhestra.cli.theme import (
+    BRAND_AMBER,
+    BRAND_PAPER,
+    BRAND_SIGNAL,
+    BRAND_WHISPER,
+)
+
+_ACCENT = BRAND_SIGNAL
+_MUTED = BRAND_WHISPER
+_HIGHLIGHT = BRAND_PAPER
+_PROMPT = BRAND_AMBER
+
+# Pre-baked ANSI escape for the response bullet — pyink Text doesn't
+# pass ANSI through cleanly when colour is set on a flex child, so we
+# embed the escape directly. Derived once from BRAND_SIGNAL (#3FE0A8 →
+# rgb(63, 224, 168)).
+_SIGNAL_RGB = tuple(int(BRAND_SIGNAL[i : i + 2], 16) for i in (1, 3, 5))
+_SIGNAL_ANSI_ON = f"\x1b[38;2;{_SIGNAL_RGB[0]};{_SIGNAL_RGB[1]};{_SIGNAL_RGB[2]}m"
+_SIGNAL_ANSI_OFF = "\x1b[0m"
+
 _SEPARATOR = "\u2500" * (_shutil.get_terminal_size().columns - 1)
 
 APPROVAL_OPTIONS = [
@@ -67,7 +85,7 @@ def _history_item(item, _index=0):
     if t == "response":
         # Prepend bullet directly to avoid flex-row spacing issues
         # where ANSI codes can consume the space between ● and text.
-        return Text(f"\x1b[38;2;108;142;191m\u25cf\x1b[0m {ansi}")
+        return Text(f"{_SIGNAL_ANSI_ON}\u25cf{_SIGNAL_ANSI_OFF} {ansi}")
     if t == "rich":
         return Text(ansi)
     if t in ("tool_done", "tool_done_last"):
@@ -86,14 +104,14 @@ def _history_item(item, _index=0):
 @component
 def _selector_view(prompt_text, options, selected_idx, show_type_option):
     """Numbered selector for approval prompts and human_input questions."""
-    rows = [Text(prompt_text, bold=True, color="#E5C07B")]
+    rows = [Text(prompt_text, bold=True, color=_PROMPT)]
     rows.append(Text(""))
     for i, opt in enumerate(options):
         is_sel = i == selected_idx
         prefix = "\u276f" if is_sel else " "
         rows.append(Text(
             f"  {prefix} {i + 1}. {opt}",
-            color="white" if is_sel else _MUTED,
+            color=_HIGHLIGHT if is_sel else _MUTED,
             bold=is_sel,
         ))
     if show_type_option:
@@ -101,7 +119,7 @@ def _selector_view(prompt_text, options, selected_idx, show_type_option):
         prefix = "\u276f" if is_sel else " "
         rows.append(Text(
             f"  {prefix} {len(options) + 1}. Type something...",
-            color="white" if is_sel else _MUTED,
+            color=_HIGHLIGHT if is_sel else _MUTED,
             bold=is_sel,
         ))
     rows.append(Text(""))
@@ -119,7 +137,7 @@ def _autocomplete_menu(suggestions, selected_idx):
         is_sel = i == selected_idx
         items.append(Text(
             f"  {cmd}",
-            color="white" if is_sel else _MUTED,
+            color=_HIGHLIGHT if is_sel else _MUTED,
             bold=is_sel,
             inverse=is_sel,
         ))

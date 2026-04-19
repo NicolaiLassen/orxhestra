@@ -4,7 +4,6 @@
      { echo "# orxhestra — full documentation"; echo; for f in $(find docs -name "*.mdx" -not -path "docs/skills/*" | sort); do echo; echo "# /$f"; echo; cat "$f"; done } > docs/llms-full.txt
 -->
 
-
 # /docs/architecture.mdx
 
 ---
@@ -119,7 +118,6 @@ class MyPlanner(BasePlanner):
 
 Pass it to any `LlmAgent` via `planner=MyPlanner()`.
 
-
 # /docs/cli/commands.mdx
 
 ---
@@ -176,7 +174,6 @@ Skip approval prompts for destructive tools:
 ```bash
 orx --auto-approve
 ```
-
 
 # /docs/cli/memory.mdx
 
@@ -268,7 +265,6 @@ tools:
   memory:
     builtin: "memory"
 ```
-
 
 # /docs/cli/overview.mdx
 
@@ -499,7 +495,6 @@ Conversation compacted.
 
 The built-in coding agent can spawn isolated sub-agents for complex subtasks — each with its own context window and tool access.
 
-
 # /docs/cli/themes.mdx
 
 ---
@@ -539,30 +534,37 @@ orx
 
 ## Color Palette
 
+Both themes follow the orxhestra brand system — `signal` mint as the primary accent, `whisper` grey for muted text, and supporting colours for success / warning / error states.
+
 ### Dark Theme (default)
 
 | Token | Color | Usage |
 |-------|-------|-------|
-| Accent | `#6C8EBF` | Headings, bullets, links, spinner |
-| Muted | `#6c6c6c` | Tool responses, timestamps |
-| Success | `#98C379` | Completed tasks |
-| Warning | `#E5C07B` | In-progress tasks, approval prompts |
-| Error | `#E06C75` | Errors, dangerous commands |
+| Accent | `#3FE0A8` | Signal mint — headings, bullets, links, spinner |
+| Muted | `#6B6872` | Whisper — tool responses, timestamps |
+| Success | `#3FE0A8` | Signal mint — completed tasks |
+| Warning | `#F5C06B` | Warm amber — in-progress tasks, approval prompts |
+| Error | `#F5A0A0` | Soft coral — errors, dangerous commands |
+| Info | `#8AB4F8` | Soft blue — informational messages |
+| Subtle | `#2A2732` | Line — dividers and subtle separators |
 
 ### Light Theme
 
+The light theme uses a deeper mint for the accent so it meets WCAG AA contrast (≥ 4.5:1) against white backgrounds — pure signal is too pastel for small terminal text on light surfaces.
+
 | Token | Color | Usage |
 |-------|-------|-------|
-| Accent | `#2563EB` | Headings, bullets, links, spinner |
-| Muted | `#737373` | Tool responses, timestamps |
-| Success | `#16A34A` | Completed tasks |
-| Warning | `#CA8A04` | In-progress tasks |
-| Error | `#DC2626` | Errors |
+| Accent | `#0F8F66` | Deep mint — headings, bullets, links, spinner |
+| Muted | `#737373` | Mid grey — tool responses, timestamps |
+| Success | `#0F8F66` | Deep mint — completed tasks |
+| Warning | `#A66A00` | Darker amber — in-progress tasks, approvals |
+| Error | `#C4302B` | Crimson — errors, dangerous commands |
+| Info | `#1F5BD9` | Muted blue — informational messages |
+| Subtle | `#D4D0C7` | Warm grey — dividers and subtle separators |
 
 ## Markdown Styling
 
 Rich Markdown elements (blockquotes, bullets, headings, links) use the theme accent color instead of terminal defaults.
-
 
 # /docs/composer/extending.mdx
 
@@ -878,7 +880,6 @@ The composer's error messages use the same listings — if a YAML spec reference
 - [Composer overview](/composer/overview) — narrative walkthrough with YAML examples.
 - [YAML schema reference](/composer/schema-reference) — flat field-by-field reference.
 - [`orxhestra/composer/__init__.py`](https://github.com/NicolaiLassen/orxhestra/blob/main/orxhestra/composer/__init__.py) — canonical source for the four `register_*` functions.
-
 
 # /docs/composer/overview.mdx
 
@@ -1462,7 +1463,6 @@ Async resolvers work transparently — the composer awaits whichever shape you r
 | `register_builtin_tool(name, factory)` | Add a custom built-in tool |
 | `register_tool_resolver(type, resolver)` | Add a new tool type accessible via `tools: { custom: { type: ... } }` |
 
-
 # /docs/composer/schema-reference.mdx
 
 ---
@@ -1659,7 +1659,6 @@ Any string in `identity.signing_key`, `identity.encryption_password`, and `attes
 - [Extending the composer](/composer/extending) — register custom agent types, model providers, built-in tools, and tool resolvers.
 - [`orxhestra/composer/schema.py`](https://github.com/NicolaiLassen/orxhestra/blob/main/orxhestra/composer/schema.py) — canonical source.
 
-
 # /docs/concepts/agents.mdx
 
 ---
@@ -1784,7 +1783,6 @@ agent = ReActAgent(
 Custom `instructions` are appended to the built-in ReAct system prompt under an "Additional instructions" section. Planners work the same way - their output is appended after the instructions.
 
 Yields events with types: `AGENT_START` -> `AGENT_MESSAGE` (thoughts/actions) -> `TOOL_RESPONSE` (observations) -> ... -> `AGENT_MESSAGE` (final answer) -> `AGENT_END`.
-
 
 # /docs/concepts/events.mdx
 
@@ -1947,7 +1945,6 @@ if event.is_signed:
 
 Requires `orxhestra[auth]` (`pip install orxhestra[auth]`).
 
-
 # /docs/concepts/invocation-context.mdx
 
 ---
@@ -2097,7 +2094,6 @@ async def after_model(ctx: CallbackContext, response: LlmResponse) -> None:
     ctx.actions.state_delta["last_model"] = response.model_version
 ```
 
-
 # /docs/concepts/runner-sessions.mdx
 
 ---
@@ -2237,7 +2233,6 @@ runner:
 
 The Composer uses the default model for summarization when available.
 
-
 # /docs/examples.mdx
 
 ---
@@ -2302,7 +2297,6 @@ uv run python examples/composer/simple/run.py
 uv run python examples/composer/a2a-server/run.py
 ```
 
-
 # /docs/getting-started/installation.mdx
 
 ---
@@ -2354,7 +2348,6 @@ keywords: ["install", "pip", "uv", "orxhestra", "setup", "OpenAI", "Anthropic"]
 <Info>
   **Python >= 3.10** is required.
 </Info>
-
 
 # /docs/getting-started/quickstart.mdx
 
@@ -2493,7 +2486,6 @@ Pick the path that matches how you want to work. The YAML tab is the shortest ro
   </Card>
 </Cards>
 
-
 # /docs/index.mdx
 
 ---
@@ -2593,7 +2585,6 @@ orx my-agents.yaml --serve -p 9000    # same spec as an A2A server
     ```
   </Tab>
 </Tabs>
-
 
 # /docs/integrations/a2a.mdx
 
@@ -2747,7 +2738,6 @@ A2A v1.0 uses:
 - **Unified Part type** with oneof content fields (`text`, `raw`, `url`, `data`) plus `mediaType`
 - **`supportedInterfaces`** on AgentCard (replaces top-level `url`)
 
-
 # /docs/integrations/mcp.mdx
 
 ---
@@ -2825,7 +2815,6 @@ tools = await adapter.load_tools()
 ```
 
 `MCPToolAdapter.load_tools()` fetches the tool list from the MCP server and wraps each as a LangChain `BaseTool`.
-
 
 # /docs/orchestration/composite-agents.mdx
 
@@ -2947,7 +2936,6 @@ async for event in loop.astream(draft_text, ctx=ctx):
 - `max_iterations` is reached
 - Optional `should_continue(event) -> bool` callback returns `False`
 
-
 # /docs/orchestration/planners.mdx
 
 ---
@@ -3023,7 +3011,6 @@ agent = LlmAgent(
 
 The agent can call `manage_tasks` with actions: `initialize`, `list`, `create`, `update`, `complete`, `remove`.
 
-
 # /docs/orchestration/prompts.mdx
 
 ---
@@ -3059,7 +3046,6 @@ agent = LlmAgent(name="WriterAgent", model=model, instructions=prompt)
 ```
 
 Sections are only included when non-empty - no boilerplate padding.
-
 
 # /docs/orchestration/skills.mdx
 
@@ -3259,7 +3245,6 @@ skills:
 **Custom backends** — Implement `BaseSkillStore` for any backend (database, API, vector store).
 </Tip>
 
-
 # /docs/runtime/callbacks.mdx
 
 ---
@@ -3316,7 +3301,6 @@ def on_child_event(event, child_ctx):
 tool = AgentTool(child_agent, before_agent_callback=on_child_event)
 ```
 
-
 # /docs/runtime/human-in-the-loop.mdx
 
 ---
@@ -3352,7 +3336,6 @@ The agent will call `ask_human` whenever it needs clarification, then use the re
 <Note>
 **Full example** - See `examples/human_in_the_loop.py` for a complete runnable demo.
 </Note>
-
 
 # /docs/runtime/providers.mdx
 
@@ -3483,7 +3466,6 @@ defaults:
 | OpenRouter | `OPENROUTER_API_KEY` |
 | Upstage | `UPSTAGE_API_KEY` |
 
-
 # /docs/runtime/streaming.mdx
 
 ---
@@ -3558,7 +3540,6 @@ async for event in runner.astream(
         print(event.text, end="", flush=True)
 ```
 
-
 # /docs/runtime/structured-output.mdx
 
 ---
@@ -3606,7 +3587,6 @@ async for event in agent.astream("Analyze Apple", ctx=ctx):
 2. When the LLM responds, `PydanticOutputParser.parse()` extracts and validates JSON
 3. If direct parsing fails, `with_structured_output()` is used as a fallback
 4. Works with streaming and multi-agent compositions
-
 
 # /docs/runtime/tracing.mdx
 
@@ -3659,7 +3639,6 @@ export LANGFUSE_BASE_URL="https://cloud.langfuse.com"
 <Note>
 **A2A boundaries** - A2A is HTTP, so callbacks can't cross the wire. Each A2A server should create its own handler. Link traces by passing a `trace_id` in task metadata.
 </Note>
-
 
 # /docs/tools/artifacts.mdx
 
@@ -3783,7 +3762,6 @@ svc = FileArtifactService(base_dir="/tmp/artifacts")
 
 Artifact tools are not yet available as a builtin in Composer YAML. Use the Python API to add them to your agent.
 
-
 # /docs/tools/confirmation.mdx
 
 ---
@@ -3813,7 +3791,6 @@ agent = LlmAgent(
     before_tool_callback=confirm_dangerous,
 )
 ```
-
 
 # /docs/tools/filesystem.mdx
 
@@ -3918,7 +3895,6 @@ tools:
     builtin: "filesystem"
 ```
 
-
 # /docs/tools/long-running.mdx
 
 ---
@@ -3944,7 +3920,6 @@ agent = LlmAgent(name="deployer", model=model, tools=[tool.as_tool()])
 The tool description is automatically appended with:
 
 > NOTE: This is a long-running operation. Do not call this tool again if it has already returned some intermediate or pending status.
-
 
 # /docs/tools/overview.mdx
 
@@ -4147,7 +4122,6 @@ tools:
   sh:
     builtin: shell
 ```
-
 
 # /docs/tools/todo.mdx
 

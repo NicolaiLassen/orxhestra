@@ -69,6 +69,10 @@
       --whisper-soft: #6B6872;
       --line: #1E1C24;
       --line-bright: #2A2732;
+      /* CLI palette — matches orxhestra/cli/theme.py BRAND_* constants */
+      --tok-fn: #8AB4F8;       /* soft blue (info) */
+      --tok-str: #F5C06B;      /* warm amber (warning) */
+      --tok-num: #F5A0A0;      /* soft coral (error) */
       --radius-sm: 8px;
       --radius: 12px;
       --radius-lg: 18px;
@@ -357,10 +361,10 @@
       color: var(--paper-dim);
     }
     .tok-kw { color: var(--signal); }
-    .tok-fn { color: #8ab4f8; }
-    .tok-str { color: #f5c06b; }
+    .tok-fn { color: var(--tok-fn); }
+    .tok-str { color: var(--tok-str); }
     .tok-cm { color: var(--whisper-soft); font-style: italic; }
-    .tok-num { color: #f5a0a0; }
+    .tok-num { color: var(--tok-num); }
     .tok-op { color: var(--paper); }
     .tok-id { color: var(--paper); }
     .tok-dim { color: var(--whisper); }

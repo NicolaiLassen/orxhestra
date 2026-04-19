@@ -7,28 +7,52 @@ import os
 from rich.console import Console
 from rich.theme import Theme
 
-# ── Color palettes ───────────────────────────────────────────
+# ── Brand palette ────────────────────────────────────────────
+#
+# Single source of truth for every hardcoded colour in the CLI.
+# Anything outside this module that needs a colour must import one
+# of these names — never inline a hex string.
+
+BRAND_INK     = "#0F0E13"   # warm near-black base
+BRAND_PAPER   = "#F5F2EB"   # warm cream (mark colour, light text on dark)
+BRAND_SIGNAL  = "#3FE0A8"   # mint-teal — primary brand accent
+BRAND_WHISPER = "#6B6872"   # muted grey (secondary text)
+BRAND_LINE    = "#2A2732"   # subtle dividers
+BRAND_AMBER   = "#F5C06B"   # warm amber (warnings, prompts)
+BRAND_CORAL   = "#F5A0A0"   # soft coral (errors)
+BRAND_BLUE    = "#8AB4F8"   # soft blue (info)
+
+# Deeper variants for the light theme — signal is too pastel against
+# white, so we need WCAG AA-compliant darker shades.
+BRAND_SIGNAL_DEEP = "#0F8F66"   # deep mint for light-bg text
+BRAND_AMBER_DEEP  = "#A66A00"   # darker amber for light bg
+BRAND_CORAL_DEEP  = "#C4302B"   # crimson for light bg
+BRAND_BLUE_DEEP   = "#1F5BD9"   # muted blue for light bg
+BRAND_GREY_LIGHT  = "#737373"   # mid grey (light-theme muted)
+BRAND_GREY_SUBTLE = "#D4D0C7"   # warm grey (light-theme subtle)
+
+# ── Theme palettes ───────────────────────────────────────────
 
 # Dark theme (default).
 _DARK = {
-    "accent": "#6C8EBF",
-    "muted": "#6c6c6c",
-    "success": "#98C379",
-    "warning": "#E5C07B",
-    "error": "#E06C75",
-    "info": "#61AFEF",
-    "subtle": "#4a4a4a",
+    "accent":  BRAND_SIGNAL,
+    "muted":   BRAND_WHISPER,
+    "success": BRAND_SIGNAL,
+    "warning": BRAND_AMBER,
+    "error":   BRAND_CORAL,
+    "info":    BRAND_BLUE,
+    "subtle":  BRAND_LINE,
 }
 
-# Light theme
+# Light theme — deeper shades for white-bg readability.
 _LIGHT = {
-    "accent": "#2563EB",
-    "muted": "#737373",
-    "success": "#16A34A",
-    "warning": "#CA8A04",
-    "error": "#DC2626",
-    "info": "#2563EB",
-    "subtle": "#a3a3a3",
+    "accent":  BRAND_SIGNAL_DEEP,
+    "muted":   BRAND_GREY_LIGHT,
+    "success": BRAND_SIGNAL_DEEP,
+    "warning": BRAND_AMBER_DEEP,
+    "error":   BRAND_CORAL_DEEP,
+    "info":    BRAND_BLUE_DEEP,
+    "subtle":  BRAND_GREY_SUBTLE,
 }
 
 # Exported for use in stream.py spinner styling.

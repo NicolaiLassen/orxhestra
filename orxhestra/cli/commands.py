@@ -1,4 +1,17 @@
-"""Slash command handlers for the orx REPL."""
+"""Slash command handlers for the orx REPL.
+
+Every handler takes the shared :class:`ReplState`, an optional
+``cmd_arg`` (whatever follows the slash command on the input line),
+and a :class:`Writer` plus any extra keyword context the dispatcher
+injects.  Registration happens through :func:`register_command` so
+plugin authors can extend the REPL vocabulary.
+
+See Also
+--------
+orxhestra.cli.app : Entry point that launches the REPL.
+orxhestra.cli.state.ReplState : Shared mutable REPL state.
+orxhestra.cli.writer.Writer : Output sink shared across commands.
+"""
 
 from __future__ import annotations
 
@@ -43,7 +56,17 @@ async def _cmd_exit(
     writer: Writer,
     **_kw: object,
 ) -> None:
-    """Exit the REPL."""
+    """Exit the REPL by flipping ``state.should_continue`` to ``False``.
+
+    Parameters
+    ----------
+    state : ReplState
+        REPL state flipped to terminate the outer loop.
+    _cmd_arg : str or None
+        Ignored.
+    writer : Writer
+        Output sink used to print the goodbye message.
+    """
     writer.print_rich("[orx.status]Goodbye![/orx.status]")
     state.should_continue = False
 
@@ -55,7 +78,17 @@ async def _cmd_clear(
     writer: Writer,
     **_kw: object,
 ) -> None:
-    """Clear the session and reset state."""
+    """Start a fresh session — new session id, zeroed todos and turn count.
+
+    Parameters
+    ----------
+    state : ReplState
+        State mutated in place.
+    _cmd_arg : str or None
+        Ignored.
+    writer : Writer
+        Output sink.
+    """
     state.session_id = str(uuid4())
     if state.todo_list is not None:
         state.todo_list.todos = []
@@ -70,7 +103,19 @@ async def _cmd_compact(
     writer: Writer,
     **_kw: object,
 ) -> None:
-    """Summarize old messages to free context."""
+    """Summarize old messages to free up LLM context window space.
+
+    Runs :func:`orxhestra.cli.summarization.summarize_session` on the
+    current session's events.  No-ops when no model is configured or
+    the session contains nothing worth compacting.
+
+    Parameters
+    ----------
+    state : ReplState
+    _cmd_arg : str or None
+        Ignored.
+    writer : Writer
+    """
     if state.model is None:
         writer.print_rich("[orx.status]Compact not available.[/orx.status]")
         return
@@ -98,7 +143,25 @@ async def _cmd_model(
     workspace: str,
     **_kw: object,
 ) -> None:
-    """Switch to a different model, preserving history."""
+    """Switch to a different LLM model, preserving conversation history.
+
+    Rebuilds the Runner using :func:`orxhestra.cli.builder.build_from_orx`
+    and rehydrates the new session with the prior events so context
+    is not lost.  When ``cmd_arg`` is empty, prints the active model
+    name instead of switching.
+
+    Parameters
+    ----------
+    state : ReplState
+    cmd_arg : str or None
+        New model identifier (e.g. ``"claude-sonnet-4-6"``).  Empty
+        / ``None`` triggers a read-only print of the current model.
+    writer : Writer
+    orx_path : object
+        Path to the current orx YAML file (for rebuilding the tree).
+    workspace : str
+        Workspace directory used by the builder.
+    """
     from pathlib import Path
 
     if not cmd_arg:
@@ -142,7 +205,17 @@ async def _cmd_todos(
     writer: Writer,
     **_kw: object,
 ) -> None:
-    """Show the current task list."""
+    """Render the agent's current todo list to the writer.
+
+    Parameters
+    ----------
+    state : ReplState
+        REPL state; ``state.todo_list`` is read, not mutated.
+    _cmd_arg : str or None
+        Ignored.
+    writer : Writer
+        Output sink.
+    """
     from orxhestra.cli.render import render_todos
 
     if state.todo_list is not None:
@@ -160,7 +233,19 @@ async def _cmd_session(
     writer: Writer,
     **_kw: object,
 ) -> None:
-    """Show session info (events, chars, turns)."""
+    """Print session diagnostics — event count, bytes used, turn count.
+
+    Uses :func:`orxhestra.sessions.compaction._estimate_event_chars`
+    for a coarse character budget so the user can eyeball how close
+    they are to the context window limit.
+
+    Parameters
+    ----------
+    state : ReplState
+    _cmd_arg : str or None
+        Ignored.
+    writer : Writer
+    """
     session = await state.runner.get_or_create_session(
         user_id=DEFAULT_USER_ID, session_id=state.session_id
     )
@@ -179,6 +264,19 @@ async def _cmd_session(
     writer.print_rich(
         f"  [orx.status]turns:    {state.turn_count}[/orx.status]"
     )
+    if state.signer_did:
+        writer.print_rich(
+            f"  [orx.status]identity: {state.signer_did}[/orx.status]"
+        )
+        if state.identity_key_path:
+            writer.print_rich(
+                f"  [orx.status]key file: {state.identity_key_path}[/orx.status]"
+            )
+    else:
+        writer.print_rich(
+            "  [orx.status]identity: disabled "
+            "(pass --identity PATH to enable signing)[/orx.status]"
+        )
 
 
 async def _cmd_undo(
@@ -188,7 +286,19 @@ async def _cmd_undo(
     writer: Writer,
     **_kw: object,
 ) -> None:
-    """Remove the last conversation turn."""
+    """Remove the last conversation turn (user + response) from history.
+
+    Walks backwards to find the last :attr:`EventType.USER_MESSAGE`
+    and truncates the session event list there.  Decrements the turn
+    counter.  No-ops when no user message is found.
+
+    Parameters
+    ----------
+    state : ReplState
+    _cmd_arg : str or None
+        Ignored.
+    writer : Writer
+    """
     session = await state.runner.get_or_create_session(
         user_id=DEFAULT_USER_ID, session_id=state.session_id
     )
@@ -217,7 +327,19 @@ async def _cmd_retry(
     writer: Writer,
     **_kw: object,
 ) -> None:
-    """Re-run the last user message."""
+    """Re-run the most recent user message.
+
+    Truncates history at the last user message, stashes the prompt
+    in ``state.retry_message``, and lets the main REPL loop replay
+    it against the (possibly updated) agent.
+
+    Parameters
+    ----------
+    state : ReplState
+    _cmd_arg : str or None
+        Ignored.
+    writer : Writer
+    """
     session = await state.runner.get_or_create_session(
         user_id=DEFAULT_USER_ID, session_id=state.session_id
     )
@@ -248,7 +370,17 @@ async def _cmd_copy(
     writer: Writer,
     **_kw: object,
 ) -> None:
-    """Copy the last agent response to the clipboard."""
+    """Copy the last agent response to the macOS clipboard via ``pbcopy``.
+
+    Non-macOS platforms fall through to a gentle failure message.
+
+    Parameters
+    ----------
+    state : ReplState
+    _cmd_arg : str or None
+        Ignored.
+    writer : Writer
+    """
     session = await state.runner.get_or_create_session(
         user_id=DEFAULT_USER_ID, session_id=state.session_id
     )
@@ -293,7 +425,24 @@ async def _cmd_memory(
     workspace: str,
     **_kw: object,
 ) -> None:
-    """List or clear saved memories."""
+    """List or clear the agent's saved memories.
+
+    Memories live on disk under
+    :func:`orxhestra.memory.file_memory_service.get_memory_dir`.
+    The ``clear`` subcommand prompts for confirmation before
+    deleting every memory file plus the ``MEMORY.md`` index.
+
+    Parameters
+    ----------
+    _state : ReplState
+        Ignored; present to satisfy the dispatcher signature.
+    cmd_arg : str or None
+        ``"clear"`` to delete all memories; anything else prints the
+        list.
+    writer : Writer
+    workspace : str
+        Workspace root used to locate the memory directory.
+    """
     from orxhestra.memory.file_memory_service import (
         get_memory_dir,
         scan_memory_files,
@@ -346,7 +495,22 @@ async def _cmd_theme(
     writer: Writer,
     **_kw: object,
 ) -> None:
-    """Switch between dark and light themes."""
+    """Switch between the dark and light REPL themes.
+
+    With no argument, toggles the current value of
+    ``$ORX_THEME``.  With ``dark`` or ``light``, sets it explicitly.
+    Changes persist via
+    :func:`orxhestra.cli.theme.save_theme` but only take effect on
+    next launch.
+
+    Parameters
+    ----------
+    _state : ReplState
+        Ignored.
+    cmd_arg : str or None
+        ``"dark"`` / ``"light"``, or empty to toggle.
+    writer : Writer
+    """
     import os
 
     from orxhestra.cli.theme import save_theme
@@ -373,7 +537,16 @@ async def _cmd_help(
     writer: Writer,
     **_kw: object,
 ) -> None:
-    """Show the help text."""
+    """Print the REPL help banner.
+
+    Parameters
+    ----------
+    _state : ReplState
+        Ignored.
+    _cmd_arg : str or None
+        Ignored.
+    writer : Writer
+    """
     writer.print_rich(_HELP_TEXT)
 
 
@@ -398,24 +571,34 @@ def register_command(
     name: str,
     handler: Callable[..., object] | None = None,
 ) -> Callable[..., object]:
-    """Register a slash command handler.
+    """Register a slash-command handler in the global dispatcher.
 
-    Can be used as a decorator or called directly::
-
-        # Decorator
-        @register_command("/greet")
-        async def greet(state, cmd_arg, *, writer, **kw):
-            writer.print_rich("Hello!")
-
-        # Direct
-        register_command("/greet", my_handler)
+    Dual-mode: works as a decorator when ``handler`` is omitted,
+    otherwise registers the supplied handler immediately.  Existing
+    commands under the same name are overwritten.
 
     Parameters
     ----------
     name : str
-        Command name including the leading slash.
+        Command name including the leading slash (e.g. ``"/greet"``).
     handler : callable, optional
-        Async handler. If omitted, returns a decorator.
+        Async handler accepting ``(state, cmd_arg, *, writer, **kw)``.
+        When ``None``, the returned function itself acts as a
+        decorator.
+
+    Returns
+    -------
+    callable
+        The registered handler (for decorator chaining), or a
+        decorator that registers its argument when called.
+
+    Examples
+    --------
+    >>> @register_command("/greet")
+    ... async def greet(state, cmd_arg, *, writer, **kw):
+    ...     writer.print_rich("Hello!")
+
+    >>> register_command("/greet", my_handler)
     """
     if handler is not None:
         _DISPATCH[name] = handler
@@ -429,7 +612,15 @@ def register_command(
 
 
 def get_command_names() -> list[str]:
-    """Return all registered slash command names (for autocomplete)."""
+    """Return all registered slash-command names in sorted order.
+
+    Used by the input autocomplete to surface available commands.
+
+    Returns
+    -------
+    list[str]
+        Slash-command names including the leading slash.
+    """
     return sorted(_DISPATCH.keys())
 
 
@@ -442,20 +633,25 @@ async def handle_slash_command(
     orx_path: object,
     workspace: str,
 ) -> None:
-    """Dispatch a slash command, mutating *state* in place.
+    """Dispatch a slash command, mutating ``state`` in place.
+
+    Unknown commands produce a friendly pointer to ``/help`` rather
+    than raising, so a typo never takes the REPL down.
 
     Parameters
     ----------
     cmd : str
-        The slash command string (e.g. ``"/clear"``).
+        The slash-command string (e.g. ``"/clear"``).
     cmd_arg : str or None
-        Optional argument following the command.
+        Optional argument following the command, with leading
+        whitespace stripped by the caller.
     state : ReplState
         Shared mutable REPL state.
     writer : Writer
         Output writer.
     orx_path : object
-        Path to the orx YAML file.
+        Path to the orx YAML file for commands that rebuild the
+        Runner.
     workspace : str
         Workspace directory path.
     """

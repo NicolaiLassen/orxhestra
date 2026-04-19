@@ -16,7 +16,7 @@ pip install orxhestra[composer]
 defaults:
   model:
     provider: anthropic
-    name: claude-opus-4-6
+    name: claude-opus-4-7
 
 agents:
   assistant:
@@ -26,15 +26,31 @@ agents:
 main_agent: assistant
 ```
 
-```python
-from orxhestra.composer import Composer
+<Tabs>
+  <Tab title="Python">
+    ```python
+    from orxhestra.composer import Composer
 
-agent = Composer.from_yaml("orx.yaml")
+    agent = Composer.from_yaml("orx.yaml")
 
-async for event in agent.astream("Hello!"):
-    if event.is_final_response():
-        print(event.text)
-```
+    async for event in agent.astream("Hello!"):
+        if event.is_final_response():
+            print(event.text)
+    ```
+  </Tab>
+  <Tab title="CLI">
+    ```bash
+    orx orx.yaml
+    ```
+    Drops you into the interactive REPL with your YAML agent as the root.
+  </Tab>
+  <Tab title="A2A Server">
+    ```bash
+    orx orx.yaml --serve -p 9000
+    ```
+    Exposes the agent tree as an A2A v1.0 JSON-RPC endpoint on `:9000`.
+  </Tab>
+</Tabs>
 
 ## Architecture
 
@@ -48,21 +64,21 @@ composer/
 ├── schema.py                # Pydantic models for YAML validation
 └── builders/
     ├── agents/              # Agent builder registry
-    │   ├── __init__.py      # register(), get(), Helpers
-    │   ├── _common.py       # Shared LLM-agent builder logic
+    │   ├── __init__.py      # register(), get(), Helpers, BuildFn protocol
+    │   ├── _common.py       # Shared LLM + composite builder logic
     │   ├── llm.py           # LlmAgent builder
     │   ├── react.py         # ReActAgent builder
-    │   ├── sequential.py    # SequentialAgent builder
-    │   ├── parallel.py      # ParallelAgent builder
-    │   ├── loop.py          # LoopAgent builder
+    │   ├── sequential.py    # SequentialAgent builder (via build_composite)
+    │   ├── parallel.py      # ParallelAgent builder (via build_composite)
+    │   ├── loop.py          # LoopAgent builder (via build_composite)
     │   └── a2a.py           # A2AAgent builder
     ├── models/              # Model provider registry
     │   └── __init__.py      # register(), create()
-    └── tools/               # Tool builtin registry + resolvers
-        └── __init__.py      # register_builtin(), resolve_*()
+    └── tools/               # Tool-type registry + built-in tools
+        └── __init__.py      # register_builtin(), register_tool_resolver(), resolve_*()
 ```
 
-Each registry is independently extensible - register a custom agent type, model provider, or builtin tool without touching any other code.
+Each registry is independently extensible — register a custom agent type, model provider, built-in tool, or whole new tool type without touching any other code.
 
 ## YAML Schema
 
@@ -74,7 +90,7 @@ Global settings inherited by all agents.
 defaults:
   model:
     provider: anthropic    # openai | anthropic | google | dotted.import.path
-    name: claude-opus-4-6
+    name: claude-opus-4-7
     temperature: 0.7       # optional
   max_iterations: 10
 ```
@@ -91,7 +107,7 @@ models:
     temperature: 0.0
   smart:
     provider: anthropic
-    name: claude-opus-4-6
+    name: claude-opus-4-7
     max_tokens: 8192
     api_key: "sk-ant-..."
   local:
@@ -128,7 +144,7 @@ agents:
 
 ### `tools`
 
-Named tool definitions referenced by agents.
+Named tool definitions referenced by agents. Every tool entry must set **exactly one** of `function`, `mcp`, `builtin`, `agent`, `transfer`, or `custom`.
 
 ```yaml
 tools:
@@ -152,7 +168,23 @@ tools:
   # Agent as tool (AgentTool)
   researcher:
     agent: ResearchAgent
+
+  # Transfer routing (hand off to one of several targets)
+  router:
+    transfer:
+      targets: [sales, support]
+
+  # Custom tool type — dispatched via register_tool_resolver()
+  notifier:
+    custom:
+      type: webhook            # must match a registered resolver
+      url: https://example.com/notify
+      name: notify
 ```
+
+<Tip>
+  The `custom:` type is the escape hatch for third-party tool kinds. Register a resolver with `register_tool_resolver("webhook", my_resolver)` and the composer will dispatch `custom.type == "webhook"` entries to your callable. See [Extending](#custom-tool-types-register-tool-resolver).
+</Tip>
 
 ### `skills`
 
@@ -244,6 +276,17 @@ agents:
 | `loop` | Repeat sub-agents until done | `agents`, `max_iterations` |
 | `a2a` | Remote agent via A2A protocol | `url` |
 
+<Note>
+  The composer's schema validator enforces the **Required fields** column at YAML-parse time:
+
+  - `a2a` agents **must** set `url`.
+  - `sequential` / `parallel` / `loop` agents **must** set a non-empty `agents` list.
+
+  It also emits `warnings.warn` for fields that are silently ignored by an agent type (e.g. `tools` on a composite, `model` on an `a2a`, `planner` on non-LLM types). Running with `-W error` turns those into hard failures.
+
+  Custom agent types registered via [`register_builder`](#custom-agent-types) are exempt from both checks — they're free to consume any field.
+</Note>
+
 ### `main_agent`
 
 The entry-point agent name.
@@ -281,6 +324,83 @@ server:
       name: General
       description: "General assistant."
 ```
+
+### Identity, trust, and attestation
+
+Three optional blocks wire [the trust layer](https://github.com/NicolaiLassen/orxhestra/tree/main/orxhestra/middleware) into the Runner: **sign** every emitted event, **verify** incoming ones against a policy, and **audit** the whole stream through an attestation provider. Every block is opt-in — leave them out and the Runner behaves exactly as before.
+
+<Note>
+  Requires the auth extra:
+
+  ```bash
+  pip install 'orxhestra[composer,auth]'
+  ```
+</Note>
+
+#### `identity:` — Ed25519 signing key
+
+Attaches a signing identity to every agent under the Runner. When set, every `Event` the tree emits is signed with Ed25519 over the canonical event payload (including `prev_signature` to form a hash chain), and verifiers downstream can prove the event hasn't been tampered with.
+
+```yaml
+identity:
+  signing_key: ./keys/agent.key              # created via `orx identity init`
+  encryption_password: ${ORX_KEY_PASSWORD}    # optional — Fernet-wraps the key at rest
+  did_method: key                             # "key" (offline, derived) or "web"
+  did: did:web:example.com:agents:researcher  # required when did_method=web
+```
+
+<Tip>
+  Generate a key with the CLI:
+
+  ```bash
+  orx identity init --path ./keys/agent.key
+  # → wrote identity to ./keys/agent.key
+  # → did: did:key:z6Mk...
+  ```
+
+  Then either declare it in YAML as above, or pass it on the command line: `orx orx.yaml --identity ./keys/agent.key`.
+</Tip>
+
+#### `trust:` — signature verification policy
+
+Installs [`TrustMiddleware`](https://github.com/NicolaiLassen/orxhestra/blob/main/orxhestra/middleware/trust.py) on the Runner. Requires an `identity:` block (verification needs keys).
+
+```yaml
+trust:
+  mode: strict                         # "strict" drops failures; "permissive" annotates them
+  trusted_dids:                         # allowlist — empty means "anyone valid"
+    - did:key:z6Mk...trusted-peer
+  denied_dids: []                       # denylist; takes precedence over trusted_dids
+  require_chain: true                   # enforce hash-chain continuity per branch
+  allow_unsigned: false                 # when false, every event must be signed
+```
+
+In **strict** mode, events that fail verification are dropped from the stream. In **permissive** mode they're passed through with `event.metadata["trust"] = {"verified": False, "reason": ...}` so downstream consumers can flag them.
+
+#### `attestation:` — claim issuance + audit log
+
+Installs [`AttestationMiddleware`](https://github.com/NicolaiLassen/orxhestra/blob/main/orxhestra/middleware/attestation.py) on the Runner. Every event is appended to the provider's audit log; notable actions (agent transfers, tool invocations) also produce typed claims.
+
+```yaml
+attestation:
+  provider: local            # "noop" (default), "local", or a dotted import path
+  path: ./audit              # required when provider == "local"
+```
+
+Three provider flavors ship in-box:
+
+- **`noop`** — records nothing. Matches the default when no `attestation:` block is present.
+- **`local`** — JSON-on-disk at `path`, SHA-256 hash-chained, every entry signed with the `identity:` key. Zero external deps.
+- **`<dotted.import.path>`** — anything else is treated as an import path to a user-supplied `AttestationProvider`. Plug in a vendor SDK, a blockchain anchor, or your own implementation.
+
+```yaml
+attestation:
+  provider: myorg.attest.VendorProvider   # user-supplied implementation
+```
+
+<Tip>
+  See the [AttestationProvider protocol](https://github.com/NicolaiLassen/orxhestra/blob/main/orxhestra/trust/attestation/protocol.py) for the four-method interface your adapter needs to satisfy: `issue_claim`, `verify_claim`, `append_audit`, `revoke`.
+</Tip>
 
 ## Examples
 
@@ -400,19 +520,60 @@ tools:
     builtin: my_tool
 ```
 
+### Custom tool types (`register_tool_resolver`)
+
+The five built-in `ToolDef` shapes (`function`, `mcp`, `builtin`, `agent`, `transfer`) cover most needs — but if you need a whole new *kind* of tool (a webhook, an HTTP RPC, a proprietary bus), reach for the `custom:` field + a resolver.
+
+```python
+from langchain_core.tools import Tool
+from orxhestra.composer import register_tool_resolver
+
+
+def build_webhook(config: dict) -> Tool:
+    """Resolver for `custom.type == "webhook"`.
+
+    The full ``custom`` dict (including the ``type`` key) is passed in.
+    Can be sync or async — the composer awaits whatever the resolver returns.
+    """
+    url = config["url"]
+    return Tool.from_function(
+        name=config.get("name", "webhook"),
+        description="POST JSON to a webhook and return the response text.",
+        func=lambda body: httpx.post(url, json=body).text,
+    )
+
+register_tool_resolver("webhook", build_webhook)
+```
+
+```yaml
+tools:
+  notifier:
+    custom:
+      type: webhook               # dispatches to build_webhook
+      url: https://example.com/notify
+      name: notify
+      description: "Send a payload to the notify webhook."
+```
+
+Async resolvers work transparently — the composer awaits whichever shape you return.
+
 ## Python API
 
 | Method | Returns | Description |
 |--------|---------|-------------|
-| `Composer.from_yaml(path)` | `BaseAgent` | Build root agent (sync) |
-| `Composer.from_yaml_async(path)` | `BaseAgent` | Build root agent (async) |
-| `Composer.runner_from_yaml(path)` | `Runner` | Build Runner with sessions |
-| `Composer.runner_from_yaml_async(path)` | `Runner` | Build Runner with sessions (async) |
-| `Composer.server_from_yaml(path)` | `FastAPI` | Build A2A server app |
-| `Composer.server_from_yaml_async(path)` | `FastAPI` | Build A2A server app (async) |
+| `Composer.from_yaml(path)` | `BaseAgent` | Parse YAML and build the root agent (sync) |
+| `Composer.from_yaml_async(path)` | `BaseAgent` | Same, async |
+| `Composer.runner_from_yaml(path)` | `Runner` | Build a Runner with sessions + trust middleware |
+| `Composer.runner_from_yaml_async(path)` | `Runner` | Same, async |
+| `Composer.server_from_yaml(path)` | `FastAPI` | Build an A2A server app |
+| `Composer.server_from_yaml_async(path)` | `FastAPI` | Same, async |
+| `Composer(spec).build()` | `BaseAgent` | **Public build hook** for callers that need to mutate `spec` between construction and build |
+| `Composer(spec).build_runner(root)` | `Runner` | Wrap a built tree in a Runner |
+| `Composer(spec).build_server(root)` | `FastAPI` | Wrap a built tree in an A2A app |
 
 | Registry function | Description |
 |-------------------|-------------|
 | `register_builder(type, fn)` | Add a custom agent type builder |
 | `register_provider(name, cls)` | Add a custom model provider |
-| `register_builtin_tool(name, factory)` | Add a custom builtin tool |
+| `register_builtin_tool(name, factory)` | Add a custom built-in tool |
+| `register_tool_resolver(type, resolver)` | Add a new tool type accessible via `tools: { custom: { type: ... } }` |

@@ -238,6 +238,7 @@ def render_banner(
     orx_path: Path,
     model_name: str,
     workspace: str,
+    signer_did: str | None = None,
 ) -> Any:
     """Return a Rich renderable for the welcome banner.
 
@@ -249,6 +250,10 @@ def render_banner(
         Name of the LLM model in use.
     workspace : str
         Workspace directory path.
+    signer_did : str, optional
+        Active Ed25519 signer DID.  When provided, a truncated form
+        is appended as an ``identity:`` row so users can see at a
+        glance whether signing is active.
 
     Returns
     -------
@@ -285,11 +290,34 @@ def render_banner(
         f"[/orx.banner.version]"
     )
     lbl: str = "orx.banner.label"
+    if signer_did:
+        # Split `did:<method>:<body>` so Rich doesn't treat `:key:`
+        # inside the DID as an emoji shortcode (it would otherwise
+        # render as 🔑 in most terminals).
+        method = ""
+        body = signer_did
+        if signer_did.startswith("did:"):
+            rest = signer_did[len("did:"):]
+            if ":" in rest:
+                method, body = rest.split(":", 1)
+        if len(body) > 40:
+            body = body[:16] + "…" + body[-16:]
+        method_tag = f"[orx.muted]{method}[/orx.muted] " if method else ""
+        identity_row = (
+            f"\n[{lbl}]identity:[/{lbl}]  "
+            f"{method_tag}[orx.accent]{body}[/orx.accent]"
+        )
+    else:
+        identity_row = (
+            f"\n[{lbl}]identity:[/{lbl}]  "
+            f"[orx.muted]disabled (pass --identity to enable)[/orx.muted]"
+        )
     content: str = (
         f"[orx.accent]orx[/orx.accent] {ver}\n"
         f"[{lbl}]model:[/{lbl}]     {model_name}\n"
         f"[{lbl}]workspace:[/{lbl}] {ws_display}\n"
         f"[{lbl}]agents:[/{lbl}]    {agent_names}"
+        f"{identity_row}"
     )
 
     return Panel(
@@ -304,6 +332,7 @@ def print_banner(
     model_name: str,
     workspace: str,
     writer: Writer,
+    signer_did: str | None = None,
 ) -> None:
     """Print a styled welcome banner.
 
@@ -317,6 +346,10 @@ def print_banner(
         Workspace directory path.
     writer : Writer
         Output writer.
+    signer_did : str, optional
+        Active signer DID to display in the banner.
     """
     writer.print_rich()
-    writer.print_rich(render_banner(orx_path, model_name, workspace))
+    writer.print_rich(
+        render_banner(orx_path, model_name, workspace, signer_did=signer_did),
+    )

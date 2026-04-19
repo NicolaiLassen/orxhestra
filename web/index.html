@@ -3,21 +3,21 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>orxhestra - Multi-Agent Orchestration Framework</title>
-  <meta name="description" content="Open-source Python framework for orchestrating multi-agent AI systems. Async streaming, composable agent hierarchies, and first-class MCP & A2A integration.">
-  <meta name="keywords" content="multi-agent, AI agents, Python, orchestration, MCP, A2A, LLM, LangChain, async, streaming">
+  <title>orxhestra — multi-agent orchestration for Python</title>
+  <meta name="description" content="Open-source Python framework for orchestrating multi-agent AI systems. Async streaming, composable agent hierarchies, YAML composition, and first-class MCP & A2A integration.">
+  <meta name="keywords" content="multi-agent, AI agents, Python, orchestration, MCP, A2A, LLM, LangChain, async, streaming, YAML">
   <meta name="author" content="Nicolai M. T. Lassen">
-  <meta name="theme-color" content="#0a0a0f">
+  <meta name="theme-color" content="#0F0E13">
   <meta name="robots" content="index, follow">
   <meta name="googlebot" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1">
   <link rel="canonical" href="https://orxhestra.com">
   <link rel="sitemap" type="application/xml" href="/sitemap.xml">
 
-  <meta property="og:title" content="orxhestra - Multi-Agent Orchestration Framework">
-  <meta property="og:description" content="Open-source Python framework for orchestrating multi-agent AI systems. Async streaming, composable agent hierarchies, and first-class MCP & A2A integration.">
+  <meta property="og:title" content="orxhestra — multi-agent orchestration for Python">
+  <meta property="og:description" content="Compose multi-agent AI systems in YAML or Python. Async streaming, composable hierarchies, MCP & A2A. Apache 2.0.">
   <meta property="og:url" content="https://orxhestra.com">
   <meta property="og:image" content="https://orxhestra.com/og-image.png">
-  <meta property="og:image:alt" content="orxhestra - Multi-Agent Orchestration Framework for Python">
+  <meta property="og:image:alt" content="orxhestra — multi-agent orchestration for Python">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
   <meta property="og:type" content="website">
@@ -25,13 +25,12 @@
   <meta property="og:locale" content="en_US">
 
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="orxhestra - Multi-Agent Orchestration Framework">
-  <meta name="twitter:description" content="Open-source Python framework for orchestrating multi-agent AI systems. Async streaming, composable agent hierarchies, and first-class MCP & A2A integration.">
+  <meta name="twitter:title" content="orxhestra — multi-agent orchestration for Python">
+  <meta name="twitter:description" content="Compose multi-agent AI systems in YAML or Python. Async streaming, composable hierarchies, MCP & A2A. Apache 2.0.">
   <meta name="twitter:image" content="https://orxhestra.com/og-image.png">
-  <meta name="twitter:image:alt" content="orxhestra - Multi-Agent Orchestration Framework for Python">
 
-  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg viewBox='0 0 100 100' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='0'%3E%3Cstop offset='0%25' stop-color='%233b82f6'/%3E%3Cstop offset='50%25' stop-color='%238b5cf6'/%3E%3Cstop offset='100%25' stop-color='%2338bdf8'/%3E%3C/linearGradient%3E%3C/defs%3E%3Cpath d='M5 50L20 50C30 50,35 10,50 50C65 90,70 50,80 50L95 50' stroke='url(%23g)' stroke-width='3' stroke-linecap='round'/%3E%3Cpath d='M5 50L20 50C30 50,35 90,50 50C65 10,70 50,80 50L95 50' stroke='url(%23g)' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E">
-  <link rel="apple-touch-icon" href="https://orxhestra.com/og-image.png">
+  <link rel="icon" type="image/svg+xml" href="/brand/favicon.svg">
+  <link rel="apple-touch-icon" href="/og-image.png">
 
   <script type="application/ld+json">
   {
@@ -49,840 +48,760 @@
     }
   }
   </script>
+
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,400;0,500;0,600;0,700;0,800;1,800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600&family=Geist+Mono:wght@400;500&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+
   <style>
     *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
     :root {
-      --blue: #3b82f6;
-      --purple: #8b5cf6;
-      --sky: #38bdf8;
-      --indigo: #6366f1;
-      --violet: #a855f7;
-      --bg: #0a0a0f;
-      --bg-card: #111118;
-      --border: #1e1e2e;
-      --text: #e2e8f0;
-      --text-dim: #94a3b8;
+      --ink: #0F0E13;
+      --ink-deep: #09080C;
+      --ink-raised: #141218;
+      --paper: #F5F2EB;
+      --paper-dim: #D4D0C7;
+      --signal: #3FE0A8;
+      --signal-dim: rgba(63, 224, 168, 0.12);
+      --signal-edge: rgba(63, 224, 168, 0.28);
+      --whisper: #8A8693;
+      --whisper-soft: #6B6872;
+      --line: #1E1C24;
+      --line-bright: #2A2732;
+      --radius-sm: 8px;
+      --radius: 12px;
+      --radius-lg: 18px;
     }
 
+    html {
+      scroll-behavior: smooth;
+      -webkit-font-smoothing: antialiased;
+      text-rendering: optimizeLegibility;
+    }
     html, body { overflow-x: hidden; max-width: 100vw; }
-    html { scroll-behavior: smooth; }
 
     body {
-      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-      background: var(--bg);
-      color: var(--text);
+      font-family: 'Geist', 'Inter', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+      font-feature-settings: "ss01", "cv11";
+      background: var(--ink);
+      color: var(--paper);
       line-height: 1.6;
+      letter-spacing: -0.005em;
     }
 
-    /* Background ambient light */
+    /* Single ambient glow — no rainbow. */
     body::before {
       content: '';
       position: fixed;
       inset: 0;
-      background: radial-gradient(ellipse 80% 50% at 50% -20%, rgba(99, 102, 241, 0.12), transparent),
-                  radial-gradient(ellipse 60% 40% at 80% 50%, rgba(56, 189, 248, 0.06), transparent);
+      background:
+        radial-gradient(ellipse 60% 40% at 50% -5%, rgba(63,224,168,0.08), transparent 60%),
+        radial-gradient(ellipse 40% 30% at 100% 20%, rgba(63,224,168,0.04), transparent 70%);
       pointer-events: none;
       z-index: 0;
     }
-    .container { max-width: 1100px; margin: 0 auto; padding: 0 24px; position: relative; z-index: 1; }
 
-    /* ── Nav ── */
+    .container { max-width: 1080px; margin: 0 auto; padding: 0 24px; position: relative; z-index: 1; }
+
+    a { color: inherit; text-decoration: none; }
+    code { font-family: 'Geist Mono', 'JetBrains Mono', 'SF Mono', monospace; }
+
+    /* ── Nav ─────────────────────────────────────────────── */
     nav {
-      position: fixed; top: 12px; left: 50%; transform: translateX(-50%);
+      position: fixed; top: 16px; left: 50%; transform: translateX(-50%);
       z-index: 100;
-      width: min(calc(100% - 32px), 1100px);
-      background: linear-gradient(
-        135deg,
-        rgba(59, 130, 246, 0.08) 0%,
-        rgba(99, 102, 241, 0.06) 50%,
-        rgba(56, 189, 248, 0.08) 100%
-      );
-      -webkit-backdrop-filter: blur(24px) saturate(1.4);
-      backdrop-filter: blur(24px) saturate(1.4);
-      border: 1px solid rgba(59, 130, 246, 0.15);
-      border-radius: 999px;
-      box-shadow: 0 4px 24px rgba(0, 0, 0, 0.2),
-                  0 1px 12px rgba(59, 130, 246, 0.06);
+      width: min(calc(100% - 32px), 1080px);
+      background: rgba(15, 14, 19, 0.72);
+      -webkit-backdrop-filter: blur(18px) saturate(1.2);
+      backdrop-filter: blur(18px) saturate(1.2);
+      border: 1px solid var(--line);
+      border-radius: 14px;
     }
     nav .container {
       display: flex; align-items: center; justify-content: space-between;
-      height: 64px;
+      height: 56px;
+      padding: 0 18px;
     }
-    .nav-logo {
-      display: flex; align-items: center; gap: 10px;
-      text-decoration: none; color: var(--text);
-    }
-    .nav-logo img { height: 52px; width: auto; }
-    .nav-links { display: flex; align-items: center; gap: 28px; }
+    .nav-logo { display: flex; align-items: center; gap: 10px; color: var(--paper); }
+    .nav-logo svg { height: 22px; width: auto; }
+    .nav-links { display: flex; align-items: center; gap: 22px; }
     .nav-links a {
-      color: var(--text-dim); text-decoration: none; font-size: 14px; font-weight: 500;
-      transition: color 0.2s;
+      color: var(--whisper); font-size: 14px; font-weight: 400;
+      transition: color .15s ease;
     }
-    .nav-links a:hover { color: var(--text); }
+    .nav-links a:hover { color: var(--paper); }
     .nav-cta {
-      background: linear-gradient(135deg, var(--blue), var(--purple));
-      color: #fff !important; padding: 8px 20px; border-radius: 8px;
-      font-weight: 600; font-size: 13px;
-      transition: opacity 0.2s;
+      color: var(--ink) !important;
+      background: var(--signal);
+      padding: 8px 16px; border-radius: var(--radius-sm);
+      font-weight: 500; font-size: 13px;
+      transition: opacity .15s ease, transform .15s ease;
     }
-    .nav-cta:hover { opacity: 0.9; }
+    .nav-cta:hover { opacity: 0.92; transform: translateY(-1px); }
 
-    /* ── Hero ── */
+    /* ── Hero ─────────────────────────────────────────────── */
     .hero {
       position: relative;
-      padding: 100px 0 120px;
+      padding: 140px 0 100px;
       text-align: center;
     }
     .hero::before {
       content: '';
       position: absolute;
-      top: -200px; left: 50%; transform: translateX(-50%);
-      width: 800px; height: 600px;
-      background: radial-gradient(ellipse, rgba(59,130,246,0.10), transparent 70%);
+      top: 40px; left: 50%; transform: translateX(-50%);
+      width: 620px; height: 620px;
+      background: radial-gradient(circle at 50% 40%, rgba(63,224,168,0.12), transparent 55%);
       pointer-events: none; z-index: 0;
     }
-    .hero-wave {
-      width: 300px; height: 300px; margin: 0 auto;
-      overflow: visible;
+    .hero-mark {
+      width: 168px; height: 168px; margin: 0 auto 40px;
+      position: relative; z-index: 1;
     }
-    .hero-wave path { /* opacity controlled by SVG animate */ }
+    .hero-mark svg { width: 100%; height: 100%; }
+
     .hero h1 {
-      font-size: clamp(3rem, 5vw, 5rem);
-      font-weight: 800; font-style: italic;
-      letter-spacing: -0.03em; line-height: 1.1;
-      background: linear-gradient(90deg, #60a5fa, #a78bfa, #38bdf8);
-      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-      background-clip: text;
-      margin-bottom: 24px;
+      font-family: 'Geist', sans-serif;
+      font-weight: 500;
+      font-size: clamp(2.75rem, 5.5vw, 4.5rem);
+      letter-spacing: -0.035em;
+      line-height: 1;
+      color: var(--paper);
+      margin-bottom: 20px;
     }
-    .hero p {
-      font-size: clamp(18px, 2.5vw, 22px);
-      color: var(--text-dim);
-      max-width: 640px; margin: 0 auto 48px;
-      line-height: 1.5;
+    .hero-tagline {
+      font-size: clamp(1.05rem, 1.8vw, 1.2rem);
+      color: var(--whisper);
+      max-width: 540px; margin: 0 auto 40px;
+      line-height: 1.55;
     }
-    .hero-actions { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; }
+    .hero-badges {
+      display: inline-flex; gap: 8px; flex-wrap: wrap; justify-content: center;
+      margin-bottom: 28px;
+    }
+    .badge {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 5px 12px; border-radius: 999px;
+      font-size: 13px; font-weight: 500;
+      border: 1px solid var(--line-bright);
+      background: var(--ink-raised);
+      color: var(--whisper);
+      transition: border-color .15s ease, color .15s ease;
+    }
+    .badge:hover { color: var(--paper); border-color: var(--signal-edge); }
+    .badge.signal { color: var(--signal); border-color: var(--signal-edge); background: var(--signal-dim); }
+    .badge svg { width: 14px; height: 14px; }
+
+    .hero-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
     .btn {
       display: inline-flex; align-items: center; justify-content: center;
-      gap: 8px; min-width: 160px;
-      padding: 14px 28px; border-radius: 10px;
-      font-size: 15px; font-weight: 600;
-      text-decoration: none; transition: all 0.2s;
-      border: none; cursor: pointer;
+      gap: 8px; min-width: 140px;
+      padding: 11px 22px; border-radius: var(--radius-sm);
+      font-family: 'Geist', sans-serif;
+      font-size: 14px; font-weight: 500;
+      cursor: pointer;
+      transition: all .15s ease;
+      border: 1px solid transparent;
     }
+    .btn svg { width: 14px; height: 14px; }
     .btn-primary {
-      background: linear-gradient(135deg, var(--blue), var(--purple));
-      color: #fff;
+      background: var(--signal); color: var(--ink);
     }
-    .btn-primary:hover { opacity: 0.9; transform: translateY(-1px); box-shadow: 0 0 20px rgba(59,130,246,0.3); }
+    .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 0 24px rgba(63,224,168,0.3); }
     .btn-secondary {
-      background: var(--bg-card);
-      color: var(--text);
-      border: 1px solid var(--border);
+      background: transparent; color: var(--paper);
+      border-color: var(--line-bright);
     }
-    .btn-secondary:hover { border-color: #333; transform: translateY(-1px); }
+    .btn-secondary:hover { border-color: var(--whisper); transform: translateY(-1px); }
 
-    /* ── Install ── */
-    .install-bar {
-      margin: 48px auto 0; max-width: 420px;
-      background: var(--bg-card); border: 1px solid var(--border);
-      border-radius: 12px; padding: 14px 20px;
-      display: flex; align-items: center; justify-content: space-between;
-      font-family: 'SF Mono', 'Fira Code', monospace; font-size: 14px;
-      color: var(--text-dim);
+    /* Install bar ─────────────────────────────────────────── */
+    .install {
+      max-width: 420px; margin: 44px auto 0;
     }
-    .install-bar code { color: var(--text); }
-    .install-bar code span { color: var(--sky); }
-    .install-bar button {
-      background: none; border: none; color: var(--text-dim);
-      cursor: pointer; padding: 4px; transition: color 0.2s;
-    }
-    .install-bar button:hover { color: var(--text); }
     .install-tabs {
-      display: flex; gap: 0; margin: 48px auto 0; max-width: 420px;
-      justify-content: center;
+      display: flex; gap: 4px; justify-content: center; margin-bottom: 10px;
     }
     .install-tab {
-      background: none; color: var(--text-dim);
-      padding: 8px 20px; font-size: 13px; font-weight: 600;
-      cursor: pointer; transition: all 0.2s;
-      font-family: 'Inter', sans-serif;
-      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--whisper);
+      padding: 4px 12px; border-radius: 6px;
+      font-family: 'Geist Mono', monospace; font-size: 12px; font-weight: 500;
+      cursor: pointer; border: 1px solid transparent;
+      transition: all .15s ease;
     }
-    .install-tab:first-child { border-radius: 8px 0 0 8px; }
-    .install-tab:last-child { border-radius: 0 8px 8px 0; margin-left: -1px; }
-    .install-tab:hover { color: var(--text); }
-    .install-tab.active {
-      color: var(--text);
-      border-color: var(--blue);
-      background: rgba(59,130,246,0.08);
-      z-index: 1;
-      position: relative;
+    .install-tab.active { color: var(--signal); border-color: var(--signal-edge); background: var(--signal-dim); }
+    .install-bar {
+      background: var(--ink-deep); border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 14px 18px;
+      display: flex; align-items: center; justify-content: space-between;
+      font-family: 'Geist Mono', monospace; font-size: 13px;
+      color: var(--paper-dim);
     }
+    .install-bar .prompt { color: var(--whisper-soft); margin-right: 8px; }
+    .install-bar .pkg { color: var(--signal); }
+    .install-bar button {
+      background: transparent; border: none; color: var(--whisper);
+      cursor: pointer; padding: 4px 6px; border-radius: 6px;
+      transition: color .15s ease, background .15s ease;
+    }
+    .install-bar button:hover { color: var(--paper); background: var(--line); }
+    .install-bar button.copied { color: var(--signal); }
 
-    /* ── Scroll Reveal ── */
-    .reveal { opacity: 0; transform: translateY(30px); transition: opacity 0.7s ease, transform 0.7s ease; }
+    /* Reveal animation ───────────────────────────────────── */
+    .reveal {
+      opacity: 0; transform: translateY(24px);
+      transition: opacity .7s ease, transform .7s ease;
+    }
     .reveal.visible { opacity: 1; transform: translateY(0); }
 
-    /* ── Features ── */
-    .features { padding: 6rem 0; }
-    .section-label {
-      text-transform: uppercase; font-size: 12px; font-weight: 700;
-      letter-spacing: 3px; color: var(--purple);
-      text-align: center; margin-bottom: 12px;
+    /* Section scaffolding ────────────────────────────────── */
+    section.block { padding: 88px 0; }
+    .eyebrow {
+      font-family: 'Geist Mono', monospace;
+      font-size: 12px; font-weight: 500;
+      letter-spacing: 0.08em; text-transform: lowercase;
+      color: var(--signal);
+      margin-bottom: 10px; text-align: center;
     }
-    .section-title {
-      font-size: clamp(1.8rem, 3vw, 2.8rem); font-weight: 700;
-      text-align: center; margin-bottom: 64px;
-      letter-spacing: -0.02em;
+    .title {
+      font-family: 'Geist', sans-serif;
+      font-size: clamp(1.75rem, 3vw, 2.4rem);
+      font-weight: 500;
+      letter-spacing: -0.025em;
+      line-height: 1.15;
+      text-align: center;
+      max-width: 680px; margin: 0 auto 56px;
+      color: var(--paper);
     }
-    h3 { font-size: 1.15rem; font-weight: 600; }
-    p { line-height: 1.7; }
+
+    /* Feature grid ──────────────────────────────────────── */
     .features-grid {
-      display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-      gap: 20px;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 14px;
     }
-    .feature-card {
-      background: rgba(18,18,28,0.9);
-      border: 1px solid rgba(255,255,255,0.08);
-      border-radius: 16px;
-      padding: 36px;
-      transition: all 0.3s ease;
+    .feature {
+      background: var(--ink-raised);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 28px;
+      transition: border-color .2s ease, background .2s ease, transform .2s ease;
     }
-    .feature-card:hover {
-      border-color: rgba(59,130,246,0.25);
-      background: rgba(20,20,32,0.95);
-      transform: translateY(-4px);
-      box-shadow: 0 8px 30px rgba(59,130,246,0.08);
+    .feature:hover {
+      border-color: var(--signal-edge);
+      background: rgba(20, 18, 24, 0.9);
+      transform: translateY(-2px);
     }
     .feature-icon {
-      width: 40px; height: 40px; border-radius: 10px;
-      display: flex; align-items: center; justify-content: center;
-      margin-bottom: 16px; font-size: 20px;
+      width: 36px; height: 36px;
+      border-radius: var(--radius-sm);
+      display: grid; place-items: center;
+      background: var(--signal-dim);
+      color: var(--signal);
+      margin-bottom: 18px;
     }
-    .feature-card h3 { font-size: 18px; font-weight: 700; margin-bottom: 8px; }
-    .feature-card p { font-size: 14px; color: var(--text-dim); line-height: 1.6; }
+    .feature-icon svg { width: 18px; height: 18px; }
+    .feature h3 {
+      font-family: 'Geist', sans-serif;
+      font-size: 16px; font-weight: 500;
+      letter-spacing: -0.015em;
+      color: var(--paper);
+      margin-bottom: 6px;
+    }
+    .feature p {
+      font-size: 14px; color: var(--whisper); line-height: 1.55;
+    }
+    .feature code {
+      color: var(--signal); font-size: 13px;
+      padding: 1px 4px; background: var(--signal-dim); border-radius: 4px;
+    }
 
-    /* ── Code ── */
-    .code-section { padding: 6rem 0; }
-    .code-grid {
-      display: grid; grid-template-columns: 1fr 1fr; gap: 40px;
-      align-items: start;
+    /* Provider strip ───────────────────────────────────── */
+    .providers {
+      padding: 40px 0;
+      text-align: center;
     }
-    .code-text h3 {
-      font-size: 28px; font-weight: 800; margin-bottom: 16px;
-      letter-spacing: -0.5px;
+    .providers p {
+      color: var(--whisper-soft); font-size: 13px;
+      letter-spacing: 0.04em;
+      -webkit-mask-image: linear-gradient(to right, transparent, black 8%, black 92%, transparent);
+      mask-image: linear-gradient(to right, transparent, black 8%, black 92%, transparent);
     }
-    .code-text p { color: var(--text-dim); margin-bottom: 24px; font-size: 15px; }
-    .code-text ul { list-style: none; }
-    .code-text li {
-      padding: 8px 0; font-size: 15px; color: var(--text-dim);
-      display: flex; align-items: center; gap: 10px;
-    }
-    .code-text li::before {
-      content: '';
-      width: 6px; height: 6px; border-radius: 50%;
-      background: var(--purple); flex-shrink: 0;
-    }
-    .code-block {
-      background: rgba(18,18,28,0.9);
-      border: 1px solid rgba(255,255,255,0.08);
-      border-radius: 12px;
+    .providers .plus { color: var(--signal); }
+
+    /* Code block ──────────────────────────────────────── */
+    .card {
+      background: var(--ink-deep);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
       overflow: hidden;
     }
-    .code-header {
-      padding: 12px 20px; border-bottom: 1px solid var(--border);
-      display: flex; align-items: center; gap: 8px;
+    .card-head {
+      padding: 11px 16px;
+      border-bottom: 1px solid var(--line);
+      display: flex; align-items: center; gap: 10px;
+      font-family: 'Geist Mono', monospace;
+      font-size: 12px; color: var(--whisper-soft);
     }
-    .code-dot {
-      width: 12px; height: 12px; border-radius: 50%;
+    .card-head::before {
+      content: '';
+      width: 7px; height: 7px; border-radius: 50%;
+      background: var(--whisper-soft);
     }
-    .code-dot:nth-child(1) { background: #ff5f57; }
-    .code-dot:nth-child(2) { background: #febc2e; }
-    .code-dot:nth-child(3) { background: #28c840; }
-    .code-header span {
-      margin-left: 8px; font-size: 13px; color: var(--text-dim);
+    .card pre {
+      padding: 22px;
+      overflow-x: auto;
+      font-family: 'Geist Mono', 'JetBrains Mono', monospace;
+      font-size: 13px; line-height: 1.65;
+      color: var(--paper-dim);
     }
-    .code-block pre {
-      padding: 24px; overflow-x: auto;
-      font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
-      font-size: 13px; line-height: 1.7;
-    }
-    .code-block .kw { color: #c792ea; }
-    .code-block .fn { color: #82aaff; }
-    .code-block .str { color: #c3e88d; }
-    .code-block .cm { color: #546e7a; }
-    .code-block .num { color: #f78c6c; }
-    .code-block .op { color: #89ddff; }
+    .tok-kw { color: var(--signal); }
+    .tok-fn { color: #8ab4f8; }
+    .tok-str { color: #f5c06b; }
+    .tok-cm { color: var(--whisper-soft); font-style: italic; }
+    .tok-num { color: #f5a0a0; }
+    .tok-op { color: var(--paper); }
+    .tok-id { color: var(--paper); }
+    .tok-dim { color: var(--whisper); }
 
-    /* ── Agents table ── */
-    .agents-section { padding: 6rem 0; }
+    /* Two-column: copy + code ─────────────────────────── */
+    .split {
+      display: grid;
+      grid-template-columns: 1fr 1.1fr;
+      gap: 40px;
+      align-items: start;
+    }
+    .split h3 {
+      font-family: 'Geist', sans-serif;
+      font-size: 1.6rem; font-weight: 500;
+      letter-spacing: -0.02em;
+      color: var(--paper);
+      margin-bottom: 14px;
+    }
+    .split p { color: var(--whisper); font-size: 15px; margin-bottom: 20px; }
+    .split ul { list-style: none; }
+    .split li {
+      padding: 7px 0; font-size: 14px; color: var(--whisper);
+      display: flex; align-items: center; gap: 10px;
+    }
+    .split li::before {
+      content: '';
+      width: 4px; height: 4px; border-radius: 50%;
+      background: var(--signal);
+      flex-shrink: 0;
+    }
+    @media (max-width: 720px) {
+      .split { grid-template-columns: 1fr; }
+    }
+
+    /* Agent badges ────────────────────────────────────── */
     .agents-grid {
-      display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-      gap: 16px;
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 12px;
     }
-    .agent-card {
-      background: rgba(18,18,28,0.9);
-      border: 1px solid rgba(255,255,255,0.08);
-      border-radius: 14px; padding: 24px;
-      display: flex; align-items: flex-start; gap: 16px;
-      transition: all 0.3s ease;
+    .agent {
+      background: var(--ink-raised);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 20px;
+      display: flex; align-items: flex-start; gap: 14px;
+      transition: border-color .2s ease, transform .2s ease;
     }
-    .agent-card:hover {
-      border-color: rgba(59,130,246,0.2);
-      transform: translateY(-2px);
-      box-shadow: 0 4px 20px rgba(59,130,246,0.06);
-    }
-    .agent-badge {
-      padding: 6px 12px; border-radius: 8px;
-      font-family: 'SF Mono', monospace; font-size: 12px; font-weight: 600;
+    .agent:hover { border-color: var(--signal-edge); transform: translateY(-2px); }
+    .agent-tag {
+      padding: 4px 10px; border-radius: 6px;
+      font-family: 'Geist Mono', monospace; font-size: 12px; font-weight: 500;
+      background: var(--signal-dim); color: var(--signal);
       white-space: nowrap;
-      background: rgba(99, 102, 241, 0.1); color: var(--indigo);
-      border: 1px solid rgba(99, 102, 241, 0.2);
     }
-    .agent-card p { font-size: 14px; color: var(--text-dim); }
+    .agent p { font-size: 13px; color: var(--whisper); line-height: 1.55; }
 
-    /* ── Composer ── */
-    .composer-section { padding: 6rem 0; }
-    .composer-section .code-block { max-width: 700px; margin: 0 auto; }
+    /* CLI demo ───────────────────────────────────────── */
+    .terminal-note {
+      display: block;
+      margin: 0 auto 20px;
+      max-width: 700px;
+      padding: 14px 18px;
+      background: var(--ink-raised);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      transition: border-color .2s ease, transform .2s ease;
+    }
+    .terminal-note:hover { border-color: var(--signal-edge); transform: translateY(-1px); }
+    .terminal-note strong {
+      display: flex; align-items: center; gap: 8px;
+      font-weight: 500; color: var(--paper);
+      font-size: 14px;
+    }
+    .terminal-note span { color: var(--whisper); font-size: 13px; margin-top: 4px; display: block; }
 
-    /* ── CTA ── */
+    /* Composer split ─────────────────────────────────── */
+    .composer-demos {
+      display: grid; grid-template-columns: 1fr 1fr;
+      gap: 12px; margin-top: 12px;
+    }
+    @media (max-width: 720px) {
+      .composer-demos { grid-template-columns: 1fr; }
+    }
+
+    /* CTA ────────────────────────────────────────────── */
     .cta {
-      padding: 120px 0; text-align: center;
-    }
-    .cta h2 {
-      font-size: clamp(1.8rem, 3vw, 2.8rem); font-weight: 700;
-      margin-bottom: 16px; letter-spacing: -0.02em;
-    }
-    .cta p { color: var(--text-dim); font-size: 18px; margin-bottom: 40px; }
-
-    /* ── Footer ── */
-    footer {
-      border-top: none;
-      padding: 40px 0;
+      padding: 120px 0 140px;
+      text-align: center;
       position: relative;
     }
-    footer::before {
+    .cta::before {
       content: '';
-      position: absolute; top: 0; left: 0; right: 0;
-      height: 1px;
-      background: linear-gradient(to right, transparent, rgba(59,130,246,0.3), transparent);
+      position: absolute; inset: 0;
+      background: radial-gradient(ellipse 50% 60% at 50% 50%, rgba(63,224,168,0.06), transparent 70%);
+      pointer-events: none;
+    }
+    .cta h2 {
+      font-family: 'Geist', sans-serif;
+      font-size: clamp(2rem, 4vw, 3rem);
+      font-weight: 500;
+      letter-spacing: -0.03em;
+      color: var(--paper);
+      margin-bottom: 14px;
+    }
+    .cta p { color: var(--whisper); font-size: 1.05rem; margin-bottom: 32px; }
+
+    /* Footer ─────────────────────────────────────────── */
+    footer {
+      padding: 40px 0 60px;
+      border-top: 1px solid var(--line);
+      margin-top: 60px;
     }
     footer .container {
       display: flex; justify-content: space-between; align-items: center;
       flex-wrap: wrap; gap: 16px;
     }
-    footer p { font-size: 14px; color: var(--text-dim); }
-    .footer-links { display: flex; gap: 24px; }
+    footer p { color: var(--whisper-soft); font-size: 13px; }
+    .footer-links { display: flex; gap: 20px; align-items: center; }
     .footer-links a {
-      color: var(--text-dim); text-decoration: none; font-size: 14px;
-      transition: color 0.2s;
+      color: var(--whisper); font-size: 13px;
+      transition: color .15s ease;
     }
-    .footer-links a:hover { color: var(--text); }
-    .footer-links svg { width: 20px; height: 20px; }
+    .footer-links a:hover { color: var(--paper); }
+    .footer-links svg { width: 16px; height: 16px; }
 
-    /* ── Flow Line ── */
-    .flow-line {
-      position: absolute;
-      left: 0;
-      width: 100%;
-      pointer-events: none;
-      z-index: 0;
-    }
-    .flow-line circle {
-      animation: nodePulse 3s ease-in-out infinite;
-    }
-    @keyframes nodePulse {
-      0%, 100% { opacity: 0.2; }
-      50% { opacity: 0.5; }
-    }
-    .flow-energy {
-      stroke-dasharray: 40 1960;
-      animation: flowEnergy 12s linear infinite;
-    }
-    @keyframes flowEnergy {
-      0% { stroke-dashoffset: 2000; }
-      100% { stroke-dashoffset: 0; }
-    }
-
-
-    .composer-split {
-      display: flex; gap: 1rem; margin-top: 2rem;
-      flex-wrap: wrap; justify-content: center;
-    }
-    .composer-split .code-block { flex: 1; min-width: 280px; max-width: 420px; }
-
-    /* ── Responsive ── */
+    /* Responsive ─────────────────────────────────────── */
     @media (max-width: 768px) {
-      .code-grid { grid-template-columns: 1fr; }
-      .nav-links { gap: 16px; }
       .nav-links a:not(.nav-cta) { display: none; }
-      .features-grid { grid-template-columns: 1fr !important; }
+      .nav-links { gap: 10px; }
+      section.block { padding: 64px 0; }
+      .hero { padding: 120px 0 64px; }
     }
+    @media (max-width: 480px) {
+      .hero-mark { width: 124px; height: 124px; margin-bottom: 32px; }
+      .btn { min-width: 120px; font-size: 13px; }
+    }
+
+    /* Focus styles (a11y) ───────────────────────────── */
+    a:focus-visible, button:focus-visible {
+      outline: 2px solid var(--signal); outline-offset: 3px; border-radius: 6px;
+    }
+
+    /* Selection */
+    ::selection { background: var(--signal); color: var(--ink); }
   </style>
 </head>
 <body>
 
-<!-- removed background SVG waves --><div style="display:none">
-    <path class="wave-path wave-1" d="M-100 200 C-77 200,-53 225,-30 225 C-7 225,17 247,40 247 C63 247,87 265,110 265 C133 265,157 276,180 276 C203 276,227 280,250 280 C273 280,297 276,320 276 C343 276,367 265,390 265 C413 265,437 247,460 247 C483 247,507 225,530 225 C553 225,577 200,600 200 C623 200,647 175,670 175 C693 175,717 153,740 153 C763 153,787 135,810 135 C833 135,857 124,880 124 C903 124,927 120,950 120 C973 120,997 124,1020 124 C1043 124,1067 135,1090 135 C1113 135,1137 153,1160 153 C1183 153,1207 175,1230 175 C1253 175,1277 200,1300 200"/>
-    <path class="wave-path wave-2" d="M-100 281 C-77 281,-53 289,-30 289 C-7 289,17 288,40 288 C63 288,87 278,110 278 C133 278,157 259,180 259 C203 259,227 235,250 235 C273 235,297 208,320 208 C343 208,367 184,390 184 C413 184,437 164,460 164 C483 164,507 153,530 153 C553 153,577 150,600 150 C623 150,647 158,670 158 C693 158,717 174,740 174 C763 174,787 197,810 197 C833 197,857 223,880 223 C903 223,927 249,950 249 C973 249,997 270,1020 270 C1043 270,1067 285,1090 285 C1113 285,1137 290,1160 290 C1183 290,1207 286,1230 286 C1253 286,1277 272,1300 272"/>
-    <path class="wave-path wave-3" d="M-100 240 C-77 240,-53 238,-30 238 C-7 238,17 233,40 233 C63 233,87 224,110 224 C133 224,157 212,180 212 C203 212,227 199,250 199 C273 199,297 184,320 184 C343 184,367 169,390 169 C413 169,437 155,460 155 C483 155,507 142,530 142 C553 142,577 132,600 132 C623 132,647 124,670 124 C693 124,717 121,740 121 C763 121,787 121,810 121 C833 121,857 124,880 124 C903 124,927 132,950 132 C973 132,997 142,1020 142 C1043 142,1067 155,1090 155 C1113 155,1137 169,1160 169 C1183 169,1207 184,1230 184 C1253 184,1277 199,1300 199"/>
-    <path class="wave-path wave-4" d="M-100 230 C-77 230,-53 209,-30 209 C-7 209,17 192,40 192 C63 192,87 182,110 182 C133 182,157 181,180 181 C203 181,227 190,250 190 C273 190,297 206,320 206 C343 206,367 227,390 227 C413 227,437 248,460 248 C483 248,507 266,530 266 C553 266,577 278,600 278 C623 278,647 280,670 280 C693 280,717 272,740 272 C763 272,787 257,810 257 C833 257,857 236,880 236 C903 236,927 215,950 215 C973 215,997 196,1020 196 C1043 196,1067 184,1090 184 C1113 184,1137 180,1160 180 C1183 180,1207 186,1230 186 C1253 186,1277 201,1300 201"/>
-    <path class="wave-path wave-5" d="M-100 125 C-77 125,-53 128,-30 128 C-7 128,17 135,40 135 C63 135,87 147,110 147 C133 147,157 162,180 162 C203 162,227 180,250 180 C273 180,297 198,320 198 C343 198,367 216,390 216 C413 216,437 231,460 231 C483 231,507 244,530 244 C553 244,577 252,600 252 C623 252,647 255,670 255 C693 255,717 253,740 253 C763 253,787 246,810 246 C833 246,857 235,880 235 C903 235,927 220,950 220 C973 220,997 202,1020 202 C1043 202,1067 184,1090 184 C1113 184,1137 166,1160 166 C1183 166,1207 150,1230 150 C1253 150,1277 137,1300 137"/>
-    <path class="wave-path wave-6" d="M-100 249 C-77 249,-53 260,-30 260 C-7 260,17 265,40 265 C63 265,87 263,110 263 C133 263,157 256,180 256 C203 256,227 242,250 242 C273 242,297 225,320 225 C343 225,367 207,390 207 C413 207,437 188,460 188 C483 188,507 172,530 172 C553 172,577 161,600 161 C623 161,647 155,670 155 C693 155,717 156,740 156 C763 156,787 164,810 164 C833 164,857 176,880 176 C903 176,927 193,950 193 C973 193,997 212,1020 212 C1043 212,1067 230,1090 230 C1113 230,1137 246,1160 246 C1183 246,1207 258,1230 258 C1253 258,1277 264,1300 264"/>
-</div>
-
-<!-- Nav -->
+<!-- Nav ──────────────────────────────────────────────── -->
 <nav>
   <div class="container">
-    <a href="/" class="nav-logo">
-      <img src="logo_text_side.svg" alt="ORXHESTRA" />
+    <a href="/" class="nav-logo" aria-label="orxhestra home">
+      <svg viewBox="0 0 172.948 41.493" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <defs>
+          <mask id="nav-knockout" maskUnits="userSpaceOnUse" x="0" y="0" width="172.948" height="41.493">
+            <rect x="0" y="0" width="172.948" height="41.493" fill="white"/>
+            <path d="M31.698 9.795 A25.812 25.812 0 0 0 9.795 31.698 A25.812 25.812 0 0 0 31.698 9.795 Z" fill="black" transform="translate(20.746 20.746) scale(1.08) translate(-20.746 -20.746)"/>
+          </mask>
+        </defs>
+        <path d="M9.795 9.795 A25.812 25.812 0 0 0 31.698 31.698 A25.812 25.812 0 0 0 9.795 9.795 Z" fill="#3FE0A8" mask="url(#nav-knockout)"/>
+        <path d="M31.698 9.795 A25.812 25.812 0 0 0 9.795 31.698 A25.812 25.812 0 0 0 31.698 9.795 Z" fill="currentColor"/>
+        <text x="41.493" y="30.826" font-family="Geist, Inter, -apple-system, sans-serif" font-weight="500" font-size="28" letter-spacing="-0.015em" fill="currentColor">orxhestra</text>
+      </svg>
     </a>
     <div class="nav-links">
       <a href="https://docs.orxhestra.com">Docs</a>
       <a href="https://github.com/NicolaiLassen/orxhestra">GitHub</a>
       <a href="https://pypi.org/project/orxhestra/">PyPI</a>
-      <a href="https://docs.orxhestra.com/getting-started/quickstart" class="nav-cta">Get Started</a>
+      <a href="https://docs.orxhestra.com/getting-started/quickstart" class="nav-cta">Get started</a>
     </div>
   </div>
 </nav>
 
-<!-- Hero -->
+<!-- Hero ─────────────────────────────────────────────── -->
 <section class="hero">
   <div class="container">
-    <div class="hero-wave">
-      <svg viewBox="-20 -20 140 140" fill="none" xmlns="http://www.w3.org/2000/svg" style="overflow:visible">
+    <div class="hero-mark" aria-hidden="true">
+      <svg viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg">
         <defs>
-          <linearGradient id="heroWave" x1="0" y1="0" x2="1" y2="0">
-            <stop offset="0%" stop-color="#3b82f6" stop-opacity="0.1"/>
-            <stop offset="20%" stop-color="#3b82f6"/>
-            <stop offset="50%" stop-color="#8b5cf6"/>
-            <stop offset="80%" stop-color="#38bdf8"/>
-            <stop offset="100%" stop-color="#38bdf8" stop-opacity="0.1"/>
-          </linearGradient>
-          <!-- SVG glow filter — bright blurred halo -->
-          <filter id="glow" x="-200%" y="-200%" width="500%" height="500%" filterUnits="objectBoundingBox">
-            <feGaussianBlur in="SourceGraphic" stdDeviation="2" result="b1"/>
-            <feGaussianBlur in="SourceGraphic" stdDeviation="5" result="b2"/>
-            <feMerge>
-              <feMergeNode in="b2"/>
-              <feMergeNode in="b1"/>
-              <feMergeNode in="b1"/>
-            </feMerge>
-          </filter>
+          <mask id="hero-knockout" maskUnits="userSpaceOnUse" x="0" y="0" width="120" height="120">
+            <rect x="0" y="0" width="120" height="120" fill="white"/>
+            <path d="M91.672 28.328 A74.651 74.651 0 0 0 28.328 91.672 A74.651 74.651 0 0 0 91.672 28.328 Z" fill="black" transform="translate(60 60) scale(1.08) translate(-60 -60)"/>
+          </mask>
         </defs>
-        <!-- hw-1: outer+ (spiral order: 0s) -->
-        <g>
-          <path d="M5 50L20 50C30 50,35 10,50 50C65 90,70 50,80 50L95 50" stroke="url(#heroWave)" stroke-width="3" stroke-linecap="round" filter="url(#glow)" opacity="0">
-            <animate attributeName="d" dur="6s" repeatCount="indefinite" begin="0s"
-              values="M5 50L20 50C30 50,35 10,50 50C65 90,70 50,80 50L95 50;M5 50L20 50C30 50,35 5,50 50C65 95,70 50,80 50L95 50;M5 50L20 50C30 50,35 10,50 50C65 90,70 50,80 50L95 50"
-              keyTimes="0;0.1;0.25" keySplines="0.4 0 0.2 1;0.4 0 0.2 1" calcMode="spline"/>
-            <animate attributeName="opacity" dur="6s" repeatCount="indefinite" begin="0s"
-              values="0;0.85;0;0" keyTimes="0;0.05;0.15;1" calcMode="linear"/>
-          </path>
-          <path d="M5 50L20 50C30 50,35 10,50 50C65 90,70 50,80 50L95 50" stroke="url(#heroWave)" stroke-width="3" stroke-linecap="round" opacity="0.25">
-            <animate attributeName="d" dur="6s" repeatCount="indefinite" begin="0s"
-              values="M5 50L20 50C30 50,35 10,50 50C65 90,70 50,80 50L95 50;M5 50L20 50C30 50,35 5,50 50C65 95,70 50,80 50L95 50;M5 50L20 50C30 50,35 10,50 50C65 90,70 50,80 50L95 50"
-              keyTimes="0;0.1;0.25" keySplines="0.4 0 0.2 1;0.4 0 0.2 1" calcMode="spline"/>
-            <animate attributeName="opacity" dur="6s" repeatCount="indefinite" begin="0s"
-              values="0.25;1;0.25;0.25" keyTimes="0;0.1;0.3;1" calcMode="linear"/>
-          </path>
-        </g>
-        <!-- hw-2: outer- (spiral order: 5s) -->
-        <g>
-          <path d="M5 50L20 50C30 50,35 90,50 50C65 10,70 50,80 50L95 50" stroke="url(#heroWave)" stroke-width="3" stroke-linecap="round" filter="url(#glow)" opacity="0">
-            <animate attributeName="d" dur="6s" repeatCount="indefinite" begin="5s"
-              values="M5 50L20 50C30 50,35 90,50 50C65 10,70 50,80 50L95 50;M5 50L20 50C30 50,35 95,50 50C65 5,70 50,80 50L95 50;M5 50L20 50C30 50,35 90,50 50C65 10,70 50,80 50L95 50"
-              keyTimes="0;0.1;0.25" keySplines="0.4 0 0.2 1;0.4 0 0.2 1" calcMode="spline"/>
-            <animate attributeName="opacity" dur="6s" repeatCount="indefinite" begin="5s"
-              values="0;0.85;0;0" keyTimes="0;0.05;0.15;1" calcMode="linear"/>
-          </path>
-          <path d="M5 50L20 50C30 50,35 90,50 50C65 10,70 50,80 50L95 50" stroke="url(#heroWave)" stroke-width="3" stroke-linecap="round" opacity="0.25">
-            <animate attributeName="d" dur="6s" repeatCount="indefinite" begin="5s"
-              values="M5 50L20 50C30 50,35 90,50 50C65 10,70 50,80 50L95 50;M5 50L20 50C30 50,35 95,50 50C65 5,70 50,80 50L95 50;M5 50L20 50C30 50,35 90,50 50C65 10,70 50,80 50L95 50"
-              keyTimes="0;0.1;0.25" keySplines="0.4 0 0.2 1;0.4 0 0.2 1" calcMode="spline"/>
-            <animate attributeName="opacity" dur="6s" repeatCount="indefinite" begin="5s"
-              values="0.25;1;0.25;0.25" keyTimes="0;0.1;0.3;1" calcMode="linear"/>
-          </path>
-        </g>
-        <!-- hw-3: mid+ (spiral order: 1s) -->
-        <g>
-          <path d="M5 50L20 50C30 50,35 25,50 50C65 75,70 50,80 50L95 50" stroke="#6366F1" stroke-width="2" stroke-linecap="round" filter="url(#glow)" opacity="0">
-            <animate attributeName="d" dur="6s" repeatCount="indefinite" begin="1s"
-              values="M5 50L20 50C30 50,35 25,50 50C65 75,70 50,80 50L95 50;M5 50L20 50C30 50,35 15,50 50C65 85,70 50,80 50L95 50;M5 50L20 50C30 50,35 25,50 50C65 75,70 50,80 50L95 50"
-              keyTimes="0;0.1;0.25" keySplines="0.4 0 0.2 1;0.4 0 0.2 1" calcMode="spline"/>
-            <animate attributeName="opacity" dur="6s" repeatCount="indefinite" begin="1s"
-              values="0;0.85;0;0" keyTimes="0;0.05;0.15;1" calcMode="linear"/>
-          </path>
-          <path d="M5 50L20 50C30 50,35 25,50 50C65 75,70 50,80 50L95 50" stroke="#6366F1" stroke-width="2" stroke-linecap="round" opacity="0.25">
-            <animate attributeName="d" dur="6s" repeatCount="indefinite" begin="1s"
-              values="M5 50L20 50C30 50,35 25,50 50C65 75,70 50,80 50L95 50;M5 50L20 50C30 50,35 15,50 50C65 85,70 50,80 50L95 50;M5 50L20 50C30 50,35 25,50 50C65 75,70 50,80 50L95 50"
-              keyTimes="0;0.1;0.25" keySplines="0.4 0 0.2 1;0.4 0 0.2 1" calcMode="spline"/>
-            <animate attributeName="opacity" dur="6s" repeatCount="indefinite" begin="1s"
-              values="0.25;1;0.25;0.25" keyTimes="0;0.1;0.3;1" calcMode="linear"/>
-          </path>
-        </g>
-        <!-- hw-4: mid- (spiral order: 4s) -->
-        <g>
-          <path d="M5 50L20 50C30 50,35 75,50 50C65 25,70 50,80 50L95 50" stroke="#38BDF8" stroke-width="2" stroke-linecap="round" filter="url(#glow)" opacity="0">
-            <animate attributeName="d" dur="6s" repeatCount="indefinite" begin="4s"
-              values="M5 50L20 50C30 50,35 75,50 50C65 25,70 50,80 50L95 50;M5 50L20 50C30 50,35 85,50 50C65 15,70 50,80 50L95 50;M5 50L20 50C30 50,35 75,50 50C65 25,70 50,80 50L95 50"
-              keyTimes="0;0.1;0.25" keySplines="0.4 0 0.2 1;0.4 0 0.2 1" calcMode="spline"/>
-            <animate attributeName="opacity" dur="6s" repeatCount="indefinite" begin="4s"
-              values="0;0.85;0;0" keyTimes="0;0.05;0.15;1" calcMode="linear"/>
-          </path>
-          <path d="M5 50L20 50C30 50,35 75,50 50C65 25,70 50,80 50L95 50" stroke="#38BDF8" stroke-width="2" stroke-linecap="round" opacity="0.25">
-            <animate attributeName="d" dur="6s" repeatCount="indefinite" begin="4s"
-              values="M5 50L20 50C30 50,35 75,50 50C65 25,70 50,80 50L95 50;M5 50L20 50C30 50,35 85,50 50C65 15,70 50,80 50L95 50;M5 50L20 50C30 50,35 75,50 50C65 25,70 50,80 50L95 50"
-              keyTimes="0;0.1;0.25" keySplines="0.4 0 0.2 1;0.4 0 0.2 1" calcMode="spline"/>
-            <animate attributeName="opacity" dur="6s" repeatCount="indefinite" begin="4s"
-              values="0.25;1;0.25;0.25" keyTimes="0;0.1;0.3;1" calcMode="linear"/>
-          </path>
-        </g>
-        <!-- hw-5: inner+ (spiral order: 2s) -->
-        <g>
-          <path d="M5 50L20 50C30 50,35 38,50 50C65 62,70 50,80 50L95 50" stroke="#A855F7" stroke-width="1.5" stroke-linecap="round" filter="url(#glow)" opacity="0">
-            <animate attributeName="d" dur="6s" repeatCount="indefinite" begin="2s"
-              values="M5 50L20 50C30 50,35 38,50 50C65 62,70 50,80 50L95 50;M5 50L20 50C30 50,35 28,50 50C65 72,70 50,80 50L95 50;M5 50L20 50C30 50,35 38,50 50C65 62,70 50,80 50L95 50"
-              keyTimes="0;0.1;0.25" keySplines="0.4 0 0.2 1;0.4 0 0.2 1" calcMode="spline"/>
-            <animate attributeName="opacity" dur="6s" repeatCount="indefinite" begin="2s"
-              values="0;0.85;0;0" keyTimes="0;0.05;0.15;1" calcMode="linear"/>
-          </path>
-          <path d="M5 50L20 50C30 50,35 38,50 50C65 62,70 50,80 50L95 50" stroke="#A855F7" stroke-width="1.5" stroke-linecap="round" opacity="0.25">
-            <animate attributeName="d" dur="6s" repeatCount="indefinite" begin="2s"
-              values="M5 50L20 50C30 50,35 38,50 50C65 62,70 50,80 50L95 50;M5 50L20 50C30 50,35 28,50 50C65 72,70 50,80 50L95 50;M5 50L20 50C30 50,35 38,50 50C65 62,70 50,80 50L95 50"
-              keyTimes="0;0.1;0.25" keySplines="0.4 0 0.2 1;0.4 0 0.2 1" calcMode="spline"/>
-            <animate attributeName="opacity" dur="6s" repeatCount="indefinite" begin="2s"
-              values="0.25;1;0.25;0.25" keyTimes="0;0.1;0.3;1" calcMode="linear"/>
-          </path>
-        </g>
-        <!-- hw-6: inner- (spiral order: 3s) -->
-        <g>
-          <path d="M5 50L20 50C30 50,35 62,50 50C65 38,70 50,80 50L95 50" stroke="#C084FC" stroke-width="1.5" stroke-linecap="round" filter="url(#glow)" opacity="0">
-            <animate attributeName="d" dur="6s" repeatCount="indefinite" begin="3s"
-              values="M5 50L20 50C30 50,35 62,50 50C65 38,70 50,80 50L95 50;M5 50L20 50C30 50,35 72,50 50C65 28,70 50,80 50L95 50;M5 50L20 50C30 50,35 62,50 50C65 38,70 50,80 50L95 50"
-              keyTimes="0;0.1;0.25" keySplines="0.4 0 0.2 1;0.4 0 0.2 1" calcMode="spline"/>
-            <animate attributeName="opacity" dur="6s" repeatCount="indefinite" begin="3s"
-              values="0;0.85;0;0" keyTimes="0;0.05;0.15;1" calcMode="linear"/>
-          </path>
-          <path d="M5 50L20 50C30 50,35 62,50 50C65 38,70 50,80 50L95 50" stroke="#C084FC" stroke-width="1.5" stroke-linecap="round" opacity="0.25">
-            <animate attributeName="d" dur="6s" repeatCount="indefinite" begin="3s"
-              values="M5 50L20 50C30 50,35 62,50 50C65 38,70 50,80 50L95 50;M5 50L20 50C30 50,35 72,50 50C65 28,70 50,80 50L95 50;M5 50L20 50C30 50,35 62,50 50C65 38,70 50,80 50L95 50"
-              keyTimes="0;0.1;0.25" keySplines="0.4 0 0.2 1;0.4 0 0.2 1" calcMode="spline"/>
-            <animate attributeName="opacity" dur="6s" repeatCount="indefinite" begin="3s"
-              values="0.25;1;0.25;0.25" keyTimes="0;0.1;0.3;1" calcMode="linear"/>
-          </path>
-        </g>
+        <path class="lens lens-main" d="M28.328 28.328 A74.651 74.651 0 0 0 91.672 91.672 A74.651 74.651 0 0 0 28.328 28.328 Z" fill="#3FE0A8" mask="url(#hero-knockout)"/>
+        <path class="lens lens-anti" d="M91.672 28.328 A74.651 74.651 0 0 0 28.328 91.672 A74.651 74.651 0 0 0 91.672 28.328 Z" fill="#F5F2EB"/>
       </svg>
     </div>
-    <h1>ORXHESTRA</h1>
-    <span id="pypi-version" style="display:inline-block;background:rgba(59,130,246,0.15);color:#93c5fd;font-size:0.85rem;font-weight:600;padding:0.2em 0.7em;border-radius:999px;border:1px solid rgba(59,130,246,0.3);margin-bottom:0.5rem;letter-spacing:0.02em;">v...</span><a href="https://github.com/NicolaiLassen/orxhestra" style="display:inline-flex;align-items:center;gap:6px;margin-left:10px;vertical-align:middle;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:999px;padding:0.25em 0.8em;font-size:0.85rem;color:#e2e8f0;text-decoration:none;transition:border-color 0.2s,background 0.2s;" onmouseover="this.style.borderColor='rgba(59,130,246,0.4)';this.style.background='rgba(59,130,246,0.1)'" onmouseout="this.style.borderColor='rgba(255,255,255,0.1)';this.style.background='rgba(255,255,255,0.06)'"><svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg><svg width="14" height="14" fill="#f0c14b" viewBox="0 0 16 16" style="margin-left:2px;"><path d="M8 .25a.75.75 0 0 1 .673.418l1.882 3.815 4.21.612a.75.75 0 0 1 .416 1.279l-3.046 2.97.719 4.192a.75.75 0 0 1-1.088.791L8 12.347l-3.766 1.98a.75.75 0 0 1-1.088-.79l.72-4.194L.818 6.374a.75.75 0 0 1 .416-1.28l4.21-.611L7.327.668A.75.75 0 0 1 8 .25z"/></svg> <span id="star-count">...</span></a>
-<script>fetch('https://api.github.com/repos/NicolaiLassen/orxhestra').then(r=>r.json()).then(d=>{document.getElementById('star-count').textContent=d.stargazers_count||'★'});fetch('https://pypi.org/pypi/orxhestra/json').then(r=>r.json()).then(d=>{document.getElementById('pypi-version').textContent='v'+d.info.version})</script>
-    <p style="color:var(--text-dim);font-size:1.1rem;margin-bottom:0.5rem;font-weight:500;">Multi-agent AI is complex. orxhestra makes it declarative.</p>
-    <p>Compose multi-agent AI systems with async event streaming, composable agent hierarchies, and built-in MCP & A2A integration.</p>
+
+    <h1>orxhestra</h1>
+
+    <div class="hero-badges">
+      <span id="pypi-version" class="badge signal">v…</span>
+      <a class="badge" href="https://github.com/NicolaiLassen/orxhestra" aria-label="GitHub stars">
+        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+        <span id="star-count">…</span>
+      </a>
+      <span class="badge">Apache 2.0</span>
+    </div>
+
+    <p class="hero-tagline">Multi-agent orchestration for Python. Compose agent teams in YAML, stream events live, and expose them over A2A or MCP.</p>
+
     <div class="hero-actions">
       <a href="https://docs.orxhestra.com/getting-started/quickstart" class="btn btn-primary">
-        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
-        Get Started
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 5l7 7-7 7"/></svg>
+        Get started
       </a>
       <a href="https://github.com/NicolaiLassen/orxhestra" class="btn btn-secondary">
-        <svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
         GitHub
       </a>
-      <a href="https://github.com/NicolaiLassen/orxhestra-code" style="display:inline-flex;align-items:center;gap:6px;padding:0.55em 1.1em;border-radius:8px;font-size:0.85rem;font-weight:600;color:#c4b5fd;background:rgba(139,92,246,0.1);border:1px solid rgba(139,92,246,0.25);text-decoration:none;transition:border-color 0.2s,background 0.2s;" onmouseover="this.style.borderColor='rgba(139,92,246,0.5)';this.style.background='rgba(139,92,246,0.18)'" onmouseout="this.style.borderColor='rgba(139,92,246,0.25)';this.style.background='rgba(139,92,246,0.1)'"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="m18 16 4-4-4-4"/><path d="m6 8-4 4 4 4"/><path d="m14.5 4-5 16"/></svg>orxhestra-code</a>
     </div>
-    <div class="install-tabs">
-      <button class="install-tab active" onclick="switchInstall('pip')">pip</button>
-      <button class="install-tab" onclick="switchInstall('uv')">uv</button>
+
+    <div class="install">
+      <div class="install-tabs">
+        <button class="install-tab active" data-pkg="pip">pip</button>
+        <button class="install-tab" data-pkg="uv">uv</button>
+      </div>
+      <div class="install-bar">
+        <code><span class="prompt">$</span><span id="install-cmd">pip install</span> <span class="pkg">orxhestra</span></code>
+        <button id="install-copy" aria-label="Copy install command">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="15" height="15"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+        </button>
+      </div>
     </div>
-    <div class="install-bar" id="install-bar" style="position:relative;">
-      <code>$ <span id="install-cmd">pip install</span> <span>orxhestra</span></code>
-      <button onclick="copyInstall()" title="Copy">
-        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
-      </button>
-      <div id="flow-start-dot" style="position:absolute;bottom:-5px;left:50%;transform:translateX(-50%);width:10px;height:10px;border-radius:50%;background:#3b82f6;box-shadow:0 0 8px #3b82f6,0 0 20px rgba(59,130,246,0.5);opacity:0.9;"></div>
-    </div>
-    <script>
-      function switchInstall(type) {
-        document.getElementById('install-cmd').textContent = type === 'uv' ? 'uv add' : 'pip install';
-        document.querySelectorAll('.install-tab').forEach(t => t.classList.remove('active'));
-        event.target.classList.add('active');
-      }
-      function copyInstall() {
-        const cmd = document.getElementById('install-cmd').textContent + ' orxhestra';
-        navigator.clipboard.writeText(cmd);
-      }
-    </script>
   </div>
 </section>
 
-<!-- Features -->
-<section class="features">
+<!-- Features ─────────────────────────────────────────── -->
+<section class="block">
   <div class="container">
-    <div class="section-label">Features</div>
-    <h2 class="section-title">Everything you need to orchestrate agents</h2>
+    <p class="eyebrow">features</p>
+    <h2 class="title">Everything you need to orchestrate agents</h2>
     <div class="features-grid reveal">
-      <div class="feature-card">
-        <div class="feature-icon" style="background: rgba(99,102,241,0.1)">
-          <svg width="22" height="22" fill="none" stroke="#6366f1" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2M20 14h2M15 13v2M9 13v2"/></svg>
-        </div>
-        <h3>Agent Ensemble</h3>
-        <p>LLM, ReAct, Sequential, Parallel, and Loop agents. Chain a researcher into a writer, run 3 analysts in parallel, or loop a coder with a reviewer until tests pass.</p>
+      <div class="feature">
+        <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="2"/><circle cx="5" cy="19" r="2"/><circle cx="19" cy="19" r="2"/><path d="M12 7v4M5 17l7-6 7 6"/></svg></div>
+        <h3>Agent ensemble</h3>
+        <p>LLM, ReAct, Sequential, Parallel, Loop. Chain a researcher into a writer, fan out across analysts, or loop a coder with a reviewer until tests pass.</p>
       </div>
-      <div class="feature-card">
-        <div class="feature-icon" style="background: rgba(56,189,248,0.1)">
-          <svg width="22" height="22" fill="none" stroke="#38bdf8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"/></svg>
-        </div>
-        <h3>Event Streaming</h3>
-        <p>Async event-driven architecture with real-time token streaming. Every agent yields typed events — partial tokens, tool calls, tool responses, and final answers — observable from any parent.</p>
+      <div class="feature">
+        <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg></div>
+        <h3>Event streaming</h3>
+        <p>Every agent is an async generator yielding typed events — thoughts, tool calls, partial tokens, results — observable from any parent.</p>
       </div>
-      <div class="feature-card">
-        <div class="feature-icon" style="background: rgba(168,85,247,0.1)">
-          <svg width="22" height="22" fill="none" stroke="#a855f7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z"/><path d="M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 12"/><path d="M2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 17"/></svg>
-        </div>
+      <div class="feature">
+        <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z"/><path d="M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 12"/><path d="M2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 17"/></svg></div>
         <h3>Composer</h3>
-        <p>Declare entire agent orchestras in YAML — no Python wiring needed. Define tools, models, planners, and multi-agent pipelines in a single file. Run with <code style="color:var(--blue);">orx my-agents.yaml</code>.</p>
+        <p>Declare entire orchestras in YAML. Tools, models, planners, loops, pipelines — all in one file. Run with <code>orx my-agents.yaml</code>.</p>
       </div>
-      <div class="feature-card">
-        <div class="feature-icon" style="background: rgba(59,130,246,0.1)">
-          <svg width="22" height="22" fill="none" stroke="#3b82f6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.106-3.105c.32-.322.863-.22.983.218a6 6 0 0 1-8.259 7.057l-7.91 7.91a1 1 0 0 1-2.999-3l7.91-7.91a6 6 0 0 1 7.057-8.259c.438.12.54.662.219.984z"/></svg>
-        </div>
-        <h3>Tools</h3>
-        <p>20+ built-in tools: filesystem with offset/limit, shell exec, background tasks, sleep, tool search, memory, and agent-as-tool. Each tool caps its own output to prevent context overflow.</p>
+      <div class="feature">
+        <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.106-3.105c.32-.322.863-.22.983.218a6 6 0 0 1-8.259 7.057l-7.91 7.91a1 1 0 0 1-2.999-3l7.91-7.91a6 6 0 0 1 7.057-8.259c.438.12.54.662.219.984z"/></svg></div>
+        <h3>Tool system</h3>
+        <p>20+ built-in tools: filesystem, shell, background tasks, memory, agent-as-tool, tool search. Each caps its own output to prevent context overflow.</p>
       </div>
-      <div class="feature-card">
-        <div class="feature-icon" style="background: rgba(99,102,241,0.1)">
-          <svg width="22" height="22" fill="none" stroke="#6366f1" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M12 18V5"/><path d="M15 13a4.17 4.17 0 0 1-3-4 4.17 4.17 0 0 1-3 4"/><path d="M17.598 6.5A3 3 0 1 0 12 5a3 3 0 1 0-5.598 1.5"/><path d="M17.997 5.125a4 4 0 0 1 2.526 5.77"/><path d="M18 18a4 4 0 0 0 2-7.464"/><path d="M19.967 17.483A4 4 0 1 1 12 18a4 4 0 1 1-7.967-.517"/><path d="M6 18a4 4 0 0 1-2-7.464"/><path d="M6.003 5.125a4 4 0 0 0-2.526 5.77"/></svg>
-        </div>
-        <h3>Auto-Memory</h3>
-        <p>Persistent per-project memories that survive across sessions. 4 typed categories (user, feedback, project, reference) with YAML frontmatter, auto-maintained index, and verification nudges.</p>
+      <div class="feature">
+        <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/><path d="M3 12c0 1.66 4 3 9 3s9-1.34 9-3"/></svg></div>
+        <h3>Auto-memory</h3>
+        <p>Persistent per-project memories that survive sessions. Four typed categories with YAML frontmatter and an auto-maintained index.</p>
       </div>
-      <div class="feature-card">
-        <div class="feature-icon" style="background: rgba(168,85,247,0.1)">
-          <svg width="22" height="22" fill="none" stroke="#a855f7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4M12 16h4M8 11h.01M8 16h.01"/></svg>
-        </div>
+      <div class="feature">
+        <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="8" height="4" x="8" y="2" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4M12 16h4M8 11h.01M8 16h.01"/></svg></div>
         <h3>Planners</h3>
-        <p>TaskPlanner injects task status into every LLM prompt and keeps the agent working until all tasks complete. PlanReActPlanner adds structured chain-of-thought reasoning.</p>
+        <p>TaskPlanner injects status into every prompt and keeps the agent working until all tasks complete. PlanReAct adds structured chain-of-thought.</p>
       </div>
-      <div class="feature-card">
-        <div class="feature-icon" style="background: rgba(56,189,248,0.1)">
-          <svg width="22" height="22" fill="none" stroke="#38bdf8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M12 22v-5"/><path d="M15 8V2"/><path d="M17 8a1 1 0 0 1 1 1v4a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V9a1 1 0 0 1 1-1z"/><path d="M9 8V2"/></svg>
-        </div>
+      <div class="feature">
+        <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22v-5"/><path d="M17 8a1 1 0 0 1 1 1v4a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V9a1 1 0 0 1 1-1z"/><path d="M15 8V2M9 8V2"/></svg></div>
         <h3>MCP & A2A</h3>
-        <p>First-class Model Context Protocol for tool servers and Agent-to-Agent protocol for cross-service agent communication. Expose any agent as an A2A server with one flag.</p>
+        <p>First-class Model Context Protocol for tool servers and Agent-to-Agent for cross-service communication. Expose any agent as A2A with one flag.</p>
       </div>
-      <div class="feature-card">
-        <div class="feature-icon" style="background: rgba(59,130,246,0.1)">
-          <svg width="22" height="22" fill="none" stroke="#3b82f6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg>
-        </div>
-        <h3>29 LLM Providers</h3>
-        <p>OpenAI, Azure OpenAI, Anthropic, Google, Mistral, Cohere, Groq, DeepSeek, Ollama, and 20 more. Auto-detects provider from model name. Switch mid-session with <code style="color:var(--blue);">/model</code>.</p>
+      <div class="feature">
+        <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg></div>
+        <h3>29 LLM providers</h3>
+        <p>OpenAI, Anthropic, Google, Mistral, Cohere, Groq, DeepSeek, Ollama — and 22 more. Auto-detects provider from model name.</p>
       </div>
     </div>
   </div>
 </section>
 
-<!-- Providers -->
-<section style="padding:3rem 0;text-align:center;">
+<!-- Providers strip ─────────────────────────────────── -->
+<section class="providers">
   <div class="container">
-    <p style="color:var(--text-dim);font-size:0.95rem;letter-spacing:0.05em;-webkit-mask-image:linear-gradient(to right, transparent, black 5%, black 95%, transparent);mask-image:linear-gradient(to right, transparent, black 5%, black 95%, transparent);">
-      OpenAI &middot; Azure &middot; Anthropic &middot; Google &middot; Vertex AI &middot; AWS Bedrock &middot; Mistral &middot; Cohere &middot; Groq &middot; DeepSeek &middot; Ollama &middot; xAI &middot; NVIDIA &middot; HuggingFace &middot; Together &middot; Fireworks &middot; Perplexity &middot; OpenRouter &middot; IBM &middot; Upstage &middot; <span style="color:var(--blue)">+more</span>
+    <p>
+      OpenAI · Azure · Anthropic · Google · Vertex AI · AWS Bedrock · Mistral · Cohere · Groq · DeepSeek · Ollama · xAI · NVIDIA · HuggingFace · Together · Fireworks · Perplexity · OpenRouter · IBM · Upstage · <span class="plus">+9 more</span>
     </p>
   </div>
 </section>
 
-<!-- Code Example -->
-<section class="code-section">
+<!-- Code example ────────────────────────────────────── -->
+<section class="block">
   <div class="container">
-    <div class="code-grid reveal">
-      <div class="code-text">
+    <div class="split reveal">
+      <div>
         <h3>Build agents in minutes</h3>
-        <p>Create powerful AI agents with just a few lines of Python. Stream events in real-time and compose complex orchestration patterns.</p>
+        <p>Create powerful AI agents with a few lines of Python. Stream events in real-time and compose complex orchestration patterns.</p>
         <ul>
           <li>29 LLM providers with auto-detection</li>
           <li>Persistent auto-memory across sessions</li>
           <li>Dark/light themes, thinking spinner, tool approval</li>
-          <li>Session management and memory built-in</li>
+          <li>Session management built-in</li>
           <li>Type-safe with full Pydantic models</li>
         </ul>
       </div>
-      <div class="code-block">
-        <div class="code-header">
-          <div class="code-dot"></div>
-          <div class="code-dot"></div>
-          <div class="code-dot"></div>
-          <span>agent.py</span>
-        </div>
-<pre><span class="kw">from</span> orxhestra <span class="kw">import</span> LlmAgent, Runner
-<span class="kw">from</span> langchain_openai <span class="kw">import</span> ChatOpenAI
+      <div class="card">
+        <div class="card-head">agent.py</div>
+<pre><span class="tok-kw">from</span> <span class="tok-id">orxhestra</span> <span class="tok-kw">import</span> <span class="tok-id">LlmAgent</span>, <span class="tok-id">Runner</span>
+<span class="tok-kw">from</span> <span class="tok-id">langchain_openai</span> <span class="tok-kw">import</span> <span class="tok-id">ChatOpenAI</span>
 
-agent <span class="op">=</span> LlmAgent(
-    name<span class="op">=</span><span class="str">"assistant"</span>,
-    model<span class="op">=</span>ChatOpenAI(model<span class="op">=</span><span class="str">"gpt-5.4"</span>),
-    instructions<span class="op">=</span><span class="str">"You are a helpful assistant."</span>,
+<span class="tok-id">agent</span> <span class="tok-op">=</span> <span class="tok-fn">LlmAgent</span>(
+    <span class="tok-id">name</span><span class="tok-op">=</span><span class="tok-str">"assistant"</span>,
+    <span class="tok-id">model</span><span class="tok-op">=</span><span class="tok-fn">ChatOpenAI</span>(<span class="tok-id">model</span><span class="tok-op">=</span><span class="tok-str">"gpt-5.4"</span>),
+    <span class="tok-id">instructions</span><span class="tok-op">=</span><span class="tok-str">"You are a helpful assistant."</span>,
 )
 
-runner <span class="op">=</span> Runner(agent<span class="op">=</span>agent, app_name<span class="op">=</span><span class="str">"my-app"</span>)
+<span class="tok-id">runner</span> <span class="tok-op">=</span> <span class="tok-fn">Runner</span>(<span class="tok-id">agent</span><span class="tok-op">=</span><span class="tok-id">agent</span>, <span class="tok-id">app_name</span><span class="tok-op">=</span><span class="tok-str">"my-app"</span>)
 
-<span class="kw">async for</span> event <span class="kw">in</span> runner.<span class="fn">astream</span>(
-    user_id<span class="op">=</span><span class="str">"user-1"</span>,
-    session_id<span class="op">=</span><span class="str">"session-1"</span>,
-    new_message<span class="op">=</span><span class="str">"Hello!"</span>,
+<span class="tok-kw">async for</span> <span class="tok-id">event</span> <span class="tok-kw">in</span> <span class="tok-id">runner</span>.<span class="tok-fn">astream</span>(
+    <span class="tok-id">user_id</span><span class="tok-op">=</span><span class="tok-str">"user-1"</span>,
+    <span class="tok-id">session_id</span><span class="tok-op">=</span><span class="tok-str">"session-1"</span>,
+    <span class="tok-id">new_message</span><span class="tok-op">=</span><span class="tok-str">"Hello!"</span>,
 ):
-    print(event.content)</pre>
+    <span class="tok-fn">print</span>(<span class="tok-id">event</span>.<span class="tok-id">content</span>)</pre>
       </div>
     </div>
   </div>
 </section>
 
-<!-- Agents -->
-<section class="agents-section">
+<!-- Agents ──────────────────────────────────────────── -->
+<section class="block">
   <div class="container">
-    <div class="section-label">Agents</div>
-    <h2 class="section-title">A complete ensemble</h2>
+    <p class="eyebrow">agents</p>
+    <h2 class="title">A complete ensemble</h2>
     <div class="agents-grid reveal">
-      <div class="agent-card">
-        <div class="agent-badge">LlmAgent</div>
-        <p>Chat model agent with tools, instructions, and structured output</p>
-      </div>
-      <div class="agent-card">
-        <div class="agent-badge">ReActAgent</div>
-        <p>Reasoning + acting loop with automatic tool use</p>
-      </div>
-      <div class="agent-card">
-        <div class="agent-badge">SequentialAgent</div>
-        <p>Runs sub-agents in order, like a pipeline</p>
-      </div>
-      <div class="agent-card">
-        <div class="agent-badge">ParallelAgent</div>
-        <p>Runs sub-agents concurrently for maximum throughput</p>
-      </div>
-      <div class="agent-card">
-        <div class="agent-badge">LoopAgent</div>
-        <p>Repeats sub-agents until an exit condition is met</p>
-      </div>
-      <div class="agent-card">
-        <div class="agent-badge">A2AAgent</div>
-        <p>Connects to remote agents via the A2A protocol</p>
-      </div>
+      <div class="agent"><span class="agent-tag">LlmAgent</span><p>Chat model agent with tools, instructions, and structured output.</p></div>
+      <div class="agent"><span class="agent-tag">ReActAgent</span><p>Reasoning + acting loop with automatic tool use.</p></div>
+      <div class="agent"><span class="agent-tag">SequentialAgent</span><p>Runs sub-agents in order, like a pipeline.</p></div>
+      <div class="agent"><span class="agent-tag">ParallelAgent</span><p>Runs sub-agents concurrently for maximum throughput.</p></div>
+      <div class="agent"><span class="agent-tag">LoopAgent</span><p>Repeats sub-agents until an exit condition is met.</p></div>
+      <div class="agent"><span class="agent-tag">A2AAgent</span><p>Connects to remote agents via the A2A protocol.</p></div>
     </div>
   </div>
 </section>
 
-<!-- CLI Demo -->
-<section style="padding:6rem 0;">
-  <div class="container" style="max-width:700px;">
-    <div class="section-label">CLI</div>
-    <h2 class="section-title">Your terminal, orchestrated</h2>
-    <a href="https://github.com/NicolaiLassen/orxhestra-code" style="display:block;margin-top:1.25rem;padding:1rem 1.25rem;border-radius:12px;background:linear-gradient(135deg,rgba(139,92,246,0.1),rgba(56,189,248,0.08));border:1px solid rgba(139,92,246,0.25);text-decoration:none;transition:border-color 0.2s,transform 0.2s;" onmouseover="this.style.borderColor='rgba(139,92,246,0.5)';this.style.transform='translateY(-1px)'" onmouseout="this.style.borderColor='rgba(139,92,246,0.25)';this.style.transform='none'"><span style="display:flex;align-items:center;gap:8px;font-size:0.95rem;font-weight:600;color:#c4b5fd;"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24" style="vertical-align:-2px;"><path d="m18 16 4-4-4-4"/><path d="m6 8-4 4 4 4"/><path d="m14.5 4-5 16"/></svg> orxhestra-code</span><span style="display:block;margin-top:0.35rem;font-size:0.85rem;color:#94a3b8;line-height:1.4;">Full-featured coding agent with permissions, multi-file editing, and project-aware context.</span></a>
-    <div class="code-block reveal" style="margin-top:2rem;">
-      <div class="code-header">
-        <div class="code-dot"></div>
-        <div class="code-dot"></div>
-        <div class="code-dot"></div>
-        <span>terminal</span>
-      </div>
-<pre><span class="fn">orx&gt;</span> add error handling to the API routes
+<!-- CLI demo ───────────────────────────────────────── -->
+<section class="block">
+  <div class="container" style="max-width:720px;">
+    <p class="eyebrow">cli</p>
+    <h2 class="title">Your terminal, orchestrated</h2>
 
-  <span class="str">&#9835;</span> <span style="color:#6c8ebf;">Analyzing...</span>
-  <span class="cm">&#9484; read_file</span>
-  <span class="cm">&#9474; src/api/routes.py</span>
-  <span class="cm">&#9492; done (0.1s)</span>
-  <span class="cm">&#9484; write_todos</span>
-  <span class="cm">&#9474; (task list update)</span>
-  <span class="cm">&#9492; done (0.0s)</span>
+    <a class="terminal-note" href="https://github.com/NicolaiLassen/orxhestra-code">
+      <strong>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"/><path d="m6 8-4 4 4 4"/><path d="m14.5 4-5 16"/></svg>
+        orxhestra-code
+      </strong>
+      <span>Full-featured coding agent with permissions, multi-file editing, and project-aware context.</span>
+    </a>
 
-<span class="kw">Tasks:</span>
-  <span class="str">&#9654;</span> Add try/except to route handlers
-  <span class="cm">&#9675;</span> Add custom ErrorResponse model
-  <span class="cm">&#9675;</span> Write tests for error cases
+    <div class="card reveal">
+      <div class="card-head">terminal</div>
+<pre><span class="tok-kw">orx&gt;</span> add error handling to the API routes
 
-  <span class="cm">&#9484; edit_file</span>
-  <span class="cm">&#9474; src/api/routes.py</span>
-  <span class="cm">&#9492; done (0.2s)</span>
-  <span class="cm">&#9484; shell_exec</span>
-  <span class="cm">&#9474; pytest tests/test_api.py</span>
-  <span class="cm">&#9492; done (2.8s)</span>
+  <span class="tok-dim">♪ analyzing…</span>
+  <span class="tok-cm">┌ read_file</span>
+  <span class="tok-cm">│ src/api/routes.py</span>
+  <span class="tok-cm">└ done (0.1s)</span>
+  <span class="tok-cm">┌ write_todos</span>
+  <span class="tok-cm">│ (task list update)</span>
+  <span class="tok-cm">└ done (0.0s)</span>
 
-<span class="str">&#9135;</span> Done — added structured error handling to all 4 route handlers.
-  <span class="cm">&#10065; 15.4s · 3,200 tokens  14:32</span></pre>
+<span class="tok-kw">Tasks:</span>
+  <span class="tok-op">▸</span> Add try/except to route handlers
+  <span class="tok-cm">○</span> Add custom ErrorResponse model
+  <span class="tok-cm">○</span> Write tests for error cases
+
+  <span class="tok-cm">┌ edit_file</span>
+  <span class="tok-cm">│ src/api/routes.py</span>
+  <span class="tok-cm">└ done (0.2s)</span>
+  <span class="tok-cm">┌ shell_exec</span>
+  <span class="tok-cm">│ pytest tests/test_api.py</span>
+  <span class="tok-cm">└ done (2.8s)</span>
+
+<span class="tok-kw">✓ done</span> — added structured error handling to all 4 route handlers.
+  <span class="tok-cm">15.4s · 3,200 tokens · 14:32</span></pre>
     </div>
   </div>
 </section>
 
-<!-- Composer -->
-<section class="composer-section">
+<!-- Composer ───────────────────────────────────────── -->
+<section class="block">
   <div class="container">
-    <div class="section-label">Composer</div>
-    <h2 class="section-title">Declare. Compose. Run.</h2>
-    <div class="code-block reveal">
-      <div class="code-header">
-        <div class="code-dot"></div>
-        <div class="code-dot"></div>
-        <div class="code-dot"></div>
-        <span>orx.yaml</span>
-      </div>
-<pre><span class="cm"># Define an entire coding agent in YAML</span>
-<span class="kw">defaults</span>:
-  <span class="kw">model</span>:
-    <span class="fn">provider</span>: <span class="str">openai</span>
-    <span class="fn">name</span>: <span class="str">gpt-5.4</span>
+    <p class="eyebrow">composer</p>
+    <h2 class="title">Declare. Compose. Run.</h2>
+    <div class="card reveal">
+      <div class="card-head">orx.yaml</div>
+<pre><span class="tok-cm"># Define an entire coding agent in YAML</span>
+<span class="tok-kw">defaults</span>:
+  <span class="tok-id">model</span>:
+    <span class="tok-id">provider</span>: <span class="tok-str">openai</span>
+    <span class="tok-id">name</span>: <span class="tok-str">gpt-5.4</span>
 
-<span class="kw">tools</span>:
-  <span class="fn">filesystem</span>:
-    <span class="fn">builtin</span>: <span class="str">"filesystem"</span>
-  <span class="fn">shell</span>:
-    <span class="fn">builtin</span>: <span class="str">"shell"</span>
+<span class="tok-kw">tools</span>:
+  <span class="tok-id">filesystem</span>:
+    <span class="tok-id">builtin</span>: <span class="tok-str">"filesystem"</span>
+  <span class="tok-id">shell</span>:
+    <span class="tok-id">builtin</span>: <span class="tok-str">"shell"</span>
 
-<span class="kw">agents</span>:
-  <span class="fn">planner</span>:
-    <span class="fn">type</span>: <span class="str">llm</span>
-    <span class="fn">instructions</span>: <span class="str">Output actionable steps for the coder.</span>
+<span class="tok-kw">agents</span>:
+  <span class="tok-id">planner</span>:
+    <span class="tok-id">type</span>: <span class="tok-str">llm</span>
+    <span class="tok-id">instructions</span>: <span class="tok-str">Output actionable steps for the coder.</span>
 
-  <span class="fn">coder</span>:
-    <span class="fn">type</span>: <span class="str">llm</span>
-    <span class="fn">tools</span>: [<span class="str">filesystem</span>, <span class="str">shell</span>]
-    <span class="fn">instructions</span>: <span class="str">Execute the plan. Never ask the user.</span>
+  <span class="tok-id">coder</span>:
+    <span class="tok-id">type</span>: <span class="tok-str">llm</span>
+    <span class="tok-id">tools</span>: [<span class="tok-str">filesystem</span>, <span class="tok-str">shell</span>]
+    <span class="tok-id">instructions</span>: <span class="tok-str">Execute the plan. Never ask the user.</span>
 
-  <span class="fn">dev_loop</span>:
-    <span class="fn">type</span>: <span class="str">loop</span>
-    <span class="fn">agents</span>: [<span class="str">coder</span>, <span class="str">reviewer</span>]
+  <span class="tok-id">dev_loop</span>:
+    <span class="tok-id">type</span>: <span class="tok-str">loop</span>
+    <span class="tok-id">agents</span>: [<span class="tok-str">coder</span>, <span class="tok-str">reviewer</span>]
 
-  <span class="fn">coordinator</span>:
-    <span class="fn">type</span>: <span class="str">sequential</span>
-    <span class="fn">agents</span>: [<span class="str">planner</span>, <span class="str">dev_loop</span>]
+  <span class="tok-id">coordinator</span>:
+    <span class="tok-id">type</span>: <span class="tok-str">sequential</span>
+    <span class="tok-id">agents</span>: [<span class="tok-str">planner</span>, <span class="tok-str">dev_loop</span>]
 
-<span class="kw">main_agent</span>: <span class="str">coordinator</span></pre>
+<span class="tok-kw">main_agent</span>: <span class="tok-str">coordinator</span></pre>
     </div>
-    <div class="composer-split">
-      <div class="code-block">
-        <div class="code-header">
-          <div class="code-dot"></div>
-          <div class="code-dot"></div>
-          <div class="code-dot"></div>
-          <span>terminal</span>
-        </div>
-<pre><span class="cm"># interactive agent</span>
-<span class="fn">$</span> orx orx.yaml
+    <div class="composer-demos">
+      <div class="card">
+        <div class="card-head">terminal</div>
+<pre><span class="tok-cm"># interactive agent</span>
+<span class="tok-fn">$</span> orx orx.yaml
 
-<span class="cm"># or expose as A2A server</span>
-<span class="fn">$</span> orx orx.yaml <span class="str">--serve</span> -p 9000</pre>
+<span class="tok-cm"># or expose as A2A server</span>
+<span class="tok-fn">$</span> orx orx.yaml <span class="tok-kw">--serve</span> -p 9000</pre>
       </div>
-      <div class="code-block">
-        <div class="code-header">
-          <div class="code-dot"></div>
-          <div class="code-dot"></div>
-          <div class="code-dot"></div>
-          <span>curl</span>
-        </div>
-<pre><span class="fn">$</span> curl -X POST http://localhost:9000/ \
-  -H <span class="str">"Content-Type: application/json"</span> \
-  -d <span class="str">'{
-    "jsonrpc": "2.0", "id": "1",
+      <div class="card">
+        <div class="card-head">curl</div>
+<pre><span class="tok-fn">$</span> curl -X POST http://localhost:9000/ \
+  -H <span class="tok-str">"Content-Type: application/json"</span> \
+  -d <span class="tok-str">'{
+    "jsonrpc": "2.0",
+    "id": "1",
     "method": "message/send",
     "params": {
       "message": {
@@ -896,193 +815,74 @@ runner <span class="op">=</span> Runner(agent<span class="op">=</span>agent, app
   </div>
 </section>
 
-<!-- CTA -->
+<!-- CTA ────────────────────────────────────────────── -->
 <section class="cta">
   <div class="container reveal">
     <h2>Ready to orchestrate?</h2>
     <p>Get started with orxhestra in minutes.</p>
     <div class="hero-actions">
-      <a href="https://docs.orxhestra.com/getting-started/quickstart" class="btn btn-primary">Quick Start</a>
-      <a href="https://docs.orxhestra.com/examples" class="btn btn-secondary">View Examples</a>
+      <a href="https://docs.orxhestra.com/getting-started/quickstart" class="btn btn-primary">Quick start</a>
+      <a href="https://docs.orxhestra.com/examples" class="btn btn-secondary">Examples</a>
       <a href="https://github.com/NicolaiLassen/orxhestra" class="btn btn-secondary">GitHub</a>
     </div>
   </div>
 </section>
 
-<!-- Footer -->
+<!-- Footer ─────────────────────────────────────────── -->
 <footer>
   <div class="container">
-    <p>orxhestra &mdash; Open-source multi-agent orchestration framework</p>
+    <p>orxhestra — open-source multi-agent orchestration</p>
     <div class="footer-links">
       <a href="https://docs.orxhestra.com">Docs</a>
       <a href="https://docs.orxhestra.com/examples">Examples</a>
       <a href="https://github.com/NicolaiLassen/orxhestra/releases">Changelog</a>
       <a href="https://pypi.org/project/orxhestra/">PyPI</a>
       <a href="https://github.com/NicolaiLassen/orxhestra/blob/main/LICENSE">Apache 2.0</a>
-      <a href="https://github.com/NicolaiLassen/orxhestra" title="GitHub">
-        <svg fill="currentColor" viewBox="0 0 24 24"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+      <a href="https://github.com/NicolaiLassen/orxhestra" title="GitHub" aria-label="GitHub">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
       </a>
     </div>
   </div>
 </footer>
 
-<!-- Flow Line -->
-<svg class="flow-line" id="flow-line" xmlns="http://www.w3.org/2000/svg" fill="none">
-  <defs>
-    <linearGradient id="flowGrad" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#3b82f6" stop-opacity="0.3"/>
-      <stop offset="30%" stop-color="#6366f1" stop-opacity="0.3"/>
-      <stop offset="60%" stop-color="#8b5cf6" stop-opacity="0.3"/>
-      <stop offset="100%" stop-color="#38bdf8" stop-opacity="0.15"/>
-    </linearGradient>
-    <filter id="flowGlow" x="-200%" y="-200%" width="500%" height="500%">
-      <feGaussianBlur in="SourceGraphic" stdDeviation="3" result="b1"/>
-      <feGaussianBlur in="SourceGraphic" stdDeviation="6" result="b2"/>
-      <feMerge>
-        <feMergeNode in="b2"/>
-        <feMergeNode in="b1"/>
-      </feMerge>
-    </filter>
-  </defs>
-</svg>
 <script>
-(function() {
-  function buildFlowLine() {
-    var svg = document.getElementById('flow-line');
-    if (!svg) return;
+  // Install tabs ─────────────────────────────────────
+  const tabs = document.querySelectorAll('.install-tab');
+  const cmdEl = document.getElementById('install-cmd');
+  tabs.forEach(tab => {
+    tab.addEventListener('click', () => {
+      tabs.forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      cmdEl.textContent = tab.dataset.pkg === 'uv' ? 'uv add' : 'pip install';
+    });
+  });
 
-    var features = document.querySelector('.features');
-    var code = document.querySelector('.code-section');
-    var agents = document.querySelector('.agents-section');
-    var composer = document.querySelector('.composer-section');
-    var cta = document.querySelector('.cta');
-    var dot = document.getElementById('flow-start-dot');
+  // Copy to clipboard ────────────────────────────────
+  const copyBtn = document.getElementById('install-copy');
+  copyBtn.addEventListener('click', () => {
+    const cmd = cmdEl.textContent + ' orxhestra';
+    navigator.clipboard.writeText(cmd);
+    copyBtn.classList.add('copied');
+    setTimeout(() => copyBtn.classList.remove('copied'), 1200);
+  });
 
-    if (!features || !cta || !dot) return;
+  // Live stats ──────────────────────────────────────
+  fetch('https://api.github.com/repos/NicolaiLassen/orxhestra')
+    .then(r => r.json())
+    .then(d => { document.getElementById('star-count').textContent = d.stargazers_count ?? '★'; })
+    .catch(() => { document.getElementById('star-count').textContent = '★'; });
 
-    var dotEl = document.getElementById('flow-start-dot');
-    // Walk offsetParent chain to get absolute Y
-    var startY = dotEl.offsetHeight / 2;
-    var el = dotEl;
-    while (el) { startY += el.offsetTop; el = el.offsetParent; }
-    var endY = cta.offsetTop - 20;
-    var totalH = endY - startY + 20;
-    var w = document.documentElement.clientWidth;
-    var cx = w / 2;
-    var drift = Math.min(w * 0.12, 140);
-    var ns = 'http://www.w3.org/2000/svg';
+  fetch('https://pypi.org/pypi/orxhestra/json')
+    .then(r => r.json())
+    .then(d => { document.getElementById('pypi-version').textContent = 'v' + d.info.version; })
+    .catch(() => {});
 
-    // Base waypoints (center line)
-    var basePts = [
-      [cx, startY],
-      [cx - drift, features.offsetTop + features.offsetHeight * 0.5],
-      [cx + drift, code.offsetTop + code.offsetHeight * 0.5],
-      [cx - drift * 0.7, agents.offsetTop + agents.offsetHeight * 0.5],
-      [cx + drift * 0.5, composer.offsetTop + composer.offsetHeight * 0.5],
-      [cx, endY]
-    ];
-
-    // 3 parallel lines with x-offsets (converge at start/end)
-    var offsets = [0, -25, 25, -50, 50];
-    var delays = [0, 2.4, 4.8, 7.2, 9.6]; // staggered energy dash delays
-
-    function buildPath(pts) {
-      var d = 'M' + pts[0][0].toFixed(1) + ' ' + pts[0][1].toFixed(1);
-      for (var i = 1; i < pts.length; i++) {
-        var prev = pts[i - 1];
-        var curr = pts[i];
-        var cpDist = (curr[1] - prev[1]) * 0.4;
-        d += ' C' + prev[0].toFixed(1) + ' ' + (prev[1] + cpDist).toFixed(1) +
-             ', ' + curr[0].toFixed(1) + ' ' + (curr[1] - cpDist).toFixed(1) +
-             ', ' + curr[0].toFixed(1) + ' ' + curr[1].toFixed(1);
-      }
-      return d;
-    }
-
-    // Position SVG
-    svg.style.top = (startY - 10) + 'px';
-    svg.style.height = (totalH + 20) + 'px';
-    svg.setAttribute('viewBox', '0 ' + (startY - 10) + ' ' + w + ' ' + (totalH + 20));
-    svg.style.overflow = 'visible';
-
-    // Remove old elements
-    var old = svg.querySelectorAll('path, circle');
-    for (var j = 0; j < old.length; j++) old[j].remove();
-
-    // Draw 3 parallel lines
-    for (var li = 0; li < offsets.length; li++) {
-      var off = offsets[li];
-      // Offset waypoints — ease spread from center outward
-      var last = basePts.length - 1;
-      var pts = basePts.map(function(p, idx) {
-        // Ramp: 0 at start, gradual increase to full at midpoint, then back to 0 at end
-        var t;
-        if (idx <= last / 2) {
-          t = idx / (last / 2); // 0 → 1 over first half
-        } else {
-          t = (last - idx) / (last / 2); // 1 → 0 over second half
-        }
-        // Ease the ramp — spread early with sqrt curve
-        var factor = Math.sqrt(t);
-        return [p[0] + off * factor, p[1]];
-      });
-      var d = buildPath(pts);
-
-      // Glow layer
-      var glow = document.createElementNS(ns, 'path');
-      glow.setAttribute('d', d);
-      glow.setAttribute('stroke', 'url(#flowGrad)');
-      glow.setAttribute('stroke-width', '4');
-      glow.setAttribute('opacity', '0.1');
-      glow.setAttribute('filter', 'url(#flowGlow)');
-      glow.setAttribute('stroke-linecap', 'round');
-      svg.appendChild(glow);
-
-      // Core line
-      var core = document.createElementNS(ns, 'path');
-      core.setAttribute('d', d);
-      core.setAttribute('stroke', 'url(#flowGrad)');
-      core.setAttribute('stroke-width', '1');
-      core.setAttribute('opacity', '0.28');
-      core.setAttribute('stroke-linecap', 'round');
-      svg.appendChild(core);
-
-      // Energy dash with staggered delay
-      var energy = document.createElementNS(ns, 'path');
-      energy.setAttribute('d', d);
-      energy.setAttribute('stroke', 'url(#flowGrad)');
-      energy.setAttribute('stroke-width', '1.5');
-      energy.setAttribute('opacity', '0.2');
-      energy.setAttribute('stroke-linecap', 'round');
-      energy.setAttribute('class', 'flow-energy');
-      energy.style.animationDelay = delays[li] + 's';
-      svg.appendChild(energy);
-    }
-
-    // Node dots at base waypoints
-    var colors = ['#3b82f6', '#6366f1', '#8b5cf6', '#6366f1', '#38bdf8', '#38bdf8'];
-    for (var k = 0; k < basePts.length; k++) {
-      var circle = document.createElementNS(ns, 'circle');
-      circle.setAttribute('cx', basePts[k][0].toFixed(1));
-      circle.setAttribute('cy', basePts[k][1].toFixed(1));
-      circle.setAttribute('r', k === 0 || k === basePts.length - 1 ? '2' : '3');
-      circle.setAttribute('fill', colors[k]);
-      circle.setAttribute('opacity', '0.3');
-      circle.style.animationDelay = (k * 0.5) + 's';
-      svg.appendChild(circle);
-    }
-  }
-
-  // Build on load and resize
-  window.addEventListener('load', buildFlowLine);
-  window.addEventListener('resize', buildFlowLine);
-})();
+  // Scroll reveal ───────────────────────────────────
+  const io = new IntersectionObserver(entries => {
+    entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
+  }, { threshold: 0.1 });
+  document.querySelectorAll('.reveal').forEach(el => io.observe(el));
 </script>
-<script>
-const observer = new IntersectionObserver((entries) => {
-  entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('visible'); } });
-}, { threshold: 0.1 });
-document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
-</script>
+
 </body>
 </html>

@@ -507,7 +507,13 @@ def run_ink_app(
     from orxhestra.cli.writer import rich_to_ansi
 
     banner_ansi = rich_to_ansi(
-        console, render_banner(orx_path, state.model_name, workspace),
+        console,
+        render_banner(
+            orx_path,
+            state.model_name,
+            workspace,
+            signer_did=state.signer_did,
+        ),
     )
 
     initial_history: list = [

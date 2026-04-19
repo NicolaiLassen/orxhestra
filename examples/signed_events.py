@@ -23,7 +23,7 @@ from orxhestra.events.event import EventType
 
 # Import auth utilities for key generation
 try:
-    from orxhestra.auth.crypto import generate_ed25519_keypair, public_key_to_did_key
+    from orxhestra.security.crypto import generate_ed25519_keypair, public_key_to_did_key
 except ImportError:
     raise ImportError(
         "This example requires orxhestra[auth]. "

@@ -1,4 +1,14 @@
-"""LLM factory - create a LangChain chat model from a model name string."""
+"""LLM factory — create a LangChain chat model from a model name string.
+
+Single entry point (:func:`create_llm`) that inspects the prefix of a
+model identifier (``"gpt-"``, ``"claude-"``, ``"gemini-"``, ...) and
+dispatches to the matching provider's LangChain integration.  Each
+provider is imported lazily so the full matrix of optional providers
+doesn't have to be installed.
+
+Environment variables (``OPENAI_API_KEY``, ``ANTHROPIC_API_KEY``, ...)
+are honoured transparently via the underlying LangChain clients.
+"""
 
 from __future__ import annotations
 

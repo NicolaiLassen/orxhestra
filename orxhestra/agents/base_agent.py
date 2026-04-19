@@ -120,6 +120,13 @@ class BaseAgent(ABC):
     ) -> Event:
         """Create an Event with context attribution (branch, session, agent).
 
+        When the agent or context provides a signing key, the event is
+        signed and chained to the previous non-partial event emitted
+        on the same ``branch`` via :attr:`Event.prev_signature`.  The
+        per-branch chain heads are stored in
+        ``ctx.state["_orx_chain_heads"]`` so they round-trip through
+        any :class:`SessionService` that persists ``state``.
+
         Parameters
         ----------
         ctx : InvocationContext
@@ -133,6 +140,8 @@ class BaseAgent(ABC):
         -------
         Event
             A new Event with branch, session_id, and agent_name set.
+            When signing is enabled, also carries ``signature``,
+            ``signer_did``, and ``prev_signature``.
         """
         kwargs.setdefault("author", self.name)
         event = Event(
@@ -147,12 +156,18 @@ class BaseAgent(ABC):
         did = self.signing_did or ctx.signing_did
         if key is not None and did:
             try:
-                from orxhestra.auth.crypto import sign_json_payload
+                from orxhestra.security.crypto import sign_json_payload
 
+                chain_heads = ctx.state.setdefault("_orx_chain_heads", {})
+                event.prev_signature = chain_heads.get(ctx.branch)
                 event.signature = sign_json_payload(
                     key, event.signable_payload(),
                 )
                 event.signer_did = did
+                # Only non-partial events advance the chain head — partials
+                # are ephemeral streaming chunks and shouldn't fragment it.
+                if not event.partial:
+                    chain_heads[ctx.branch] = event.signature
             except ImportError:
                 pass
         return event

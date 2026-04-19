@@ -1,0 +1,193 @@
+---
+title: "YAML schema reference"
+description: "Flat reference of every field the composer accepts in orx.yaml. Ctrl-F for the field you need; every row links back to the narrative section."
+keywords: ["composer", "YAML schema", "ComposeSpec", "agent definition", "tool definition", "reference"]
+---
+
+Flat reference of every field the composer accepts in an `orx.yaml`. Kept short and grep-friendly — each row links back to the matching narrative section in [Composer](/composer/overview) when you want context.
+
+<Tip>
+  The canonical source is `orxhestra/composer/schema.py`. If this page ever drifts from the code, the code wins — file an issue so we can fix the doc.
+</Tip>
+
+## `ComposeSpec` (root)
+
+| Field | Type | Default | Notes |
+|-------|------|---------|-------|
+| `version` | `str` | current package version | Forward-compat stamp. No runtime effect today. |
+| `defaults` | [`DefaultsConfig`](#defaultsconfig) | `{}` | Inherited by every agent. |
+| `models` | `dict[str, ModelConfig]` | `{}` | Named LLM configs. |
+| `tools` | `dict[str, ToolDef]` | `{}` | Named tool definitions. |
+| `skills` | `dict[str, SkillItemDef]` | `{}` | Named skills (progressive disclosure). |
+| `agents` | `dict[str, AgentDef]` | **required** | All agents keyed by name. |
+| `main_agent` | `str` | **required** | Entry-point agent name. Must exist in `agents`. |
+| `runner` | [`RunnerConfig`](#runnerconfig) | `None` | Enables `runner_from_yaml()`. |
+| `server` | [`ServerConfig`](#serverconfig) | `None` | Enables `server_from_yaml()` (A2A). |
+| `identity` | [`IdentityConfig`](#identityconfig) | `None` | Ed25519 signing identity. |
+| `trust` | [`TrustConfig`](#trustconfig) | `None` | Signature verification policy. |
+| `attestation` | [`AttestationConfig`](#attestationconfig) | `None` | Audit + claim-issuance provider. |
+
+## `DefaultsConfig`
+
+| Field | Type | Default | Notes |
+|-------|------|---------|-------|
+| `model` | `ModelConfig` | `None` | Default LLM for agents that don't override. |
+| `max_iterations` | `int` | `10` | Tool-loop cap; loop agents also inherit this. |
+
+## `ModelConfig`
+
+| Field | Type | Default | Notes |
+|-------|------|---------|-------|
+| `provider` | `str` | `"anthropic"` | `openai`, `anthropic`, `google`, or a dotted import path. |
+| `name` | `str` | `"claude-opus-4-7"` | Provider-specific model id. |
+| `temperature` | `float \| None` | `None` | Sampling temperature. |
+| `**extra` | `dict` | — | Any extra keys (`max_tokens`, `api_key`, `base_url`, ...) are forwarded to the LangChain constructor. |
+
+## `ToolDef`
+
+Exactly one of `function` / `mcp` / `builtin` / `agent` / `transfer` / `custom` must be set.
+
+| Field | Type | Default | Notes |
+|-------|------|---------|-------|
+| `function` | `str \| None` | `None` | Dotted import path to a Python callable. |
+| `mcp` | [`MCPConfig`](#mcpconfig) \| `None` | `None` | MCP server connection. |
+| `builtin` | `str \| None` | `None` | Registered built-in name (`filesystem`, `shell`, ...). |
+| `agent` | `str \| None` | `None` | Name of an agent to wrap as an `AgentTool`. |
+| `transfer` | [`TransferConfig`](#transferconfig) \| `None` | `None` | Transfer-routing targets. |
+| `custom` | `dict[str, Any] \| None` | `None` | Escape hatch; must carry `"type"` key matching a resolver registered via `register_tool_resolver`. |
+| `skip_summarization` | `bool` | `False` | Skip LLM summarization of the tool's result. |
+| `name` | `str \| None` | `None` | Override the tool name exposed to the LLM. |
+| `description` | `str \| None` | `None` | Override the tool description. |
+
+### `MCPConfig`
+
+| Field | Type | Default | Notes |
+|-------|------|---------|-------|
+| `url` | `str \| None` | `None` | HTTP(S) URL of the MCP server. |
+| `server` | `str \| None` | `None` | Dotted import path to an in-memory `FastMCP` server. |
+
+Exactly one of `url` / `server` must be set.
+
+### `TransferConfig`
+
+| Field | Type | Default | Notes |
+|-------|------|---------|-------|
+| `targets` | `list[str]` | **required** | Agent names that can be transferred to. |
+
+## `AgentDef`
+
+Shared shape — per-type required fields are enforced by the schema validator.
+
+| Field | Type | Default | Applies to | Notes |
+|-------|------|---------|------------|-------|
+| `type` | `"llm" \| "react" \| "sequential" \| "parallel" \| "loop" \| "a2a"` | `"llm"` | all | Agent kind. Custom types register via `register_builder`. |
+| `description` | `str` | `""` | all | Used by routers and LLM transfer decisions. |
+| `url` | `str \| None` | `None` | **`a2a` (required)** | Remote A2A server URL. |
+| `model` | `ModelConfig \| str \| None` | `None` | `llm`, `react` | Inline config or name ref to `models`. |
+| `instructions` | `str \| None` | `None` | `llm`, `react` | System instructions. |
+| `tools` | `list[str \| ToolDef] \| None` | `None` | `llm`, `react` | Named refs or inline. |
+| `skills` | `list[str]` | `[]` | `llm`, `react` | Progressive-disclosure skill refs. |
+| `agents` | `list[str] \| None` | `None` | **composites (required)** | Sub-agent names for `sequential` / `parallel` / `loop`. |
+| `planner` | [`PlannerDef`](#plannerdef) \| `None` | `None` | `llm`, `react` | Planning strategy. |
+| `output_key` | `str \| None` | `None` | `llm`, `react` | Session-state key for final output. |
+| `output_schema` | `str \| None` | `None` | `llm`, `react` | Dotted import path to a Pydantic model. |
+| `include_contents` | `"default" \| "none" \| None` | `None` | `llm`, `react` | Content inclusion mode. |
+| `max_iterations` | `int \| None` | `None` | `llm`, `react`, `loop` | Tool-loop / iteration cap. |
+| `should_continue` | `str \| None` | `None` | `loop` | Dotted import path to a continuation callable. |
+
+<Tip>
+  Fields set on an agent type that ignores them (e.g. `tools` on a `sequential` agent) emit a `warnings.warn` at schema time. Run with `-W error` to turn those into hard failures.
+</Tip>
+
+### `PlannerDef`
+
+| Field | Type | Default | Notes |
+|-------|------|---------|-------|
+| `type` | `"plan_react" \| "task"` | `"plan_react"` | Planner strategy. |
+| `tasks` | `list[dict] \| None` | `None` | Pre-defined tasks for `task` planner; ignored for `plan_react`. |
+
+## `SkillItemDef`
+
+Exactly one of `content` / `mcp` / `directory` must be set.
+
+| Field | Type | Default | Notes |
+|-------|------|---------|-------|
+| `name` | `str` | **required** | Skill name (used by the agent's `load_skill` tool). |
+| `description` | `str` | `""` | Shown to the LLM during skill selection. |
+| `content` | `str \| None` | `None` | Inline Markdown content. |
+| `mcp` | [`MCPConfig`](#mcpconfig) \| `None` | `None` | Fetch from a FastMCP server at build time. |
+| `directory` | `str \| None` | `None` | Path to an [Agent Skills Protocol](https://agentskills.io) directory. |
+
+## `RunnerConfig`
+
+| Field | Type | Default | Notes |
+|-------|------|---------|-------|
+| `app_name` | `str` | `"agent-app"` | Session namespace. |
+| `session_service` | `"memory" \| "database" \| <dotted>` | `"memory"` | Session backend selector. |
+| `artifact_service` | `"memory" \| "file" \| None` | `None` | Artifact backend. |
+| `compaction` | [`CompactionConfigDef`](#compactionconfigdef) \| `None` | `None` | Auto-compaction. |
+| `config` | [`RunConfigDef`](#runconfigdef) \| `None` | `None` | LangChain `RunnableConfig` for every call. |
+
+### `CompactionConfigDef`
+
+| Field | Type | Default | Notes |
+|-------|------|---------|-------|
+| `char_threshold` | `int` | `100_000` | ~25k tokens; compact past this. |
+| `retention_chars` | `int` | `20_000` | ~5k tokens; always kept raw. |
+
+### `RunConfigDef`
+
+| Field | Type | Default | Notes |
+|-------|------|---------|-------|
+| `callbacks` | `list[str]` | `[]` | Dotted import paths to LangChain callback handlers. |
+| `tags` | `list[str]` | `[]` | Tags propagated to every call. |
+| `metadata` | `dict[str, str]` | `{}` | Run metadata. |
+
+## `ServerConfig`
+
+| Field | Type | Default | Notes |
+|-------|------|---------|-------|
+| `app_name` | `str` | `"agent-app"` | A2A card name. |
+| `version` | `str` | `"1.0.0"` | A2A card version. |
+| `url` | `str` | `"http://localhost:8000"` | Public URL. |
+| `skills` | `list[A2ASkillDef]` | `[]` | Advertised skills. |
+
+## `IdentityConfig`
+
+| Field | Type | Default | Notes |
+|-------|------|---------|-------|
+| `signing_key` | `str` | **required** | Path to a JSON key file. Created via `orx identity init`. Supports `${VAR}` expansion. |
+| `encryption_password` | `str \| None` | `None` | Password for Fernet-wrapped key files. Supports `${VAR}` expansion. |
+| `did_method` | `"key" \| "web"` | `"key"` | `"key"` derives the DID from the public key; `"web"` requires an explicit `did`. |
+| `did` | `str \| None` | `None` | Explicit DID. **Required when `did_method="web"`.** |
+
+## `TrustConfig`
+
+| Field | Type | Default | Notes |
+|-------|------|---------|-------|
+| `mode` | `"strict" \| "permissive"` | `"permissive"` | Strict drops failing events; permissive annotates them. |
+| `trusted_dids` | `list[str]` | `[]` | Allowlist. Empty means "any valid signer". |
+| `denied_dids` | `list[str]` | `[]` | Denylist. Takes precedence over allowlist. |
+| `require_chain` | `bool` | `False` | Enforce hash-chain continuity per branch. |
+| `allow_unsigned` | `bool` | `True` | When `False`, every event must be signed. |
+
+Only installed when an `identity:` block is also present (verification requires keys).
+
+## `AttestationConfig`
+
+| Field | Type | Default | Notes |
+|-------|------|---------|-------|
+| `provider` | `"noop" \| "local" \| <dotted>` | `"noop"` | Provider selector. |
+| `path` | `str \| None` | `None` | Required when `provider="local"`. |
+
+Dotted paths must resolve to a class implementing the [`AttestationProvider`](https://github.com/NicolaiLassen/orxhestra/blob/main/orxhestra/trust/attestation/protocol.py) protocol.
+
+## Environment-variable expansion
+
+Any string in `identity.signing_key`, `identity.encryption_password`, and `attestation.path` goes through `os.path.expandvars`, so `${ORX_SIGNING_KEY}` / `$HOME/.orx/...` work. Other fields are taken literally; interpolate with YAML anchors or templating if you need more than three spots.
+
+## See also
+
+- [Composer overview](/composer/overview) — narrative walkthrough with examples.
+- [Extending the composer](/composer/extending) — register custom agent types, model providers, built-in tools, and tool resolvers.
+- [`orxhestra/composer/schema.py`](https://github.com/NicolaiLassen/orxhestra/blob/main/orxhestra/composer/schema.py) — canonical source.

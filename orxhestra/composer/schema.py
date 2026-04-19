@@ -1,4 +1,24 @@
-"""Pydantic models that validate the YAML orx specification."""
+"""Pydantic models that validate the YAML orx specification.
+
+The :class:`ComposeSpec` at the bottom of this module is the root
+schema — every ``orx.yaml`` file parses into one via Pydantic's
+``model_validate``.  Nested schemas (:class:`AgentDef`,
+:class:`ToolDef`, :class:`ModelConfig`, ...) encode the field-level
+constraints; post-validators (``@model_validator(mode="after")``)
+enforce cross-field invariants that aren't expressible as simple
+types, such as "a2a agents must set ``url``" and "composite agents
+must set a non-empty ``agents`` list".
+
+Errors surfaced here come from Pydantic directly and are rewrapped
+as :class:`~orxhestra.composer.errors.ComposerError` by
+:meth:`~orxhestra.composer.composer.Composer._load_spec` so callers
+catch a single exception type at the composer boundary.
+
+See Also
+--------
+orxhestra.composer.composer.Composer : Consumes ``ComposeSpec`` to
+    build a live agent tree.
+"""
 
 from __future__ import annotations
 
@@ -96,8 +116,8 @@ class TransferConfig(BaseModel):
 class ToolDef(BaseModel):
     """A single tool definition.
 
-    Exactly one of ``function``, ``mcp``, ``builtin``, ``agent``, or
-    ``transfer`` must be set.
+    Exactly one of ``function``, ``mcp``, ``builtin``, ``agent``,
+    ``transfer``, or ``custom`` must be set.
 
     Attributes
     ----------
@@ -106,11 +126,18 @@ class ToolDef(BaseModel):
     mcp : MCPConfig, optional
         MCP server connection config that provides this tool.
     builtin : str, optional
-        Name of a registered built-in tool (e.g. ``"shell"``, ``"filesystem"``).
+        Name of a registered built-in tool (e.g. ``"shell"``,
+        ``"filesystem"``).
     agent : str, optional
         Name of an agent to wrap as a callable tool.
     transfer : TransferConfig, optional
         Transfer tool config for handing off to other agents.
+    custom : dict[str, Any], optional
+        Escape hatch for third-party tool resolvers.  The mapping
+        must carry a ``"type"`` key identifying a resolver registered
+        via
+        :func:`~orxhestra.composer.register_tool_resolver`.  All
+        other keys are passed through to the resolver.
     skip_summarization : bool
         If ``True``, skip LLM summarization of this tool's result.
     name : str, optional
@@ -139,6 +166,13 @@ class ToolDef(BaseModel):
         default=None,
         description="Transfer tool config for handing off to other agents.",
     )
+    custom: dict[str, Any] | None = Field(
+        default=None,
+        description=(
+            "Escape hatch for third-party tool types registered via "
+            "register_tool_resolver().  Must include a 'type' key."
+        ),
+    )
     skip_summarization: bool = Field(
         default=False,
         description="If True, skip LLM summarization of this tool's result.",
@@ -156,15 +190,23 @@ class ToolDef(BaseModel):
     def _exactly_one_type(self) -> ToolDef:
         set_fields = [
             f
-            for f in ("function", "mcp", "builtin", "agent", "transfer")
+            for f in (
+                "function", "mcp", "builtin", "agent", "transfer", "custom",
+            )
             if getattr(self, f) is not None
         ]
         if len(set_fields) != 1:
             msg = (
                 "ToolDef must have exactly one of "
-                f"function/mcp/builtin/agent/transfer, got {set_fields}"
+                "function/mcp/builtin/agent/transfer/custom, "
+                f"got {set_fields}"
             )
             raise ValueError(msg)
+        if self.custom is not None and "type" not in self.custom:
+            raise ValueError(
+                "ToolDef.custom must include a 'type' key naming a "
+                "resolver registered via register_tool_resolver()",
+            )
         return self
 
 
@@ -353,6 +395,90 @@ class AgentDef(BaseModel):
         description="Dotted import path to a callable that decides loop continuation.",
     )
 
+    #: Built-in agent types that take a non-empty ``agents`` list.
+    _COMPOSITE_TYPES: tuple[str, ...] = ("sequential", "parallel", "loop")
+
+    #: Fields that only make sense on LLM-like agent types
+    #: (``llm`` / ``react``).  Used by the post-validator to warn when
+    #: they're set on an agent type that will silently ignore them.
+    _LLM_ONLY_FIELDS: tuple[str, ...] = (
+        "model",
+        "instructions",
+        "tools",
+        "skills",
+        "planner",
+        "output_schema",
+        "output_key",
+        "include_contents",
+    )
+
+    @model_validator(mode="after")
+    def _validate_per_type(self) -> AgentDef:
+        """Enforce required-per-type fields and warn about meaningless ones.
+
+        Required fields (hard reject):
+        - ``a2a`` agents must set ``url``.
+        - ``sequential`` / ``parallel`` / ``loop`` agents must set a
+          non-empty ``agents`` list.
+
+        Meaningless fields (``warnings.warn``, not rejection):
+        - Composite agents ignore ``model``, ``instructions``,
+          ``tools``, ``skills``, ``planner``, ``output_schema``, etc.
+        - ``a2a`` agents ignore everything except ``url`` and
+          ``description``.
+        - Non-loop agents ignore ``should_continue``.
+
+        Unknown agent types — ones registered via
+        :func:`~orxhestra.composer.register_builder` — are exempt from
+        both checks; custom builders are free to consume any field.
+
+        Returns
+        -------
+        AgentDef
+            ``self``, unchanged.  The validator is side-effect-only.
+        """
+        import warnings
+
+        BUILTIN_TYPES = {"llm", "react", *self._COMPOSITE_TYPES, "a2a"}
+        if self.type not in BUILTIN_TYPES:
+            return self
+
+        # Hard requirements.
+        if self.type == "a2a" and not self.url:
+            raise ValueError("a2a agents must set 'url'")
+        if self.type in self._COMPOSITE_TYPES and not self.agents:
+            raise ValueError(
+                f"{self.type} agents must set a non-empty 'agents' list",
+            )
+
+        # Soft warnings — set fields that the builder will silently ignore.
+        warn = lambda field, reason: warnings.warn(  # noqa: E731
+            f"AgentDef(type={self.type!r}) has '{field}' set but {reason}. "
+            f"It will be ignored.",
+            stacklevel=2,
+        )
+
+        if self.type in self._COMPOSITE_TYPES:
+            for field_name in self._LLM_ONLY_FIELDS:
+                value = getattr(self, field_name)
+                if value:
+                    warn(field_name, "composite agents only consume 'agents'")
+            if self.url:
+                warn("url", "only 'a2a' agents consume 'url'")
+
+        if self.type == "a2a":
+            for field_name in ("tools", "instructions", "planner",
+                                "output_schema", "agents"):
+                value = getattr(self, field_name)
+                if value:
+                    warn(field_name,
+                         "'a2a' agents only consume 'url' and 'description'")
+
+        if self.type != "loop" and self.should_continue:
+            warn("should_continue", "only 'loop' agents consume it")
+
+        return self
+
 
 class DefaultsConfig(BaseModel):
     """Global defaults inherited by all agents.
@@ -470,6 +596,128 @@ class RunnerConfig(BaseModel):
     )
 
 
+class IdentityConfig(BaseModel):
+    """Ed25519 signing identity for the Runner's agents.
+
+    Attributes
+    ----------
+    signing_key : str
+        Path to a JSON key file (created by ``orx identity init`` or
+        :func:`orxhestra.security.crypto.load_or_create_signing_key`).
+        Supports ``${VAR}`` environment-variable expansion.
+    encryption_password : str, optional
+        Password used to decrypt the key file when it is stored
+        encrypted.  Supports ``${VAR}`` expansion.
+    did_method : str
+        DID method to use for the public identity — ``"key"``
+        (default, offline) or ``"web"`` (institutional, requires
+        ``did`` to be set).
+    did : str, optional
+        Explicit DID to publish.  Required when ``did_method="web"``.
+        Ignored for ``did_method="key"`` since the DID is derived
+        from the key.
+    """
+
+    signing_key: str = Field(
+        description="Path to a JSON key file produced by `orx identity init`.",
+    )
+    encryption_password: str | None = Field(
+        default=None,
+        description="Password used to decrypt the key file at rest.",
+    )
+    did_method: Literal["key", "web"] = Field(
+        default="key",
+        description="DID method — 'key' (offline) or 'web' (institutional).",
+    )
+    did: str | None = Field(
+        default=None,
+        description="Explicit DID to publish. Required when did_method='web'.",
+    )
+
+    @model_validator(mode="after")
+    def _require_did_for_web(self) -> IdentityConfig:
+        if self.did_method == "web" and not self.did:
+            raise ValueError("identity.did is required when did_method='web'")
+        return self
+
+
+class TrustConfig(BaseModel):
+    """Declarative config for the trust middleware.
+
+    See :class:`~orxhestra.middleware.trust.TrustMiddleware` for how
+    the runner consumes these fields.
+
+    Attributes
+    ----------
+    mode : str
+        ``"strict"`` drops events that fail verification, ``"permissive"``
+        keeps delivering them with a ``metadata["trust"]`` annotation.
+    trusted_dids : list[str]
+        Allowlist of accepted signer DIDs.  Empty list means any
+        valid signer passes (subject to ``denied_dids``).
+    denied_dids : list[str]
+        DIDs whose events are always rejected.
+    require_chain : bool
+        When ``True``, enforce hash-chain continuity per branch.
+    allow_unsigned : bool
+        When ``False``, every event must carry a valid signature.
+    """
+
+    mode: Literal["strict", "permissive"] = Field(
+        default="permissive",
+        description="Strict drops failing events; permissive annotates them.",
+    )
+    trusted_dids: list[str] = Field(
+        default_factory=list,
+        description="Allowlist of accepted signer DIDs.",
+    )
+    denied_dids: list[str] = Field(
+        default_factory=list,
+        description="DIDs whose events are always rejected.",
+    )
+    require_chain: bool = Field(
+        default=False,
+        description="Enforce hash-chain continuity per branch.",
+    )
+    allow_unsigned: bool = Field(
+        default=True,
+        description="When False, every event must be signed.",
+    )
+
+
+class AttestationConfig(BaseModel):
+    """Declarative config for the attestation middleware.
+
+    See :class:`~orxhestra.middleware.attestation.AttestationMiddleware`
+    for how the runner consumes these fields.
+
+    Attributes
+    ----------
+    provider : str
+        Provider type: ``"noop"``, ``"local"``, or a dotted import
+        path to a user-supplied
+        :class:`~orxhestra.trust.attestation.protocol.AttestationProvider`.
+    path : str, optional
+        Path passed to the local provider for on-disk audit logs.
+        Required when ``provider="local"``.
+    """
+
+    provider: str = Field(
+        default="noop",
+        description="Provider type: 'noop', 'local', or a dotted import path.",
+    )
+    path: str | None = Field(
+        default=None,
+        description="Path to on-disk audit log (required for provider='local').",
+    )
+
+    @model_validator(mode="after")
+    def _require_path_for_local(self) -> AttestationConfig:
+        if self.provider == "local" and not self.path:
+            raise ValueError("attestation.path is required when provider='local'")
+        return self
+
+
 class ServerConfig(BaseModel):
     """A2A server configuration.
 
@@ -526,6 +774,19 @@ class ComposeSpec(BaseModel):
         Runner configuration for session management.
     server : ServerConfig, optional
         A2A server configuration for remote hosting.
+    identity : IdentityConfig, optional
+        Ed25519 signing identity applied to the Runner.  When set,
+        every event emitted by agents running under the Runner is
+        signed with this key.
+    trust : TrustConfig, optional
+        Declarative :class:`~orxhestra.middleware.trust.TrustMiddleware`
+        configuration.  Only registered when ``identity`` is also set
+        (verification requires keys).
+    attestation : AttestationConfig, optional
+        Declarative
+        :class:`~orxhestra.middleware.attestation.AttestationMiddleware`
+        configuration.  Registered on the Runner when set, regardless
+        of whether an identity is configured.
     """
 
     version: str = Field(
@@ -561,6 +822,18 @@ class ComposeSpec(BaseModel):
     server: ServerConfig | None = Field(
         default=None,
         description="A2A server configuration for remote agent hosting.",
+    )
+    identity: IdentityConfig | None = Field(
+        default=None,
+        description="Ed25519 signing identity applied to the Runner.",
+    )
+    trust: TrustConfig | None = Field(
+        default=None,
+        description="TrustMiddleware configuration (requires identity).",
+    )
+    attestation: AttestationConfig | None = Field(
+        default=None,
+        description="AttestationMiddleware configuration.",
     )
 
     @model_validator(mode="after")

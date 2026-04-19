@@ -106,13 +106,19 @@ class Event(BaseModel):
         The raw LLM response (internal use).
     signature : str, optional
         Base64url-encoded Ed25519 signature over the canonical JSON
-        representation of the event's signable fields (id, type,
-        timestamp, agent_name, content text).  Set automatically
-        when the emitting agent has a signing key.
+        representation of the event's signable fields.  Set
+        automatically when the emitting agent has a signing key.
+        The covered fields are enumerated by :meth:`signable_payload`.
     signer_did : str
         The ``did:key`` identifier of the signing agent.  Verifiers
         use this to resolve the public key via
-        ``orxhestra.auth.did_key_to_public_key()``.
+        ``orxhestra.security.did_key_to_public_key()``.
+    prev_signature : str, optional
+        Signature of the previous non-partial event emitted on the
+        same ``branch``, establishing a hash chain across the session
+        log.  Populated by :meth:`BaseAgent._emit_event` when the
+        agent (or context) has a signing key.  ``None`` for the first
+        event on a branch or when signing is disabled.
     """
 
     id: str = Field(default_factory=lambda: str(uuid4()))
@@ -131,6 +137,7 @@ class Event(BaseModel):
     llm_response: LlmResponse | None = None
     signature: str | None = None
     signer_did: str = ""
+    prev_signature: str | None = None
 
     @property
     def text(self) -> str:
@@ -309,11 +316,20 @@ class Event(BaseModel):
     def signable_payload(self) -> dict[str, Any]:
         """Return the canonical dict of fields included in the signature.
 
+        Covers the envelope plus fingerprints of every mutable,
+        security-relevant field — tool calls, :class:`EventActions`
+        (transfer target and ``state_delta``), the LLM response
+        (model identifier and output text), and the hash-chain link
+        ``prev_signature``.  Fingerprinting heavy fields (rather than
+        embedding them) keeps signatures compact while still tying the
+        signature to the exact content.
+
         Returns
         -------
         dict[str, Any]
             Deterministic subset of event fields used for signing
-            and verification.
+            and verification.  Same input event always yields the
+            same payload.
         """
         return {
             "id": self.id,
@@ -322,6 +338,20 @@ class Event(BaseModel):
             "agent_name": self.agent_name or "",
             "branch": self.branch,
             "content_text": self.text,
+            "prev_signature": self.prev_signature or "",
+            "tool_calls": [
+                {
+                    "tool_call_id": tc.tool_call_id,
+                    "tool_name": tc.tool_name,
+                    "args_hash": _hash_json(tc.args),
+                }
+                for tc in self.tool_calls
+            ],
+            "actions": {
+                "transfer_to_agent": self.actions.transfer_to_agent or "",
+                "state_delta_hash": _hash_json(self.actions.state_delta),
+            },
+            "llm_response": _llm_response_fingerprint(self.llm_response),
         }
 
     @property
@@ -333,7 +363,7 @@ class Event(BaseModel):
         """Verify this event's signature using the signer's DID.
 
         Resolves the public key from ``signer_did`` via
-        ``orxhestra.auth.did_key_to_public_key()`` and verifies the
+        ``orxhestra.security.did_key_to_public_key()`` and verifies the
         signature over :meth:`signable_payload`.
 
         Returns
@@ -351,7 +381,7 @@ class Event(BaseModel):
         if not self.is_signed:
             return False
 
-        from orxhestra.auth.crypto import (
+        from orxhestra.security.crypto import (
             did_key_to_public_key,
             verify_json_signature,
         )
@@ -377,3 +407,68 @@ class Event(BaseModel):
             UUID4 hex string suitable for :attr:`Event.id`.
         """
         return str(uuid4())
+
+
+def _hash_json(value: Any) -> str:
+    """Return the SHA-256 hex digest of a value's canonical JSON form.
+
+    Empty / falsy values (``None``, empty dict, empty list) return an
+    empty string so they produce a stable, distinctive marker instead
+    of the SHA-256 of ``null`` or ``{}``.
+
+    Parameters
+    ----------
+    value : Any
+        JSON-serializable value.  Non-serializable inputs fall back to
+        ``repr()`` to keep signing robust under unexpected content.
+
+    Returns
+    -------
+    str
+        Hex-encoded SHA-256 digest, or ``""`` for empty inputs.
+    """
+    import hashlib
+
+    if not value:
+        return ""
+    try:
+        from orxhestra.security.crypto import canonicalize_json
+
+        payload = canonicalize_json(value)  # type: ignore[arg-type]
+    except ImportError:
+        import json as _json
+
+        payload = _json.dumps(value, sort_keys=True, default=repr).encode("utf-8")
+    except TypeError:
+        payload = repr(value).encode("utf-8")
+    return hashlib.sha256(payload).hexdigest()
+
+
+def _llm_response_fingerprint(response: LlmResponse | None) -> dict[str, str]:
+    """Return a stable, minimal fingerprint of an :class:`LlmResponse`.
+
+    Covers the two fields that matter for attestation — which model
+    produced the output and a digest of the output text — while
+    ignoring token counts and the opaque ``raw_message`` payload.
+
+    Parameters
+    ----------
+    response : LlmResponse or None
+        The response attached to the event, if any.
+
+    Returns
+    -------
+    dict[str, str]
+        ``{}`` when ``response`` is ``None``; otherwise ``model`` and
+        ``text_hash`` entries.
+    """
+    if response is None:
+        return {}
+    import hashlib
+
+    text = response.text or ""
+    text_hash = hashlib.sha256(text.encode("utf-8")).hexdigest() if text else ""
+    return {
+        "model": response.model_version or "",
+        "text_hash": text_hash,
+    }

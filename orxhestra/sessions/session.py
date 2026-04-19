@@ -1,4 +1,15 @@
-"""Session model - runtime state for a multi-turn conversation."""
+"""Session model — durable state for a multi-turn agent conversation.
+
+A :class:`Session` is the single source of truth for what happened
+in a conversation: its ordered :class:`~orxhestra.events.event.Event`
+log, a mutable ``state`` dict that agents read and write via
+``EventActions.state_delta``, and the timestamps / ownership metadata
+that let a :class:`~orxhestra.sessions.base_session_service.BaseSessionService`
+look it up again later.
+
+The model is intentionally serializable (plain :mod:`pydantic`) so it
+can round-trip through any backend — in-memory, SQL, cache.
+"""
 
 from __future__ import annotations
 

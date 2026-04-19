@@ -1,4 +1,14 @@
-"""Build a Runner and REPL state from an orx YAML specification."""
+"""Build a Runner and :class:`~orxhestra.cli.state.ReplState` from orx YAML.
+
+The entry point :func:`build_from_orx` takes a YAML path (or the
+built-in coding-agent spec), composes the agent tree via
+:class:`~orxhestra.composer.composer.Composer`, configures the model
+selected by ``--model``, wires up auto-memory + CLI built-in tools,
+and returns a ready-to-run :class:`~orxhestra.cli.state.ReplState`.
+
+Called from both the interactive REPL path and the ``-c`` single-shot
+path in :mod:`orxhestra.cli.app`.
+"""
 
 from __future__ import annotations
 
@@ -136,7 +146,7 @@ async def build_from_orx(
 
     spec: ComposeSpec = ComposeSpec.model_validate(raw)
     composer = Composer(spec)
-    root = await composer._build()
+    root = await composer.build()
 
     async def _human_input_prompt(question: str) -> str:
         try:
@@ -147,7 +157,7 @@ async def build_from_orx(
     _set_human_input_callbacks(root, _human_input_prompt)
 
     if spec.runner is not None:
-        runner = await composer._build_runner(root)
+        runner = await composer.build_runner(root)
     else:
         from orxhestra.artifacts.in_memory_artifact_service import InMemoryArtifactService
         from orxhestra.runner import Runner

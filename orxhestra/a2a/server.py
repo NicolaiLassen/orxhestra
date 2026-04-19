@@ -1,11 +1,29 @@
-"""A2AServer — spec-compliant A2A v1.0 server over JSON-RPC 2.0.
+"""Spec-compliant A2A v1.0 server over JSON-RPC 2.0.
 
-Exposes any BaseAgent as an A2A endpoint with:
-  - POST / — JSON-RPC 2.0 dispatch (SendMessage, SendStreamingMessage, etc.)
-  - GET  /.well-known/agent-card.json  — Agent Card discovery
+Exposes any :class:`BaseAgent` as an A2A endpoint with:
 
-Run with:
+- ``POST /``                          — JSON-RPC 2.0 dispatch
+  (``SendMessage``, ``SendStreamingMessage``, ``GetTask``,
+  ``CancelTask``).
+- ``GET  /.well-known/agent-card.json`` — :class:`AgentCard`
+  discovery, including an optional :class:`VerificationMethod` list
+  when the server has a signing identity.
+
+Optionally signs every outgoing agent message with Ed25519 and
+verifies incoming signed messages against a
+:class:`~orxhestra.security.did.DidResolver`.  Signing is **opt-in**
+— when ``signing_key`` is unset the server behaves exactly as it did
+before the identity layer existed.
+
+Run with::
+
     uvicorn my_module:app
+
+See Also
+--------
+orxhestra.agents.a2a_agent.A2AAgent : Client-side counterpart.
+orxhestra.a2a.signing : Message signing / verification helpers.
+orxhestra.a2a.types.VerificationMethod : Published on agent cards.
 """
 
 from __future__ import annotations
@@ -25,6 +43,12 @@ except ImportError as _exc:
     ) from _exc
 
 from orxhestra.a2a.converters import events_to_a2a_stream
+from orxhestra.a2a.signing import (
+    sign_message as sign_a2a_message,
+)
+from orxhestra.a2a.signing import (
+    verify_message as verify_a2a_message,
+)
 from orxhestra.a2a.types import (
     TERMINAL_STATES,
     A2AErrorCode,
@@ -46,13 +70,26 @@ from orxhestra.a2a.types import (
     TaskState,
     TaskStatus,
     TaskStatusUpdateEvent,
+    VerificationMethod,
 )
 from orxhestra.agents.base_agent import BaseAgent
 from orxhestra.agents.invocation_context import InvocationContext as Context
 from orxhestra.sessions.base_session_service import BaseSessionService
 
+# Local type alias to avoid a runtime dep on cryptography.
+_Ed25519PrivateKey = Any
+_DidResolver = Any
+
 
 def _now_iso() -> str:
+    """Return the current UTC time as an ISO 8601 string.
+
+    Returns
+    -------
+    str
+        Timezone-aware ISO 8601 timestamp — used to stamp
+        :class:`TaskStatus` transitions.
+    """
     return datetime.now(timezone.utc).isoformat()
 
 
@@ -94,6 +131,10 @@ class A2AServer:
         version: str = "1.0.0",
         url: str = "http://localhost:8000",
         skills: list[AgentSkill] | None = None,
+        signing_key: _Ed25519PrivateKey | None = None,
+        signer_did: str = "",
+        require_signed: bool = False,
+        resolver: _DidResolver | None = None,
     ) -> None:
         """Initialize the A2A server.
 
@@ -111,6 +152,20 @@ class A2AServer:
             Base URL where the server is reachable.
         skills : list[AgentSkill] | None
             Skills advertised in the Agent Card.
+        signing_key : Ed25519PrivateKey, optional
+            When set, the server signs every outgoing A2A message and
+            publishes its :class:`VerificationMethod` in the agent
+            card.  Requires ``orxhestra[auth]``.
+        signer_did : str
+            DID matching ``signing_key``.  Required when
+            ``signing_key`` is set.
+        require_signed : bool
+            When ``True``, incoming messages without a valid signature
+            are rejected with ``INVALID_REQUEST``.  Defaults to ``False``
+            for back-compat with unsigned peers.
+        resolver : DidResolver, optional
+            Resolver used to verify incoming signatures.  Defaults to
+            a :class:`CompositeResolver` covering ``did:key`` only.
         """
         self.agent = agent
         self.session_service = session_service
@@ -118,6 +173,10 @@ class A2AServer:
         self.version = version
         self.url = url
         self.skills = skills or []
+        self.signing_key = signing_key
+        self.signer_did = signer_did
+        self.require_signed = require_signed
+        self._resolver = resolver
 
         # In-memory task store: task_id -> Task (bounded to prevent leaks).
         self._tasks: dict[str, Task] = {}
@@ -125,6 +184,54 @@ class A2AServer:
 
 
     def _build_agent_card(self) -> AgentCard:
+        """Return the :class:`AgentCard` published at the well-known URL.
+
+        When ``signing_key`` is set, derives the matching ``did:key``
+        and publishes a :class:`VerificationMethod` that remote peers
+        can resolve to verify signed responses.  For ``did:web``
+        identities the fragment falls back to ``#key-1`` since the
+        spec doesn't mandate a canonical derivation.
+
+        Returns
+        -------
+        AgentCard
+            Fully-populated card ready for
+            :meth:`pydantic.BaseModel.model_dump`.
+        """
+        verification_methods: list[VerificationMethod] | None = None
+        controller: str | None = None
+        if self.signing_key is not None and self.signer_did:
+            import base58
+
+            from orxhestra.security.crypto import (
+                did_key_fragment,
+                public_key_to_did_key,
+                serialize_public_key,
+            )
+
+            public_key = self.signing_key.public_key()
+            multibase = "z" + base58.b58encode(
+                bytes([0xED, 0x01]) + serialize_public_key(public_key),
+            ).decode("ascii")
+            controller = self.signer_did
+            try:
+                fragment = did_key_fragment(self.signer_did)
+            except ValueError:
+                # did:web or other — fall back to fixed fragment.
+                fragment = "#key-1"
+            # Validate the advertised DID matches the signing key.
+            derived_did = public_key_to_did_key(public_key)
+            if self.signer_did.startswith("did:key:") and self.signer_did != derived_did:
+                controller = derived_did
+            verification_methods = [
+                VerificationMethod(
+                    id=f"{controller}{fragment}",
+                    type="Ed25519VerificationKey2020",
+                    controller=controller,
+                    public_key_multibase=multibase,
+                ),
+            ]
+
         return AgentCard(
             name=self.agent.name,
             description=self.agent.description or "An AI agent exposed via A2A.",
@@ -141,10 +248,66 @@ class A2AServer:
                 push_notifications=False,
             ),
             skills=self.skills,
+            controller=controller,
+            verification_method=verification_methods,
         )
+
+    def _default_resolver(self):
+        """Return the lazily-constructed default :class:`~orxhestra.security.did.DidResolver`.
+
+        When no resolver was supplied at construction, a
+        :class:`~orxhestra.security.did.DidKeyResolver` is created on first use and cached
+        for subsequent calls.
+
+        Returns
+        -------
+        DidResolver
+        """
+        if self._resolver is not None:
+            return self._resolver
+        from orxhestra.security.did import DidKeyResolver
+
+        self._resolver = DidKeyResolver()
+        return self._resolver
+
+    def _maybe_sign(self, message: Message) -> Message:
+        """Sign ``message`` when the server has a signing identity configured.
+
+        Parameters
+        ----------
+        message : Message
+            Outgoing message to stamp.
+
+        Returns
+        -------
+        Message
+            ``message`` unchanged when no signing key is configured;
+            otherwise a copy carrying a detached Ed25519 signature via
+            :func:`orxhestra.a2a.signing.sign_message`.
+        """
+        if self.signing_key is None or not self.signer_did:
+            return message
+        return sign_a2a_message(message, self.signing_key, self.signer_did)
 
 
     def _create_task(self, message: Message, context_id: str | None = None) -> Task:
+        """Create, store, and return a new :class:`Task` for ``message``.
+
+        Parameters
+        ----------
+        message : Message
+            Initial user message kicking off the task.
+        context_id : str, optional
+            Conversation identifier carried on the task.  A fresh
+            UUID is generated when omitted.
+
+        Returns
+        -------
+        Task
+            Newly-registered task in ``SUBMITTED`` state.  The oldest
+            tasks are evicted once ``_max_tasks`` is exceeded so the
+            in-memory store cannot grow unbounded.
+        """
         task = Task(
             id=str(uuid.uuid4()),
             context_id=context_id or str(uuid.uuid4()),
@@ -164,6 +327,18 @@ class A2AServer:
         state: TaskState,
         agent_message: Message | None = None,
     ) -> None:
+        """Update ``task.status`` with a new state and optional message.
+
+        Parameters
+        ----------
+        task : Task
+            Task whose status is changing.
+        state : TaskState
+            New lifecycle state.
+        agent_message : Message, optional
+            Latest agent message to attach to the status snapshot
+            (e.g. an error or progress update).
+        """
         task.status = TaskStatus(
             state=state,
             message=agent_message,
@@ -175,7 +350,22 @@ class A2AServer:
         task: Task,
         user_message: str,
     ) -> None:
-        """Run the agent and collect the final answer into the task."""
+        """Run the agent, collect the final answer, and sign the response.
+
+        Parameters
+        ----------
+        task : Task
+            Task object to mutate in place with status updates,
+            artifacts, and history.
+        user_message : str
+            Plain text extracted from the incoming user message.
+
+        Notes
+        -----
+        The constructed agent response message passes through
+        :meth:`_maybe_sign` so it inherits the server's signing
+        identity when configured.
+        """
         session = await self.session_service.create_session(
             app_name=self.app_name,
             user_id="anonymous",
@@ -203,6 +393,7 @@ class A2AServer:
             task_id=task.id,
             context_id=task.context_id,
         )
+        agent_msg = self._maybe_sign(agent_msg)
 
         # Add artifact
         artifact = Artifact(parts=[Part(text=final_answer, media_type="text/plain")])
@@ -218,6 +409,9 @@ class A2AServer:
         self, params: dict[str, Any], request_id: Any,
     ) -> JSONResponse:
         send_params = MessageSendParams.model_validate(params)
+        rejection = await self._verify_incoming(send_params.message, request_id)
+        if rejection is not None:
+            return rejection
         user_text = _extract_text(send_params.message)
         task = self._create_task(
             send_params.message,
@@ -230,8 +424,11 @@ class A2AServer:
 
     async def _handle_send_streaming_message(
         self, params: dict[str, Any], request_id: Any,
-    ) -> StreamingResponse:
+    ) -> StreamingResponse | JSONResponse:
         send_params = MessageSendParams.model_validate(params)
+        rejection = await self._verify_incoming(send_params.message, request_id)
+        if rejection is not None:
+            return rejection
         user_text = _extract_text(send_params.message)
         task = self._create_task(
             send_params.message,
@@ -244,10 +441,57 @@ class A2AServer:
             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
         )
 
+    async def _verify_incoming(
+        self, message: Message, request_id: Any,
+    ) -> JSONResponse | None:
+        """Enforce ``require_signed`` on an incoming message.
+
+        Parameters
+        ----------
+        message : Message
+            Incoming message extracted from the JSON-RPC params.
+        request_id : Any
+            Correlation id used for error envelopes.
+
+        Returns
+        -------
+        JSONResponse or None
+            ``None`` when the message is acceptable.  A JSON-RPC
+            error response (with :data:`A2AErrorCode.INVALID_REQUEST`)
+            when ``require_signed`` is set and verification failed.
+        """
+        if not self.require_signed:
+            return None
+        if await verify_a2a_message(message, self._default_resolver()):
+            return None
+        return _jsonrpc_error(
+            request_id,
+            A2AErrorCode.INVALID_REQUEST,
+            "Message signature missing or invalid; server requires signed messages.",
+        )
+
     async def _stream_task(
         self, task: Task, user_text: str, request_id: Any,
     ) -> AsyncIterator[str]:
-        """Run the agent and yield SSE events as JSON-RPC responses."""
+        """Run the agent and yield SSE lines as JSON-RPC responses.
+
+        Parameters
+        ----------
+        task : Task
+            The task to stream updates for.
+        user_text : str
+            Plain text extracted from the incoming user message.
+        request_id : Any
+            Correlation id echoed on each streamed envelope.
+
+        Yields
+        ------
+        str
+            ``data: {...}\\n\\n`` SSE frames containing
+            :class:`TaskStatusUpdateEvent` /
+            :class:`TaskArtifactUpdateEvent` payloads wrapped in
+            JSON-RPC responses.
+        """
         session = await self.session_service.create_session(
             app_name=self.app_name,
             user_id="anonymous",
@@ -338,6 +582,21 @@ class A2AServer:
     }
 
     async def _dispatch(self, request: Request) -> Any:
+        """Parse a JSON-RPC envelope and route to the matching handler.
+
+        Parameters
+        ----------
+        request : Request
+            FastAPI request containing a JSON-RPC 2.0 body.
+
+        Returns
+        -------
+        Any
+            :class:`JSONResponse` or :class:`StreamingResponse`
+            depending on the method invoked.  Always a valid JSON-RPC
+            response — parse errors and unknown methods are mapped to
+            error envelopes rather than raised.
+        """
         try:
             body = await request.json()
         except Exception:

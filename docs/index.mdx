@@ -5,52 +5,68 @@ keywords: ["langchain", "multi-agent", "AI agents", "Python", "agent framework",
 "og:title": "orxhestra - Multi-Agent Orchestration Framework for Python"
 ---
 
-Multi-agent orchestration framework for Python — turn any agent setup into a CLI or server.
+Multi-agent orchestration framework for Python — **compose entire agent teams in YAML**, run them in the terminal, or expose them as an A2A server. Python SDK below when you need full programmatic control.
 
 <Cards>
-  <Card title="Get Started" icon="rocket" href="/getting-started/quickstart">
-    Build your first agent in minutes
+  <Card title="Quick Start" icon="rocket" href="/getting-started/quickstart">
+    Build and run your first agent in under 5 minutes
+  </Card>
+  <Card title="Compose in YAML" icon="wand-magic-sparkles" href="/composer/overview">
+    Declarative multi-agent teams — no Python wiring needed
   </Card>
   <Card title="View on GitHub" icon="github" href="https://github.com/NicolaiLassen/orxhestra">
-    Source code and examples
+    Source code, examples, and the plan file
   </Card>
 </Cards>
 
 ```bash
-pip install orxhestra
+pip install 'orxhestra[cli,anthropic]'
+orx                                  # interactive REPL with the built-in coding agent
+orx my-agents.yaml                    # run your own YAML spec
+orx my-agents.yaml --serve -p 9000    # same spec as an A2A server
 ```
 
 ---
 
 ## Features
 
-<Card title="Async Event Streaming" icon="bolt" href="/runtime/streaming">
-  Every agent is an async generator yielding typed events - thoughts, tool calls, results, streaming chunks. Built for real-time UIs.
-</Card>
+<Cards>
+  <Card title="YAML-first composition" icon="wand-magic-sparkles" href="/composer/overview">
+    Declarative multi-agent teams — LLM agents, loops, pipelines, fan-out, transfer routing — in a single file. Built-in registries for custom agent types, LLM providers, built-in tools, and whole new tool kinds.
+  </Card>
 
-<Card title="Composable Hierarchies" icon="sitemap" href="/orchestration/composite-agents">
-  Nest agents freely. Chain sequentially, run in parallel, loop until done, or wrap as tools. Plain Python asyncio.
-</Card>
+  <Card title="Async Event Streaming" icon="bolt" href="/runtime/streaming">
+    Every agent is an async generator yielding typed events — thoughts, tool calls, results, streaming chunks. Built for real-time UIs.
+  </Card>
 
-<Card title="Planners" icon="brain" href="/orchestration/planners">
-  Per-turn planning hooks inject dynamic instructions and post-process responses. Built-in PlanReAct and TaskPlanner.
-</Card>
+  <Card title="Composable Hierarchies" icon="sitemap" href="/orchestration/composite-agents">
+    Nest agents freely. Chain sequentially, run in parallel, loop until done, or wrap as tools. Plain Python asyncio.
+  </Card>
 
-<Card title="Session Management" icon="database" href="/concepts/runner-sessions">
-  Pluggable session service persists events and state deltas automatically. In-memory included, bring your own database.
-</Card>
+  <Card title="Planners" icon="brain" href="/orchestration/planners">
+    Per-turn planning hooks inject dynamic instructions and post-process responses. Built-in PlanReAct and TaskPlanner.
+  </Card>
 
-<Card title="Rich Tool System" icon="wrench" href="/tools/overview">
-  Function tools, agent-as-tool, transfer handoffs, exit loop, long-running tools, and tool confirmation - all built in.
-</Card>
+  <Card title="Session Management" icon="database" href="/concepts/runner-sessions">
+    Pluggable session service persists events and state deltas automatically. In-memory included, bring your own database.
+  </Card>
 
-<Card title="Session Compaction" icon="compress" href="/concepts/runner-sessions#session-compaction">
-  Automatic LLM-based summarization of old session events. Keep context windows manageable across long conversations.
-</Card>
+  <Card title="Rich Tool System" icon="wrench" href="/tools/overview">
+    Function tools, agent-as-tool, transfer handoffs, exit loop, long-running tools, tool confirmation, and a `register_tool_resolver` hook for whole new tool kinds — all built in.
+  </Card>
 
-<Card title="Full Observability" icon="chart-line" href="/runtime/tracing">
-  First-class tracing via AgentConfig callbacks. Works with Langfuse, LangSmith, or any LangChain callback handler.
-</Card>
+  <Card title="Session Compaction" icon="compress" href="/concepts/runner-sessions#session-compaction">
+    Automatic LLM-based summarization of old session events. Keep context windows manageable across long conversations.
+  </Card>
+
+  <Card title="Identity, Trust & Audit" icon="shield-check" href="/composer/overview#identity-trust-and-attestation">
+    Opt-in Ed25519 event signing, DID-based agent identity, hash-chained audit logs, and pluggable `AttestationProvider`s — all wireable from a YAML block.
+  </Card>
+
+  <Card title="Full Observability" icon="chart-line" href="/runtime/tracing">
+    First-class tracing via AgentConfig callbacks. Works with Langfuse, LangSmith, or any LangChain callback handler.
+  </Card>
+</Cards>
 
 ---
 

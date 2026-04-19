@@ -4,6 +4,10 @@ description: "Orchestrate multi-agent workflows with SequentialAgent pipelines, 
 keywords: ["SequentialAgent", "ParallelAgent", "LoopAgent", "multi-agent", "orchestration", "agent pipeline"]
 ---
 
+<Info>
+  Prefer YAML? Each composite maps directly to a `type:` key under the composer's `agents:` block. See [Composer → agent types](/composer/overview#agent-types) for the YAML equivalents of every pattern on this page.
+</Info>
+
 ## SequentialAgent
 
 Chains sub-agents in order. The final answer of each agent becomes the input to the next.

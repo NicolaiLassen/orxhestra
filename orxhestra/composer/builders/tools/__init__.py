@@ -7,7 +7,8 @@ be added via :func:`register_builtin`.
 from __future__ import annotations
 
 import importlib
-from collections.abc import Callable
+import inspect
+from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING, Any
 
 from langchain_core.tools import BaseTool
@@ -63,6 +64,111 @@ def import_object(dotted_path: str) -> Any:
 
 _ToolResult = BaseTool | list[BaseTool]
 _BUILTIN_REGISTRY: dict[str, Callable[[], _ToolResult]] = {}
+
+#: Sync or async resolver that turns a ``custom:`` tool config into
+#: one or more LangChain tools.  Registered via
+#: :func:`register_tool_resolver` and consumed by
+#: :func:`resolve_custom_tool`.
+ToolResolver = Callable[[dict[str, Any]], _ToolResult | Awaitable[_ToolResult]]
+
+_TOOL_RESOLVER_REGISTRY: dict[str, ToolResolver] = {}
+
+
+def register_tool_resolver(tool_type: str, resolver: ToolResolver) -> None:
+    """Register a resolver for a custom YAML ``tool.custom.type``.
+
+    Third-party tool types extend the composer the same way agents
+    and models are extended — plug a resolver into this registry and
+    reference it from YAML via
+    ``tools: { my_tool: { custom: { type: "<tool_type>", ... } } }``.
+
+    Parameters
+    ----------
+    tool_type : str
+        The value of ``custom.type`` that should route to this
+        resolver.
+    resolver : ToolResolver
+        Sync or async callable that takes the full ``custom`` dict
+        (including the ``type`` key) and returns a
+        :class:`~langchain_core.tools.BaseTool` or a list of them.
+
+    Examples
+    --------
+    >>> from orxhestra.composer import register_tool_resolver
+    >>> from langchain_core.tools import Tool
+    >>>
+    >>> def make_webhook(config):
+    ...     url = config["url"]
+    ...     return Tool.from_function(
+    ...         name=config.get("name", "webhook"),
+    ...         description="POST to a webhook.",
+    ...         func=lambda body: requests.post(url, json=body).text,
+    ...     )
+    >>>
+    >>> register_tool_resolver("webhook", make_webhook)
+
+    YAML::
+
+        tools:
+          notifier:
+            custom:
+              type: webhook
+              url: https://example.com/notify
+              name: notify
+    """
+    _TOOL_RESOLVER_REGISTRY[tool_type] = resolver
+
+
+def registered_tool_resolvers() -> list[str]:
+    """Return all registered custom tool-type names in sorted order.
+
+    Used by the composer to cite legal ``custom.type`` values in
+    error messages.
+
+    Returns
+    -------
+    list[str]
+    """
+    return sorted(_TOOL_RESOLVER_REGISTRY)
+
+
+async def resolve_custom_tool(config: dict[str, Any]) -> _ToolResult:
+    """Dispatch a ``ToolDef.custom`` payload to its registered resolver.
+
+    Parameters
+    ----------
+    config : dict[str, Any]
+        The full ``custom`` dict.  Must include a ``type`` key
+        matching an entry registered via
+        :func:`register_tool_resolver`.
+
+    Returns
+    -------
+    BaseTool or list[BaseTool]
+
+    Raises
+    ------
+    ComposerError
+        When the ``type`` key is missing or no resolver is registered
+        for it.
+    """
+    tool_type = config.get("type")
+    if not tool_type:
+        raise ComposerError(
+            "ToolDef.custom must include a 'type' key naming a "
+            "resolver registered via register_tool_resolver()",
+        )
+    resolver = _TOOL_RESOLVER_REGISTRY.get(tool_type)
+    if resolver is None:
+        known = ", ".join(registered_tool_resolvers()) or "<none>"
+        raise ComposerError(
+            f"No custom tool resolver registered for type "
+            f"{tool_type!r} (known: {known})",
+        )
+    result = resolver(config)
+    if inspect.isawaitable(result):
+        result = await result
+    return result
 
 
 def register_builtin(name: str, factory: Callable[[], _ToolResult]) -> None:

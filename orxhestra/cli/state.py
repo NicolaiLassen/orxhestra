@@ -38,6 +38,13 @@ class ReplState(BaseModel):
         Message to retry on next turn.
     auto_approve : bool
         Whether tool calls are auto-approved without user confirmation.
+    signer_did : str, optional
+        DID of the active Ed25519 signing identity attached via
+        ``--identity`` or ``$ORX_IDENTITY``.  ``None`` when signing
+        is disabled.
+    identity_key_path : str, optional
+        On-disk path of the active signing key file, for display in
+        the ``/session`` command.  ``None`` when signing is disabled.
     """
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
@@ -62,4 +69,12 @@ class ReplState(BaseModel):
     )
     auto_approve: bool = Field(
         default=False, description="Whether tool calls are auto-approved without user confirmation."
+    )
+    signer_did: str | None = Field(
+        default=None,
+        description="Active signer DID — populated when --identity is in use.",
+    )
+    identity_key_path: str | None = Field(
+        default=None,
+        description="Path of the active signing key file.",
     )

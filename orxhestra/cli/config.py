@@ -1,4 +1,10 @@
-"""CLI configuration constants."""
+"""CLI configuration constants — defaults, env-var names, provider map.
+
+Centralises the small set of string literals the CLI refers to in
+multiple places: default user / app names, the default model name,
+and the per-provider API-key environment variables consulted by
+:func:`orxhestra.cli.models.create_llm`.
+"""
 
 from __future__ import annotations
 

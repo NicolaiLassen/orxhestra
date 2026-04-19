@@ -30,7 +30,8 @@
       "Bash(.venv/bin/python -c \"from orxhestra.cli.app import main; print\\('app OK'\\)\")",
       "Bash(.venv/bin/python -c \"import pyinklib; print\\(pyinklib.__file__\\); print\\(dir\\(pyinklib\\)\\)\")",
       "Read(//Users/nicolailassen/anaconda3/lib/python3.10/site-packages/**)",
-      "Bash(.venv/bin/pip show:*)"
+      "Bash(.venv/bin/pip show:*)",
+      "Bash(python3 scripts/generate_brand.py)"
     ]
   }
 }

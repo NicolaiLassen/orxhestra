@@ -1,4 +1,4 @@
-"""Tests for orxhestra.auth — SSRF, crypto, and token parsing."""
+"""Tests for orxhestra.security — SSRF, crypto, and token parsing."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from orxhestra.auth.ssrf import (
+from orxhestra.security.ssrf import (
     validate_and_pin_url,
     validate_redirect_target,
     validate_url_host,
@@ -71,7 +71,7 @@ class TestSSRF:
 crypto = pytest.importorskip("cryptography")
 base58_mod = pytest.importorskip("base58")
 
-from orxhestra.auth.crypto import (  # noqa: E402
+from orxhestra.security.crypto import (  # noqa: E402
     canonicalize_json,
     deserialize_private_key,
     deserialize_public_key,
@@ -193,7 +193,7 @@ class TestCrypto:
 
 jwt_mod = pytest.importorskip("jwt")
 
-from orxhestra.auth.token_parser import (  # noqa: E402
+from orxhestra.security.token_parser import (  # noqa: E402
     TokenType,
     detect_token_type,
     extract_identity_from_token,

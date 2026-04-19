@@ -41,7 +41,7 @@ async for event in agent.astream("Hello"):
 models:
   smart:
     provider: anthropic
-    name: claude-opus-4-6
+    name: claude-opus-4-7
     max_tokens: 8192
   fast:
     provider: openai

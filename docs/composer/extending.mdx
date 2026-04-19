@@ -1,0 +1,312 @@
+---
+title: "Extending the composer"
+description: "Plug custom agent types, LLM providers, built-in tools, and whole new tool kinds into the composer. One register() call each — no forks, no subclassing."
+keywords: ["composer", "register_builder", "register_provider", "register_builtin_tool", "register_tool_resolver", "custom agents", "plugin"]
+---
+
+The composer has four parallel extension points. Every one is a plain registry you extend with a single `register()` call at import time — no subclassing, no forks, no monkey-patching.
+
+| Extension point | What you add | Registry function |
+|-----------------|--------------|-------------------|
+| **Agent type** | A new `type:` key under YAML `agents:` | [`register_builder`](#custom-agent-types) |
+| **LLM provider** | A new `provider:` string under YAML `model:` | [`register_provider`](#custom-model-providers) |
+| **Built-in tool** | A new `builtin:` name under YAML `tools:` | [`register_builtin_tool`](#custom-built-in-tools) |
+| **Tool type** | A new shape of `ToolDef.custom` | [`register_tool_resolver`](#custom-tool-types) |
+
+All four live in `orxhestra.composer`:
+
+```python
+from orxhestra.composer import (
+    register_builder,
+    register_provider,
+    register_builtin_tool,
+    register_tool_resolver,
+)
+```
+
+---
+
+## Custom agent types
+
+Register an async build function under a YAML `type:` key.
+
+```python title="myapp/agents.py"
+from orxhestra.agents.base_agent import BaseAgent
+from orxhestra.composer import register_builder
+from orxhestra.composer.builders.agents import Helpers
+from orxhestra.composer.schema import AgentDef, ComposeSpec
+
+
+class WebResearcher(BaseAgent):
+    """Minimal custom agent for illustration."""
+
+    async def astream(self, user_message, context):
+        yield self._event("AGENT_START")
+        yield self._event("AGENT_MESSAGE", text=f"Researching: {user_message}")
+        yield self._event("AGENT_END")
+
+
+async def build_web_researcher(
+    name: str,
+    agent_def: AgentDef,
+    spec: ComposeSpec,
+    *,
+    helpers: Helpers,
+) -> BaseAgent:
+    """Resolve YAML into a WebResearcher instance.
+
+    ``helpers`` carries the three cross-cutting resolvers
+    (resolve_tools, resolve_model, build_agent) so custom builders
+    don't have to know about the composer's private state.
+    """
+    tools = await helpers.resolve_tools(agent_def)
+    return WebResearcher(name=name, description=agent_def.description, tools=tools)
+
+
+register_builder("web_researcher", build_web_researcher)
+```
+
+```yaml title="orx.yaml"
+agents:
+  researcher:
+    type: web_researcher       # dispatches to build_web_researcher
+    description: "Web research specialist"
+    tools:
+      - search
+
+main_agent: researcher
+```
+
+<Tip>
+  The build function must implement the [`BuildFn`](https://github.com/NicolaiLassen/orxhestra/blob/main/orxhestra/composer/builders/agents/__init__.py) protocol:
+
+  ```python
+  async def build(
+      name: str,
+      agent_def: AgentDef,
+      spec: ComposeSpec,
+      *,
+      helpers: Helpers,
+  ) -> BaseAgent: ...
+  ```
+
+  Custom agent types are **exempt** from the per-type field validation applied to built-ins — your builder is free to consume any `AgentDef` field.
+</Tip>
+
+---
+
+## Custom model providers
+
+Register any class that implements LangChain's `BaseChatModel`. Reference it by name via `model.provider`.
+
+```python title="myapp/models.py"
+from langchain_core.language_models import BaseChatModel
+from orxhestra.composer import register_provider
+
+
+class OllamaChat(BaseChatModel):
+    """Minimal stand-in — use langchain-ollama in production."""
+
+    def _generate(self, messages, stop=None, run_manager=None, **kwargs):
+        ...
+
+
+register_provider("ollama_local", OllamaChat)
+```
+
+```yaml title="orx.yaml"
+models:
+  local:
+    provider: ollama_local      # resolves to OllamaChat
+    name: llama3
+    base_url: http://localhost:11434
+
+agents:
+  bot:
+    type: llm
+    model: local
+    instructions: You run locally.
+
+main_agent: bot
+```
+
+<Note>
+  The composer ships with 20+ lazily-loaded providers (`openai`, `anthropic`, `google`, `groq`, `ollama`, etc.) — you probably only need `register_provider` for genuinely new integrations. Any unrecognised `provider` string is also treated as a dotted import path, so `provider: myapp.models.OllamaChat` works without registration.
+</Note>
+
+---
+
+## Custom built-in tools
+
+A "built-in" is a zero-arg factory returning one or more LangChain tools. Great for project-scoped helpers that every agent in the compose spec wants.
+
+```python title="myapp/tools.py"
+from langchain_core.tools import tool
+from orxhestra.composer import register_builtin_tool
+
+
+@tool
+def redact(text: str) -> str:
+    """Strip emails and phone numbers from ``text``."""
+    ...
+
+
+register_builtin_tool("redact", lambda: redact)
+```
+
+```yaml title="orx.yaml"
+tools:
+  redactor:
+    builtin: redact             # factory is called on resolve
+
+agents:
+  privacy_aware:
+    type: llm
+    tools: [redactor]
+    instructions: "Redact PII before replying."
+
+main_agent: privacy_aware
+```
+
+The factory runs lazily on first use — if `redact` imports something expensive, agents that don't reference it don't pay the cost.
+
+---
+
+## Custom tool types
+
+If the five built-in `ToolDef` shapes (`function`, `mcp`, `builtin`, `agent`, `transfer`) don't fit, register a whole new **type** of tool. The YAML escape hatch is `ToolDef.custom` — an arbitrary dict with a `type` key that the composer dispatches to your resolver.
+
+Resolvers can be sync or async; the composer awaits whichever shape you return.
+
+```python title="myapp/webhook_tool.py"
+import httpx
+from langchain_core.tools import Tool
+from orxhestra.composer import register_tool_resolver
+
+
+async def build_webhook(config: dict) -> Tool:
+    """Resolver for ``custom.type == "webhook"``.
+
+    The full ``custom`` dict (including the ``type`` key) is passed
+    in, so the resolver can read any config the user put alongside
+    ``type:`` in YAML.
+    """
+    url = config["url"]
+    tool_name = config.get("name", "webhook")
+    description = config.get("description", f"POST to {url}")
+
+    async def invoke(body: dict) -> str:
+        async with httpx.AsyncClient() as client:
+            resp = await client.post(url, json=body)
+            return resp.text
+
+    return Tool.from_function(
+        name=tool_name,
+        description=description,
+        coroutine=invoke,
+    )
+
+
+register_tool_resolver("webhook", build_webhook)
+```
+
+```yaml title="orx.yaml"
+tools:
+  notifier:
+    custom:
+      type: webhook             # dispatches to build_webhook
+      url: https://example.com/notify
+      name: notify
+      description: "Send a JSON payload to the notify webhook."
+
+agents:
+  alerter:
+    type: llm
+    tools: [notifier]
+    instructions: "Call notifier whenever anomalies are detected."
+
+main_agent: alerter
+```
+
+A resolver may return a **single** `BaseTool` or a **list** of them — useful when one YAML entry expands into a whole tool surface (e.g. a REST client that exposes each endpoint as a separate tool).
+
+<Tip>
+  Resolvers receive the raw `custom` dict unchanged — no Pydantic model. That's deliberate: you own the validation. Raise `ComposerError` with a helpful message when the config is invalid.
+</Tip>
+
+---
+
+## Where to register
+
+Registration is a module-level side effect — the composer looks at the registry state at build time, so any code path that calls `Composer.from_yaml(...)` must have already imported the module that calls `register_*`.
+
+Two common patterns:
+
+<Tabs>
+  <Tab title="Import before build">
+    ```python
+    import myapp.agents          # runs register_builder(...)
+    import myapp.tools           # runs register_builtin_tool(...)
+
+    from orxhestra.composer import Composer
+
+    agent = Composer.from_yaml("orx.yaml")
+    ```
+  </Tab>
+  <Tab title="Entry-point convention">
+    Ship your registrations in a `register()` function:
+
+    ```python title="myapp/compose_ext.py"
+    def register() -> None:
+        from orxhestra.composer import register_builder, register_builtin_tool
+        from myapp.agents import build_web_researcher
+        from myapp.tools import redact
+
+        register_builder("web_researcher", build_web_researcher)
+        register_builtin_tool("redact", lambda: redact)
+    ```
+
+    Call `myapp.compose_ext.register()` once at app startup — keeps the side-effectful imports explicit and easy to test.
+  </Tab>
+  <Tab title="Per-spec registration">
+    Populate the registries right before you build, so each compose has its own extension set:
+
+    ```python
+    from orxhestra.composer import Composer, register_builder
+
+    register_builder("web_researcher", build_web_researcher)
+    composer = Composer(spec)
+    root = await composer.build()
+    runner = await composer.build_runner(root)
+    ```
+
+    `Composer.build()`, `build_runner()`, and `build_server()` are the public pair-points for callers that need to mutate `spec` or prep registries between construction and build.
+  </Tab>
+</Tabs>
+
+---
+
+## Inspection APIs
+
+Each registry exposes a read-only listing so you can verify what's plugged in:
+
+```python
+from orxhestra.composer.builders.agents import registered_types as agent_types
+from orxhestra.composer.builders.tools import registered_tool_resolvers
+
+print(agent_types())
+# ['a2a', 'llm', 'loop', 'parallel', 'react', 'sequential', 'web_researcher']
+
+print(registered_tool_resolvers())
+# ['webhook']
+```
+
+The composer's error messages use the same listings — if a YAML spec references an unknown `type:` or `custom.type:`, the message enumerates every registered name so you see exactly what's legal.
+
+---
+
+## See also
+
+- [Composer overview](/composer/overview) — narrative walkthrough with YAML examples.
+- [YAML schema reference](/composer/schema-reference) — flat field-by-field reference.
+- [`orxhestra/composer/__init__.py`](https://github.com/NicolaiLassen/orxhestra/blob/main/orxhestra/composer/__init__.py) — canonical source for the four `register_*` functions.

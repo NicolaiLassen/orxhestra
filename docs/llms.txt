@@ -1,0 +1,71 @@
+# orxhestra
+
+> Multi-agent orchestration framework for Python — compose entire agent teams in YAML, run them in the terminal, or expose them as an A2A server.
+
+Core package: `orxhestra` on PyPI. Python 3.10+. Opt-in identity / trust / attestation layer with Ed25519 event signing, full Model Context Protocol (MCP) spec coverage (tools + resources + prompts + bidirectional sampling), and A2A v1.0 server + client. Ships an interactive `orx` CLI, a LangChain-based Python SDK, and a declarative composer that turns a single `orx.yaml` into a live agent tree.
+
+## Getting Started
+
+- [Installation](https://docs.orxhestra.com/getting-started/installation): Install from PyPI with provider and feature extras.
+- [Quickstart](https://docs.orxhestra.com/getting-started/quickstart): YAML or Python — build and run your first agent in under five minutes.
+
+## Composer (YAML)
+
+- [Overview](https://docs.orxhestra.com/composer/overview): Declarative multi-agent composition with loops, pipelines, parallel fan-out, transfer routing, and the opt-in identity / trust / attestation blocks.
+- [Schema reference](https://docs.orxhestra.com/composer/schema-reference): Flat field-by-field reference for every ComposeSpec block (`defaults`, `models`, `tools`, `skills`, `agents`, `runner`, `server`, `identity`, `trust`, `attestation`).
+- [Extending](https://docs.orxhestra.com/composer/extending): Register custom agent types, LLM providers, built-in tools, and whole new tool kinds via `register_builder` / `register_provider` / `register_builtin_tool` / `register_tool_resolver`.
+
+## Core Concepts
+
+- [Agents](https://docs.orxhestra.com/concepts/agents): LlmAgent, ReActAgent, and composite wrappers (SequentialAgent, ParallelAgent, LoopAgent). All agents are async iterators of typed Events.
+- [Events](https://docs.orxhestra.com/concepts/events): The typed event stream every agent emits — USER_MESSAGE, AGENT_MESSAGE, TOOL_RESPONSE, AGENT_START/END, plus optional Ed25519 signatures and hash-chain links.
+- [Runner + sessions](https://docs.orxhestra.com/concepts/runner-sessions): Session persistence (in-memory or SQLAlchemy), automatic event append, and LLM-based compaction of long conversations.
+- [Invocation context](https://docs.orxhestra.com/concepts/invocation-context): InvocationContext threaded through every agent in the tree; carries session, state, signing identity, artifact service, memory service.
+
+## Tools
+
+- [Overview](https://docs.orxhestra.com/tools/overview): Function tools, agent-as-tool, transfer routing, exit_loop, long-running tools, tool confirmation, and the `register_tool_resolver` escape hatch.
+- [Filesystem](https://docs.orxhestra.com/tools/filesystem): ls / read_file / write_file / edit_file / mkdir / glob / grep against a pluggable FilesystemBackend (local or in-memory).
+- [Artifacts](https://docs.orxhestra.com/tools/artifacts): Save / load versioned file artifacts to an artifact service.
+- [Todo](https://docs.orxhestra.com/tools/todo): Structured task list surfaced in the CLI and available to the agent as `write_todos`.
+- [Long-running tools](https://docs.orxhestra.com/tools/long-running): Pause / resume tools that take longer than a single turn.
+- [Confirmation](https://docs.orxhestra.com/tools/confirmation): Human-in-the-loop approval prompts before destructive tool calls.
+
+## Orchestration
+
+- [Composite agents](https://docs.orxhestra.com/orchestration/composite-agents): SequentialAgent (pipeline), ParallelAgent (concurrent fan-out), LoopAgent (iterate-until-done).
+- [Planners](https://docs.orxhestra.com/orchestration/planners): PlanReActPlanner (chain-of-thought), TaskPlanner (managed task board).
+- [Skills](https://docs.orxhestra.com/orchestration/skills): Reusable instruction blocks with progressive disclosure; supports the Agent Skills Protocol.
+- [Prompts](https://docs.orxhestra.com/orchestration/prompts): Structured system-prompt builder for agent instructions.
+
+## Runtime
+
+- [Streaming](https://docs.orxhestra.com/runtime/streaming): Async event streaming; every agent is an AsyncIterator of typed events.
+- [Providers](https://docs.orxhestra.com/runtime/providers): 29 LLM providers via `--model` (OpenAI, Anthropic, Google, Groq, Ollama, Mistral, Cohere, DeepSeek, ...).
+- [Callbacks](https://docs.orxhestra.com/runtime/callbacks): Before/after hooks for model calls and tool calls.
+- [Tracing](https://docs.orxhestra.com/runtime/tracing): Langfuse, LangSmith, and arbitrary LangChain callback handlers.
+- [Structured output](https://docs.orxhestra.com/runtime/structured-output): Pydantic-schema-constrained agent responses.
+- [Human-in-the-loop](https://docs.orxhestra.com/runtime/human-in-the-loop): Tool approval, interactive elicitation, pause/resume.
+
+## CLI
+
+- [Overview](https://docs.orxhestra.com/cli/overview): `orx` terminal agent — install with `orxhestra[cli]`, run via `orx` or `orx my-agents.yaml`.
+- [Commands](https://docs.orxhestra.com/cli/commands): Slash commands inside the REPL (`/model`, `/compact`, `/todos`, `/session`, `/memory`, `/theme`, `/undo`, `/retry`, `/copy`, `/help`, `/exit`).
+- [Memory](https://docs.orxhestra.com/cli/memory): Auto-memory — per-project Markdown store scanned at startup and written via `save_memory`.
+- [Themes](https://docs.orxhestra.com/cli/themes): Dark / light themes with auto-detect and `/theme` toggle.
+
+## Integrations
+
+- [A2A](https://docs.orxhestra.com/integrations/a2a): Agent-to-Agent protocol v1.0 server + client. Full JSON-RPC surface, streaming via SSE, Ed25519 message signing, `verification_method` on agent cards.
+- [MCP](https://docs.orxhestra.com/integrations/mcp): Model Context Protocol — full FastMCP Client coverage (tools, resources, resource templates, prompts, sampling, elicitation, logging, progress, roots). Adapters turn MCP prompts into LangChain messages or tools.
+
+## Architecture & examples
+
+- [Architecture](https://docs.orxhestra.com/architecture): System design — event model, runner, agents, middleware, session services.
+- [Examples](https://docs.orxhestra.com/examples): Runnable demos covering basic agents, composite patterns, MCP, A2A, signed events, and the composer.
+
+## Source
+
+- Main repo: <https://github.com/NicolaiLassen/orxhestra>
+- Coding-agent build: <https://github.com/NicolaiLassen/orxhestra-code>
+- PyPI: <https://pypi.org/project/orxhestra/>

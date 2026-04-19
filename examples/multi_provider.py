@@ -26,8 +26,6 @@ from langchain_core.language_models import BaseChatModel
 from langchain_core.tools import tool
 
 from orxhestra import LlmAgent
-from orxhestra.composer.builders.models import create
-from orxhestra.events.event import EventType
 
 
 @tool

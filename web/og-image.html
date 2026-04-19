@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      width: 1200px; height: 630px;
+      background: #0F0E13;
+      display: flex; align-items: center; justify-content: center;
+      flex-direction: column; gap: 28px;
+      font-family: 'Geist', -apple-system, sans-serif;
+      overflow: hidden;
+      position: relative;
+      color: #F5F2EB;
+    }
+    body::before {
+      content: '';
+      position: absolute; inset: 0;
+      background:
+        radial-gradient(ellipse 70% 50% at 50% 30%, rgba(63,224,168,0.10), transparent 60%),
+        radial-gradient(ellipse 50% 40% at 50% 85%, rgba(63,224,168,0.04), transparent 70%);
+    }
+    .mark { width: 260px; height: 260px; position: relative; z-index: 1; }
+    h1 {
+      font-size: 92px; font-weight: 500;
+      letter-spacing: -0.035em;
+      color: #F5F2EB;
+      position: relative; z-index: 1;
+    }
+    p {
+      font-size: 26px; color: #8A8693;
+      position: relative; z-index: 1;
+      letter-spacing: -0.005em;
+    }
+  </style>
+</head>
+<body>
+  <svg class="mark" viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <mask id="og-knockout" maskUnits="userSpaceOnUse" x="0" y="0" width="120" height="120">
+        <rect x="0" y="0" width="120" height="120" fill="white"/>
+        <path d="M91.672 28.328 A74.651 74.651 0 0 0 28.328 91.672 A74.651 74.651 0 0 0 91.672 28.328 Z" fill="black" transform="translate(60 60) scale(1.08) translate(-60 -60)"/>
+      </mask>
+    </defs>
+    <path d="M28.328 28.328 A74.651 74.651 0 0 0 91.672 91.672 A74.651 74.651 0 0 0 28.328 28.328 Z" fill="#3FE0A8" mask="url(#og-knockout)"/>
+    <path d="M91.672 28.328 A74.651 74.651 0 0 0 28.328 91.672 A74.651 74.651 0 0 0 91.672 28.328 Z" fill="#F5F2EB"/>
+  </svg>
+  <h1>orxhestra</h1>
+  <p>Multi-agent orchestration for Python</p>
+</body>
+</html>

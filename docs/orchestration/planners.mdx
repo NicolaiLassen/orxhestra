@@ -4,6 +4,18 @@ description: "Inject per-turn planning into agent system prompts. Built-in PlanR
 keywords: ["planner", "PlanReActPlanner", "TaskPlanner", "chain of thought", "planning", "ReAct"]
 ---
 
+<Info>
+  Attaching a planner in YAML is a single line — see [Composer → `agents:`](/composer/overview#agents):
+
+  ```yaml
+  agents:
+    bot:
+      type: llm
+      planner:
+        type: task       # or plan_react
+  ```
+</Info>
+
 Planners inject planning instructions into the system prompt before each LLM call and can post-process the response.
 
 ```python

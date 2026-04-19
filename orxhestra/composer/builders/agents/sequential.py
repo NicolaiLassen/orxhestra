@@ -1,11 +1,11 @@
-"""SequentialAgent builder."""
+"""SequentialAgent builder — thin wrapper over the composite helper."""
 
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
 from orxhestra.agents.base_agent import BaseAgent
-from orxhestra.composer.errors import ComposerError
+from orxhestra.composer.builders.agents._common import build_composite
 from orxhestra.composer.schema import AgentDef, ComposeSpec
 
 if TYPE_CHECKING:
@@ -15,40 +15,44 @@ if TYPE_CHECKING:
 async def build(
     name: str,
     agent_def: AgentDef,
-    spec: ComposeSpec,
+    spec: ComposeSpec,  # noqa: ARG001  (parameter required by BuildFn protocol)
     *,
     helpers: Helpers,
 ) -> BaseAgent:
-    """Build a ``SequentialAgent`` from a YAML definition.
+    """Build a :class:`~orxhestra.agents.sequential_agent.SequentialAgent`.
+
+    Delegates to :func:`~orxhestra.composer.builders.agents._common.build_composite`
+    for the shared "validate ``agents`` list, build sub-agents,
+    instantiate" path.
 
     Parameters
     ----------
     name : str
-        Agent name.
+        Agent name from the YAML spec.
     agent_def : AgentDef
-        YAML agent definition.
+        YAML agent definition.  Must carry a non-empty ``agents`` list.
     spec : ComposeSpec
-        Full compose specification.
+        Full compose specification (unused here; required by the
+        :class:`~orxhestra.composer.builders.agents.BuildFn` protocol).
     helpers : Helpers
-        Builder dependencies.
+        Builder dependencies; ``build_agent`` resolves each sub-agent.
 
     Returns
     -------
     BaseAgent
-        Constructed ``SequentialAgent``.
+        The constructed ``SequentialAgent``.
 
     Raises
     ------
     ComposerError
-        If the agent definition has no ``agents`` list.
+        When ``agent_def.agents`` is missing or empty.
     """
     from orxhestra.agents.sequential_agent import SequentialAgent
 
-    if not agent_def.agents:
-        msg = f"sequential agent '{name}' must have an 'agents' list"
-        raise ComposerError(msg)
-
-    sub_agents = [await helpers.build_agent(n) for n in agent_def.agents]
-    return SequentialAgent(
-        name=name, agents=sub_agents, description=agent_def.description
+    return await build_composite(
+        name,
+        agent_def,
+        helpers=helpers,
+        agent_cls=SequentialAgent,
+        kind="sequential",
     )

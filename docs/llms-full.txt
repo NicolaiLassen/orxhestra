@@ -1,0 +1,4275 @@
+# orxhestra — full documentation
+
+<!-- Generated from docs/**/*.mdx. To regenerate:
+     { echo "# orxhestra — full documentation"; echo; for f in $(find docs -name "*.mdx" -not -path "docs/skills/*" | sort); do echo; echo "# /$f"; echo; cat "$f"; done } > docs/llms-full.txt
+-->
+
+
+# /docs/architecture.mdx
+
+---
+title: "Architecture"
+description: "High-level architecture of orxhestra: request lifecycle, design decisions, custom session backends, custom planners, and extension points."
+keywords: ["architecture", "design", "extension points", "custom session", "custom planner", "request lifecycle"]
+---
+
+```mermaid
+flowchart TD
+    classDef base fill:#f1f5f9,stroke:#94a3b8,stroke-dasharray:5 5,color:#334155
+    classDef llm fill:#dbeafe,stroke:#3b82f6,color:#1e3a8a
+    classDef composite fill:#dcfce7,stroke:#22c55e,color:#14532d
+    classDef tool fill:#f3e8ff,stroke:#a855f7,color:#581c87
+    classDef planner fill:#fff7ed,stroke:#f97316,color:#7c2d12
+    classDef infra fill:#fef9c3,stroke:#eab308,color:#713f12
+    classDef event fill:#fce7f3,stroke:#ec4899,color:#831843
+
+    Runner:::infra --> Session[(SessionService)]:::infra
+    Runner --> Ctx[Context\nsession · state · run_config · event_callback]:::base
+    Ctx --> BaseAgent:::base
+
+    BaseAgent --> LlmAgent:::llm
+    BaseAgent --> ReActAgent:::llm
+    BaseAgent --> Sequential([SequentialAgent]):::composite
+    BaseAgent --> Parallel([ParallelAgent]):::composite
+    BaseAgent --> Loop([LoopAgent]):::composite
+
+    LlmAgent --> Planners:::planner
+    Planners --> PRA[PlanReActPlanner]:::planner
+    Planners --> TP[TaskPlanner]:::planner
+
+    LlmAgent --> Tools:::tool
+    Tools --> FT[function_tool]:::tool
+    Tools --> AT[AgentTool]:::tool
+    Tools --> TF[make_transfer_tool]:::tool
+    Tools --> EL[exit_loop_tool]:::tool
+    Tools --> MCP[MCPToolAdapter]:::tool
+    Tools --> FS[Filesystem]:::tool
+    Tools --> SH[Shell]:::tool
+
+    LlmAgent --> Events:::event
+    Events --> AM[AGENT_MESSAGE\nfinal answer · tool calls · partial]:::event
+    Events --> TR[TOOL_RESPONSE]:::event
+    Events --> AS[AGENT_START / AGENT_END]:::event
+    Events --> UM[USER_MESSAGE]:::event
+```
+
+## Request lifecycle
+
+```mermaid
+sequenceDiagram
+    participant C as Caller
+    participant R as Runner
+    participant S as SessionService
+    participant A as Agent
+
+    C->>R: astream(user_id, session_id, message)
+    R->>S: get_session() or create_session()
+    S-->>R: Session
+    R->>R: build Context with session reference
+    R->>S: append_event(session, user_event)
+    note over S: persists USER_MESSAGE event
+
+    R->>A: astream(message, ctx)
+
+    loop for each yielded event
+        A-->>R: Event
+        R->>S: append_event(session, event)
+        note over S: applies state_delta,<br/>appends to history
+        R-->>C: yield Event
+    end
+
+    opt compaction_config set
+        R->>R: compact_session()
+        note over R: summarize old events,<br/>keep last N raw
+    end
+```
+
+## Key design decisions
+
+- **No LangGraph** - orchestration is plain Python `asyncio` and async generators.
+- **`Context.state`** is a shared mutable dict across the call tree. Use `EventActions.state_delta` to persist changes back to the session.
+- **`Context.event_callback`** enables real-time event streaming from tools. `LlmAgent` injects an `asyncio.Queue`-based callback before tool execution; `AgentTool` uses it to push sub-agent events as they arrive. Any custom tool can use the same mechanism.
+- **`LlmRequest` / `LlmResponse`** isolate LangChain types from the rest of the SDK. Swap the LLM provider without touching agent logic.
+- **Planners are per-turn hooks**, not static prompts. They receive the live context and request so they can make dynamic decisions each turn.
+- **Session compaction** keeps conversations manageable. Old events are LLM-summarized and replaced with a single compaction event. Never runs mid-stream or over unresolved tool calls.
+- **Event filters** (`should_include_event`, `apply_compaction`) are pure functions extracted into `orxhestra.events.filters` — reusable by custom agents.
+
+## Custom session backend
+
+```python
+from orxhestra.sessions import BaseSessionService, Session
+
+class RedisSessionService(BaseSessionService):
+    async def create_session(self, *, app_name, user_id, state=None, session_id=None) -> Session: ...
+    async def get_session(self, *, app_name, user_id, session_id) -> Session | None: ...
+    async def update_session(self, session_id, *, state) -> Session: ...
+    async def delete_session(self, session_id) -> None: ...
+    async def list_sessions(self, *, app_name, user_id) -> list[Session]: ...
+```
+
+## Custom planner
+
+```python
+from orxhestra import BasePlanner, ReadonlyContext, LlmRequest
+
+class MyPlanner(BasePlanner):
+    def build_planning_instruction(self, ctx: ReadonlyContext, request: LlmRequest) -> str | None:
+        return "Always verify your answer before responding."
+```
+
+Pass it to any `LlmAgent` via `planner=MyPlanner()`.
+
+
+# /docs/cli/commands.mdx
+
+---
+title: "Commands"
+description: "Reference for every slash command in the orx REPL: switch models, compact sessions, list todos, inspect sessions, manage memory, toggle themes, and more."
+keywords: ["orx", "CLI commands", "slash commands", "/model", "/compact", "/todos", "/session", "/memory", "REPL"]
+---
+
+## Command Reference
+
+| Command | Description |
+|---------|-------------|
+| `/model <name>` | Switch LLM model mid-session |
+| `/clear` | Reset conversation and clear todos |
+| `/compact` | Summarize old messages to free context |
+| `/todos` | Show current task list |
+| `/session` | Show session info (ID, events, tokens, turns) |
+| `/undo` | Remove last user message and agent response |
+| `/retry` | Re-run the last user message |
+| `/copy` | Copy last agent response to clipboard |
+| `/memory` | List saved persistent memories |
+| `/memory clear` | Delete all memories (with confirmation) |
+| `/theme` | Toggle dark/light theme |
+| `/theme dark` | Switch to dark theme |
+| `/theme light` | Switch to light theme |
+| `/help` | Show help text |
+| `/exit` | Exit the REPL |
+
+## Multi-line Input
+
+Start and end with triple quotes:
+
+```
+orx> """
+... Write a function that:
+... 1. Reads a CSV file
+... 2. Filters rows by date
+... 3. Returns a summary
+... """
+```
+
+## Single-shot Mode
+
+Run a prompt and exit:
+
+```bash
+orx -c "fix the failing tests"
+```
+
+## Auto-approve Mode
+
+Skip approval prompts for destructive tools:
+
+```bash
+orx --auto-approve
+```
+
+
+# /docs/cli/memory.mdx
+
+---
+title: "Auto-Memory"
+description: "Persistent per-project memories stored as Markdown on disk, auto-loaded at startup and written by the agent via save_memory across four memory types: user, feedback, project, and reference."
+keywords: ["memory", "auto-memory", "persistent context", "save_memory", "FileMemoryService", "MEMORY.md"]
+---
+
+## Overview
+
+The auto-memory system lets agents save and recall information across sessions. Memories are stored as individual markdown files with YAML frontmatter in `~/.orx/projects/<workspace>/memory/`.
+
+## Memory Types
+
+| Type | What to save | Example |
+|------|-------------|---------|
+| `user` | User's role, preferences, knowledge level | "Senior Python developer, prefers concise responses" |
+| `feedback` | Corrections and confirmed approaches | "Don't mock the database in tests — use real DB" |
+| `project` | Ongoing work, goals, deadlines | "Merge freeze starts 2026-04-10 for release" |
+| `reference` | Pointers to external systems | "Bugs tracked in Linear project INGEST" |
+
+## Memory Tools
+
+The agent has three tools for managing memories:
+
+### save_memory
+
+```
+save_memory(
+    name="testing policy",
+    content="Integration tests must hit a real database.\n\n**Why:** Mocks masked a broken migration.\n**How to apply:** Never use unittest.mock for DB tests.",
+    memory_type="feedback",
+    description="Use real DB in integration tests, not mocks"
+)
+```
+
+### list_memories
+
+Lists all saved memories with type and description.
+
+### delete_memory
+
+Removes a memory by name.
+
+## Storage Format
+
+Each memory is a markdown file with YAML frontmatter:
+
+```markdown
+---
+name: testing policy
+description: Use real DB in integration tests, not mocks
+type: feedback
+created: 2026-04-05T12:00:00Z
+---
+
+Integration tests must hit a real database.
+
+**Why:** Mocks masked a broken migration.
+**How to apply:** Never use unittest.mock for DB tests.
+```
+
+## Memory Index
+
+`MEMORY.md` is auto-maintained as an index of all memories (capped at 200 lines). It's loaded into the agent's context at startup.
+
+## CLI Commands
+
+```bash
+/memory          # List all saved memories
+/memory clear    # Delete all memories
+```
+
+## What NOT to Save
+
+- Code patterns or architecture (derivable from the code)
+- Git history (use `git log`)
+- Debugging recipes (the fix is in the code)
+- API keys or secrets
+- Ephemeral task state
+
+## YAML Configuration
+
+Add memory tools to any agent via the `memory` builtin:
+
+```yaml
+tools:
+  memory:
+    builtin: "memory"
+```
+
+
+# /docs/cli/overview.mdx
+
+---
+title: "Orx CLI"
+description: "Turn any orx.yaml agent setup into an interactive terminal agent or an A2A server. Ships with a coding agent out of the box."
+keywords: ["CLI", "terminal", "REPL", "orx", "coding agent", "A2A server"]
+---
+
+Turn any `orx.yaml` into an interactive terminal agent — or serve it as an A2A endpoint. Ships with a coding agent out of the box.
+
+<Tip>
+Looking for a full-featured coding agent? Check out [orxhestra-code](https://github.com/NicolaiLassen/orxhestra-code) — an enhanced coding agent built on orxhestra with permissions, multi-file editing, and project-aware context.
+</Tip>
+
+## Installation
+
+```bash
+pip install orxhestra[cli,openai]
+# or with Anthropic
+pip install orxhestra[cli,anthropic]
+```
+
+## Quick Start
+
+```bash
+orx
+```
+
+That's it. The CLI detects your project, picks up `./orx.yaml` if present, and drops you into an interactive REPL:
+
+```
++-- orx - terminal coding agent ------------------------------------+
+|  model: gpt-5.4   workspace: ~/my-project   /help for commands    |
++-------------------------------------------------------------------+
+
+orx> add error handling to the API routes
+
+  > read_file(src/api/routes.py)
+  > grep(pattern="raise", path=src/api/)
+  > write_todos(3 tasks)
+
+  Tasks
+  * Add try/except to all route handlers  [in progress]
+  - Add custom error response model
+  - Write tests for error cases
+
+  > edit_file(src/api/routes.py)
+  > shell_exec(pytest tests/test_api.py)
+  4 passed
+
+  Done - added structured error handling to all 4 route handlers
+  with a custom ErrorResponse model. All tests pass.
+```
+
+## Usage
+
+```bash
+orx                               # interactive REPL (default model)
+orx --model claude-sonnet-4-6     # use a specific model
+orx -c "fix the failing tests"    # single-shot command
+orx my-agents.yaml                # run a custom orx file
+orx --auto-approve                # skip approval prompts
+orx orx.yaml --serve -p 9000      # start as A2A server
+```
+
+### Serve as A2A Server
+
+Any `orx.yaml` can be exposed as an [A2A protocol](/integrations/a2a) server:
+
+```bash
+orx orx.yaml --serve -p 9000
+```
+
+This starts a JSON-RPC 2.0 endpoint that other agents — or any HTTP client — can talk to:
+
+```bash
+curl -X POST http://localhost:9000/ \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0", "id": "1",
+    "method": "message/send",
+    "params": {
+      "message": {
+        "role": "user",
+        "parts": [{"text": "Hello!", "mediaType": "text/plain"}]
+      }
+    }
+  }'
+```
+
+## Commands
+
+| Command | Description |
+|---------|-------------|
+| `/model <name>` | Switch model mid-session |
+| `/clear` | Reset conversation |
+| `/compact` | Summarize old messages to free context |
+| `/todos` | Show current task list |
+| `/help` | Show all commands |
+| `/exit` | Exit |
+
+## Configuration
+
+### Model Selection
+
+The CLI resolves the model in this order:
+
+1. `--model` / `-m` flag
+2. `$ORX_MODEL` environment variable
+3. Default from `orx.yaml`
+
+```bash
+orx --model gpt-5.4
+orx --model claude-sonnet-4-6
+orx --model gemini-2.0-flash
+```
+
+Supported providers are auto-detected from the model name. Set the matching API key:
+
+| Provider | Environment Variable |
+|----------|---------------------|
+| OpenAI | `OPENAI_API_KEY` |
+| Anthropic | `ANTHROPIC_API_KEY` |
+| Google | `GOOGLE_API_KEY` |
+
+### Workspace
+
+By default, the CLI uses the current working directory as the workspace. Override with `--workspace`:
+
+```bash
+orx --workspace ~/other-project
+```
+
+The workspace determines:
+- Which files the agent can read, edit, and create
+- Where `AGENTS.md` memory is loaded from
+- Local context detection (language, git state, package manager)
+
+### Custom orx.yaml
+
+Run your own agent setup instead of the built-in coding agent:
+
+```yaml title="orx.yaml"
+defaults:
+  model:
+    provider: openai
+    name: gpt-5.4
+
+tools:
+  web_fetch:
+    function: tools.web_fetch
+
+agents:
+  assistant:
+    type: llm
+    description: "Assistant with web access."
+    instructions: |
+      You are a helpful assistant.
+      Use web_fetch to look things up.
+    tools:
+      - web_fetch
+
+main_agent: assistant
+
+runner:
+  app_name: my-assistant
+  session_service: memory
+```
+
+```bash
+orx orx.yaml
+```
+
+Local Python files (like `tools.py`) next to `orx.yaml` are automatically importable — no `sys.path` hacking needed.
+
+## Features
+
+### Tool Approval
+
+Destructive operations (file writes, shell commands) require approval by default. The CLI shows what the tool wants to do and asks for confirmation:
+
+```
+  > edit_file(src/main.py)
+  Allow? [y/n/always]:
+```
+
+- `y` — approve this one call
+- `n` — deny
+- `always` — approve all future calls of this type (same as `--auto-approve`)
+
+### Task Planning
+
+The agent creates structured todo lists visible in the terminal. Track progress with `/todos`:
+
+```
+  Tasks
+  * Refactor database module  [done]
+  * Update API routes          [in progress]
+  - Write integration tests
+```
+
+### AGENTS.md Memory
+
+Create an `AGENTS.md` file in your workspace root to give the agent persistent context across sessions:
+
+```markdown
+# Project Context
+
+- This is a FastAPI backend with PostgreSQL
+- Use alembic for migrations
+- Tests run with pytest, use the test database
+- Never modify the auth middleware without review
+```
+
+The CLI loads this file automatically on every session start.
+
+### Context Summarization
+
+Long conversations are auto-compacted every 20 turns. Force it manually:
+
+```
+orx> /compact
+Conversation compacted.
+```
+
+### Sub-agent Delegation
+
+The built-in coding agent can spawn isolated sub-agents for complex subtasks — each with its own context window and tool access.
+
+
+# /docs/cli/themes.mdx
+
+---
+title: "Themes"
+description: "Dark and light terminal themes for the orx CLI with automatic detection, per-session overrides via the /theme slash command, and persistence across restarts."
+keywords: ["orx", "CLI theme", "dark mode", "light mode", "terminal colors", "/theme"]
+---
+
+## Theme Support
+
+The orx CLI supports dark and light themes with auto-detection.
+
+## Auto-Detection
+
+The CLI checks these sources in order:
+
+1. `$ORX_THEME` environment variable (`dark` or `light`)
+2. `$COLORFGBG` terminal variable (set by iTerm2, xterm, etc.)
+3. Falls back to `dark`
+
+## Switching Themes
+
+### Via command
+
+```
+/theme          # Toggle current theme
+/theme dark     # Switch to dark
+/theme light    # Switch to light
+```
+
+### Via environment variable
+
+```bash
+export ORX_THEME=light
+orx
+```
+
+## Color Palette
+
+### Dark Theme (default)
+
+| Token | Color | Usage |
+|-------|-------|-------|
+| Accent | `#6C8EBF` | Headings, bullets, links, spinner |
+| Muted | `#6c6c6c` | Tool responses, timestamps |
+| Success | `#98C379` | Completed tasks |
+| Warning | `#E5C07B` | In-progress tasks, approval prompts |
+| Error | `#E06C75` | Errors, dangerous commands |
+
+### Light Theme
+
+| Token | Color | Usage |
+|-------|-------|-------|
+| Accent | `#2563EB` | Headings, bullets, links, spinner |
+| Muted | `#737373` | Tool responses, timestamps |
+| Success | `#16A34A` | Completed tasks |
+| Warning | `#CA8A04` | In-progress tasks |
+| Error | `#DC2626` | Errors |
+
+## Markdown Styling
+
+Rich Markdown elements (blockquotes, bullets, headings, links) use the theme accent color instead of terminal defaults.
+
+
+# /docs/composer/extending.mdx
+
+---
+title: "Extending the composer"
+description: "Plug custom agent types, LLM providers, built-in tools, and whole new tool kinds into the composer. One register() call each — no forks, no subclassing."
+keywords: ["composer", "register_builder", "register_provider", "register_builtin_tool", "register_tool_resolver", "custom agents", "plugin"]
+---
+
+The composer has four parallel extension points. Every one is a plain registry you extend with a single `register()` call at import time — no subclassing, no forks, no monkey-patching.
+
+| Extension point | What you add | Registry function |
+|-----------------|--------------|-------------------|
+| **Agent type** | A new `type:` key under YAML `agents:` | [`register_builder`](#custom-agent-types) |
+| **LLM provider** | A new `provider:` string under YAML `model:` | [`register_provider`](#custom-model-providers) |
+| **Built-in tool** | A new `builtin:` name under YAML `tools:` | [`register_builtin_tool`](#custom-built-in-tools) |
+| **Tool type** | A new shape of `ToolDef.custom` | [`register_tool_resolver`](#custom-tool-types) |
+
+All four live in `orxhestra.composer`:
+
+```python
+from orxhestra.composer import (
+    register_builder,
+    register_provider,
+    register_builtin_tool,
+    register_tool_resolver,
+)
+```
+
+---
+
+## Custom agent types
+
+Register an async build function under a YAML `type:` key.
+
+```python title="myapp/agents.py"
+from orxhestra.agents.base_agent import BaseAgent
+from orxhestra.composer import register_builder
+from orxhestra.composer.builders.agents import Helpers
+from orxhestra.composer.schema import AgentDef, ComposeSpec
+
+
+class WebResearcher(BaseAgent):
+    """Minimal custom agent for illustration."""
+
+    async def astream(self, user_message, context):
+        yield self._event("AGENT_START")
+        yield self._event("AGENT_MESSAGE", text=f"Researching: {user_message}")
+        yield self._event("AGENT_END")
+
+
+async def build_web_researcher(
+    name: str,
+    agent_def: AgentDef,
+    spec: ComposeSpec,
+    *,
+    helpers: Helpers,
+) -> BaseAgent:
+    """Resolve YAML into a WebResearcher instance.
+
+    ``helpers`` carries the three cross-cutting resolvers
+    (resolve_tools, resolve_model, build_agent) so custom builders
+    don't have to know about the composer's private state.
+    """
+    tools = await helpers.resolve_tools(agent_def)
+    return WebResearcher(name=name, description=agent_def.description, tools=tools)
+
+
+register_builder("web_researcher", build_web_researcher)
+```
+
+```yaml title="orx.yaml"
+agents:
+  researcher:
+    type: web_researcher       # dispatches to build_web_researcher
+    description: "Web research specialist"
+    tools:
+      - search
+
+main_agent: researcher
+```
+
+<Tip>
+  The build function must implement the [`BuildFn`](https://github.com/NicolaiLassen/orxhestra/blob/main/orxhestra/composer/builders/agents/__init__.py) protocol:
+
+  ```python
+  async def build(
+      name: str,
+      agent_def: AgentDef,
+      spec: ComposeSpec,
+      *,
+      helpers: Helpers,
+  ) -> BaseAgent: ...
+  ```
+
+  Custom agent types are **exempt** from the per-type field validation applied to built-ins — your builder is free to consume any `AgentDef` field.
+</Tip>
+
+---
+
+## Custom model providers
+
+Register any class that implements LangChain's `BaseChatModel`. Reference it by name via `model.provider`.
+
+```python title="myapp/models.py"
+from langchain_core.language_models import BaseChatModel
+from orxhestra.composer import register_provider
+
+
+class OllamaChat(BaseChatModel):
+    """Minimal stand-in — use langchain-ollama in production."""
+
+    def _generate(self, messages, stop=None, run_manager=None, **kwargs):
+        ...
+
+
+register_provider("ollama_local", OllamaChat)
+```
+
+```yaml title="orx.yaml"
+models:
+  local:
+    provider: ollama_local      # resolves to OllamaChat
+    name: llama3
+    base_url: http://localhost:11434
+
+agents:
+  bot:
+    type: llm
+    model: local
+    instructions: You run locally.
+
+main_agent: bot
+```
+
+<Note>
+  The composer ships with 20+ lazily-loaded providers (`openai`, `anthropic`, `google`, `groq`, `ollama`, etc.) — you probably only need `register_provider` for genuinely new integrations. Any unrecognised `provider` string is also treated as a dotted import path, so `provider: myapp.models.OllamaChat` works without registration.
+</Note>
+
+---
+
+## Custom built-in tools
+
+A "built-in" is a zero-arg factory returning one or more LangChain tools. Great for project-scoped helpers that every agent in the compose spec wants.
+
+```python title="myapp/tools.py"
+from langchain_core.tools import tool
+from orxhestra.composer import register_builtin_tool
+
+
+@tool
+def redact(text: str) -> str:
+    """Strip emails and phone numbers from ``text``."""
+    ...
+
+
+register_builtin_tool("redact", lambda: redact)
+```
+
+```yaml title="orx.yaml"
+tools:
+  redactor:
+    builtin: redact             # factory is called on resolve
+
+agents:
+  privacy_aware:
+    type: llm
+    tools: [redactor]
+    instructions: "Redact PII before replying."
+
+main_agent: privacy_aware
+```
+
+The factory runs lazily on first use — if `redact` imports something expensive, agents that don't reference it don't pay the cost.
+
+---
+
+## Custom tool types
+
+If the five built-in `ToolDef` shapes (`function`, `mcp`, `builtin`, `agent`, `transfer`) don't fit, register a whole new **type** of tool. The YAML escape hatch is `ToolDef.custom` — an arbitrary dict with a `type` key that the composer dispatches to your resolver.
+
+Resolvers can be sync or async; the composer awaits whichever shape you return.
+
+```python title="myapp/webhook_tool.py"
+import httpx
+from langchain_core.tools import Tool
+from orxhestra.composer import register_tool_resolver
+
+
+async def build_webhook(config: dict) -> Tool:
+    """Resolver for ``custom.type == "webhook"``.
+
+    The full ``custom`` dict (including the ``type`` key) is passed
+    in, so the resolver can read any config the user put alongside
+    ``type:`` in YAML.
+    """
+    url = config["url"]
+    tool_name = config.get("name", "webhook")
+    description = config.get("description", f"POST to {url}")
+
+    async def invoke(body: dict) -> str:
+        async with httpx.AsyncClient() as client:
+            resp = await client.post(url, json=body)
+            return resp.text
+
+    return Tool.from_function(
+        name=tool_name,
+        description=description,
+        coroutine=invoke,
+    )
+
+
+register_tool_resolver("webhook", build_webhook)
+```
+
+```yaml title="orx.yaml"
+tools:
+  notifier:
+    custom:
+      type: webhook             # dispatches to build_webhook
+      url: https://example.com/notify
+      name: notify
+      description: "Send a JSON payload to the notify webhook."
+
+agents:
+  alerter:
+    type: llm
+    tools: [notifier]
+    instructions: "Call notifier whenever anomalies are detected."
+
+main_agent: alerter
+```
+
+A resolver may return a **single** `BaseTool` or a **list** of them — useful when one YAML entry expands into a whole tool surface (e.g. a REST client that exposes each endpoint as a separate tool).
+
+<Tip>
+  Resolvers receive the raw `custom` dict unchanged — no Pydantic model. That's deliberate: you own the validation. Raise `ComposerError` with a helpful message when the config is invalid.
+</Tip>
+
+---
+
+## Where to register
+
+Registration is a module-level side effect — the composer looks at the registry state at build time, so any code path that calls `Composer.from_yaml(...)` must have already imported the module that calls `register_*`.
+
+Two common patterns:
+
+<Tabs>
+  <Tab title="Import before build">
+    ```python
+    import myapp.agents          # runs register_builder(...)
+    import myapp.tools           # runs register_builtin_tool(...)
+
+    from orxhestra.composer import Composer
+
+    agent = Composer.from_yaml("orx.yaml")
+    ```
+  </Tab>
+  <Tab title="Entry-point convention">
+    Ship your registrations in a `register()` function:
+
+    ```python title="myapp/compose_ext.py"
+    def register() -> None:
+        from orxhestra.composer import register_builder, register_builtin_tool
+        from myapp.agents import build_web_researcher
+        from myapp.tools import redact
+
+        register_builder("web_researcher", build_web_researcher)
+        register_builtin_tool("redact", lambda: redact)
+    ```
+
+    Call `myapp.compose_ext.register()` once at app startup — keeps the side-effectful imports explicit and easy to test.
+  </Tab>
+  <Tab title="Per-spec registration">
+    Populate the registries right before you build, so each compose has its own extension set:
+
+    ```python
+    from orxhestra.composer import Composer, register_builder
+
+    register_builder("web_researcher", build_web_researcher)
+    composer = Composer(spec)
+    root = await composer.build()
+    runner = await composer.build_runner(root)
+    ```
+
+    `Composer.build()`, `build_runner()`, and `build_server()` are the public pair-points for callers that need to mutate `spec` or prep registries between construction and build.
+  </Tab>
+</Tabs>
+
+---
+
+## Inspection APIs
+
+Each registry exposes a read-only listing so you can verify what's plugged in:
+
+```python
+from orxhestra.composer.builders.agents import registered_types as agent_types
+from orxhestra.composer.builders.tools import registered_tool_resolvers
+
+print(agent_types())
+# ['a2a', 'llm', 'loop', 'parallel', 'react', 'sequential', 'web_researcher']
+
+print(registered_tool_resolvers())
+# ['webhook']
+```
+
+The composer's error messages use the same listings — if a YAML spec references an unknown `type:` or `custom.type:`, the message enumerates every registered name so you see exactly what's legal.
+
+---
+
+## See also
+
+- [Composer overview](/composer/overview) — narrative walkthrough with YAML examples.
+- [YAML schema reference](/composer/schema-reference) — flat field-by-field reference.
+- [`orxhestra/composer/__init__.py`](https://github.com/NicolaiLassen/orxhestra/blob/main/orxhestra/composer/__init__.py) — canonical source for the four `register_*` functions.
+
+
+# /docs/composer/overview.mdx
+
+---
+title: "Composer"
+description: "Define multi-agent teams in a single YAML file. Configure models, tools, skills, planners, and orchestration patterns without writing Python."
+keywords: ["composer", "YAML", "agent composition", "declarative agents", "no-code agents", "orchestration"]
+---
+
+Define your entire agent team in a single YAML file. The Composer parses the spec and builds a live agent tree - no Python wiring needed.
+
+```bash
+pip install orxhestra[composer]
+```
+
+## Quick Start
+
+```yaml title="orx.yaml"
+defaults:
+  model:
+    provider: anthropic
+    name: claude-opus-4-7
+
+agents:
+  assistant:
+    type: llm
+    instructions: You are a helpful assistant.
+
+main_agent: assistant
+```
+
+<Tabs>
+  <Tab title="Python">
+    ```python
+    from orxhestra.composer import Composer
+
+    agent = Composer.from_yaml("orx.yaml")
+
+    async for event in agent.astream("Hello!"):
+        if event.is_final_response():
+            print(event.text)
+    ```
+  </Tab>
+  <Tab title="CLI">
+    ```bash
+    orx orx.yaml
+    ```
+    Drops you into the interactive REPL with your YAML agent as the root.
+  </Tab>
+  <Tab title="A2A Server">
+    ```bash
+    orx orx.yaml --serve -p 9000
+    ```
+    Exposes the agent tree as an A2A v1.0 JSON-RPC endpoint on `:9000`.
+  </Tab>
+</Tabs>
+
+## Architecture
+
+The Composer is built around three modular registries under `builders/`:
+
+```
+composer/
+├── __init__.py              # Public API: Composer, register_*
+├── composer.py              # Orchestrates YAML → agent tree
+├── errors.py                # ComposerError, CircularReferenceError
+├── schema.py                # Pydantic models for YAML validation
+└── builders/
+    ├── agents/              # Agent builder registry
+    │   ├── __init__.py      # register(), get(), Helpers, BuildFn protocol
+    │   ├── _common.py       # Shared LLM + composite builder logic
+    │   ├── llm.py           # LlmAgent builder
+    │   ├── react.py         # ReActAgent builder
+    │   ├── sequential.py    # SequentialAgent builder (via build_composite)
+    │   ├── parallel.py      # ParallelAgent builder (via build_composite)
+    │   ├── loop.py          # LoopAgent builder (via build_composite)
+    │   └── a2a.py           # A2AAgent builder
+    ├── models/              # Model provider registry
+    │   └── __init__.py      # register(), create()
+    └── tools/               # Tool-type registry + built-in tools
+        └── __init__.py      # register_builtin(), register_tool_resolver(), resolve_*()
+```
+
+Each registry is independently extensible — register a custom agent type, model provider, built-in tool, or whole new tool type without touching any other code.
+
+## YAML Schema
+
+### `defaults`
+
+Global settings inherited by all agents.
+
+```yaml
+defaults:
+  model:
+    provider: anthropic    # openai | anthropic | google | dotted.import.path
+    name: claude-opus-4-7
+    temperature: 0.7       # optional
+  max_iterations: 10
+```
+
+### `models`
+
+Named model configurations. Agents reference them by name instead of repeating inline config.
+
+```yaml
+models:
+  fast:
+    provider: openai
+    name: gpt-5.4-mini
+    temperature: 0.0
+  smart:
+    provider: anthropic
+    name: claude-opus-4-7
+    max_tokens: 8192
+    api_key: "sk-ant-..."
+  local:
+    provider: "myapp.models.OllamaChat"  # dotted import path
+    name: llama3
+    base_url: "http://localhost:11434"
+```
+
+Any key beyond `provider`, `name`, and `temperature` is forwarded directly to the LangChain model constructor (e.g. `max_tokens`, `api_key`, `base_url`, `timeout`, etc.).
+
+Agents reference models by name:
+
+```yaml
+agents:
+  researcher:
+    type: llm
+    model: smart             # reference to models section
+  summarizer:
+    type: llm
+    model: fast              # different model for different agent
+```
+
+Or use inline `model:` for one-off overrides:
+
+```yaml
+agents:
+  bot:
+    type: llm
+    model:
+      provider: openai
+      name: gpt-5.4
+      max_tokens: 4096
+```
+
+### `tools`
+
+Named tool definitions referenced by agents. Every tool entry must set **exactly one** of `function`, `mcp`, `builtin`, `agent`, `transfer`, or `custom`.
+
+```yaml
+tools:
+  # Python function by import path
+  search:
+    function: "myapp.tools.search_web"
+
+  # MCP server
+  weather:
+    mcp:
+      url: "http://localhost:8001/mcp"
+
+  # Built-in tools
+  exit:
+    builtin: exit_loop
+  fs:
+    builtin: filesystem     # ls, read_file, write_file, edit_file, mkdir, glob, grep
+  sh:
+    builtin: shell           # shell_exec, shell_exec_background
+
+  # Agent as tool (AgentTool)
+  researcher:
+    agent: ResearchAgent
+
+  # Transfer routing (hand off to one of several targets)
+  router:
+    transfer:
+      targets: [sales, support]
+
+  # Custom tool type — dispatched via register_tool_resolver()
+  notifier:
+    custom:
+      type: webhook            # must match a registered resolver
+      url: https://example.com/notify
+      name: notify
+```
+
+<Tip>
+  The `custom:` type is the escape hatch for third-party tool kinds. Register a resolver with `register_tool_resolver("webhook", my_resolver)` and the composer will dispatch `custom.type == "webhook"` entries to your callable. See [Extending](#custom-tool-types-register-tool-resolver).
+</Tip>
+
+### `skills`
+
+Named skill definitions, referenced by agents. Each agent that lists skills gets its own in-memory skill store with `list_skills` and `load_skill` tools.
+
+Skills can be defined inline, loaded from a directory ([Agent Skills Protocol](https://agentskills.io)), or fetched from a [FastMCP](https://gofastmcp.com/servers/providers/skills) server.
+
+```yaml
+skills:
+  # Inline skill (content defined directly)
+  summarize:
+    name: summarize
+    description: "Summarize text into bullet points."
+    content: "Extract 3-5 key points. Be concise."
+
+  # Directory skill (Agent Skills Protocol - agentskills.io)
+  code_review:
+    name: code-review
+    directory: .agents/skills/code-review
+
+  # Remote skill (loaded from FastMCP server at build time)
+  pdf_processing:
+    name: pdf-processing
+    description: "Process and extract data from PDFs."
+    mcp:
+      url: "http://localhost:8001/mcp"
+
+  # Remote skill (in-memory FastMCP server)
+  coding_standards:
+    name: coding-standards
+    description: "Team coding standards."
+    mcp:
+      server: "myapp.skills.server"  # dotted import path
+```
+
+Directory skills are loaded via `scan_skill_directory()` and support the full 3-tier progressive disclosure model with `load_skill_resource` for on-demand resource files. See [Skills](/orchestration/skills) for details.
+
+Agents reference skills by name:
+
+```yaml
+agents:
+  triage:
+    type: llm
+    instructions: "Route to the right specialist."
+    skills:
+      - summarize
+      - pdf_processing
+```
+
+### `agents`
+
+Flat dict of agent definitions. Agents reference each other by name.
+
+```yaml
+agents:
+  MyAgent:
+    type: llm              # llm | react | sequential | parallel | loop | a2a
+    description: "..."
+    instructions: |
+      System prompt goes here.
+    model: smart            # reference to models section, or inline:
+    # model:
+    #   provider: anthropic
+    #   name: claude-sonnet-4-6
+    #   max_tokens: 4096
+    tools:
+      - search             # named reference
+      - builtin: exit_loop # inline definition
+      - agent: OtherAgent  # inline AgentTool
+      - transfer:          # transfer routing
+          targets: [A, B]
+    skills:
+      - summarize          # named reference to skills section
+    planner:
+      type: task            # plan_react | task
+      tasks:
+        - title: "Research"
+    max_iterations: 10
+```
+
+#### Agent Types
+
+| Type | Description | Required fields |
+|------|-------------|-----------------|
+| `llm` | LLM-powered agent with tool loop | `instructions` |
+| `react` | Structured Reason+Act agent | `instructions` (optional) |
+| `sequential` | Run sub-agents in order | `agents` |
+| `parallel` | Run sub-agents concurrently | `agents` |
+| `loop` | Repeat sub-agents until done | `agents`, `max_iterations` |
+| `a2a` | Remote agent via A2A protocol | `url` |
+
+<Note>
+  The composer's schema validator enforces the **Required fields** column at YAML-parse time:
+
+  - `a2a` agents **must** set `url`.
+  - `sequential` / `parallel` / `loop` agents **must** set a non-empty `agents` list.
+
+  It also emits `warnings.warn` for fields that are silently ignored by an agent type (e.g. `tools` on a composite, `model` on an `a2a`, `planner` on non-LLM types). Running with `-W error` turns those into hard failures.
+
+  Custom agent types registered via [`register_builder`](#custom-agent-types) are exempt from both checks — they're free to consume any field.
+</Note>
+
+### `main_agent`
+
+The entry-point agent name.
+
+```yaml
+main_agent: MyAgent
+```
+
+### `runner`
+
+Optional. Enables `Composer.runner_from_yaml()`.
+
+```yaml
+runner:
+  app_name: my-app
+  session_service: memory  # or dotted.import.path
+  compaction:               # optional: auto-compact long sessions
+    char_threshold: 100000  # compact when content exceeds ~25k tokens
+    retention_chars: 20000  # keep ~5k tokens of recent events raw
+```
+
+When `compaction` is set, the Runner automatically summarizes old session events after each invocation based on character count (not event count). Uses the default model for LLM-based summarization. See [Session Compaction](/concepts/runner-sessions#session-compaction) for details.
+
+### `server`
+
+Optional. Enables `Composer.server_from_yaml()` for A2A.
+
+```yaml
+server:
+  app_name: my-app
+  version: "1.0.0"
+  url: "http://localhost:8000"
+  skills:
+    - id: general
+      name: General
+      description: "General assistant."
+```
+
+### Identity, trust, and attestation
+
+Three optional blocks wire [the trust layer](https://github.com/NicolaiLassen/orxhestra/tree/main/orxhestra/middleware) into the Runner: **sign** every emitted event, **verify** incoming ones against a policy, and **audit** the whole stream through an attestation provider. Every block is opt-in — leave them out and the Runner behaves exactly as before.
+
+<Note>
+  Requires the auth extra:
+
+  ```bash
+  pip install 'orxhestra[composer,auth]'
+  ```
+</Note>
+
+#### `identity:` — Ed25519 signing key
+
+Attaches a signing identity to every agent under the Runner. When set, every `Event` the tree emits is signed with Ed25519 over the canonical event payload (including `prev_signature` to form a hash chain), and verifiers downstream can prove the event hasn't been tampered with.
+
+```yaml
+identity:
+  signing_key: ./keys/agent.key              # created via `orx identity init`
+  encryption_password: ${ORX_KEY_PASSWORD}    # optional — Fernet-wraps the key at rest
+  did_method: key                             # "key" (offline, derived) or "web"
+  did: did:web:example.com:agents:researcher  # required when did_method=web
+```
+
+<Tip>
+  Generate a key with the CLI:
+
+  ```bash
+  orx identity init --path ./keys/agent.key
+  # → wrote identity to ./keys/agent.key
+  # → did: did:key:z6Mk...
+  ```
+
+  Then either declare it in YAML as above, or pass it on the command line: `orx orx.yaml --identity ./keys/agent.key`.
+</Tip>
+
+#### `trust:` — signature verification policy
+
+Installs [`TrustMiddleware`](https://github.com/NicolaiLassen/orxhestra/blob/main/orxhestra/middleware/trust.py) on the Runner. Requires an `identity:` block (verification needs keys).
+
+```yaml
+trust:
+  mode: strict                         # "strict" drops failures; "permissive" annotates them
+  trusted_dids:                         # allowlist — empty means "anyone valid"
+    - did:key:z6Mk...trusted-peer
+  denied_dids: []                       # denylist; takes precedence over trusted_dids
+  require_chain: true                   # enforce hash-chain continuity per branch
+  allow_unsigned: false                 # when false, every event must be signed
+```
+
+In **strict** mode, events that fail verification are dropped from the stream. In **permissive** mode they're passed through with `event.metadata["trust"] = {"verified": False, "reason": ...}` so downstream consumers can flag them.
+
+#### `attestation:` — claim issuance + audit log
+
+Installs [`AttestationMiddleware`](https://github.com/NicolaiLassen/orxhestra/blob/main/orxhestra/middleware/attestation.py) on the Runner. Every event is appended to the provider's audit log; notable actions (agent transfers, tool invocations) also produce typed claims.
+
+```yaml
+attestation:
+  provider: local            # "noop" (default), "local", or a dotted import path
+  path: ./audit              # required when provider == "local"
+```
+
+Three provider flavors ship in-box:
+
+- **`noop`** — records nothing. Matches the default when no `attestation:` block is present.
+- **`local`** — JSON-on-disk at `path`, SHA-256 hash-chained, every entry signed with the `identity:` key. Zero external deps.
+- **`<dotted.import.path>`** — anything else is treated as an import path to a user-supplied `AttestationProvider`. Plug in a vendor SDK, a blockchain anchor, or your own implementation.
+
+```yaml
+attestation:
+  provider: myorg.attest.VendorProvider   # user-supplied implementation
+```
+
+<Tip>
+  See the [AttestationProvider protocol](https://github.com/NicolaiLassen/orxhestra/blob/main/orxhestra/trust/attestation/protocol.py) for the four-method interface your adapter needs to satisfy: `issue_claim`, `verify_claim`, `append_audit`, `revoke`.
+</Tip>
+
+## Examples
+
+### Transfer Routing
+
+```yaml
+agents:
+  sales:
+    type: llm
+    description: "Order inquiries."
+    tools: [lookup_order]
+  support:
+    type: llm
+    description: "Technical help."
+    tools: [search_docs]
+  triage:
+    type: llm
+    instructions: "Route to the right specialist."
+    tools:
+      - transfer:
+          targets: [sales, support]
+
+main_agent: triage
+```
+
+### Sequential Pipeline
+
+```yaml
+agents:
+  researcher:
+    type: llm
+    instructions: "Research the topic."
+    tools: [search]
+  writer:
+    type: llm
+    instructions: "Write an article from research."
+  pipeline:
+    type: sequential
+    agents: [researcher, writer]
+
+main_agent: pipeline
+```
+
+### Loop with Exit
+
+```yaml
+agents:
+  writer:
+    type: llm
+    instructions: "Write a draft."
+  reviewer:
+    type: llm
+    instructions: "Review. Call exit_loop if approved."
+    tools:
+      - builtin: exit_loop
+  loop:
+    type: loop
+    agents: [writer, reviewer]
+    max_iterations: 5
+
+main_agent: loop
+```
+
+## Extending with Registries
+
+### Custom Agent Types
+
+```python
+from orxhestra.composer import register_builder
+
+
+async def build_custom(name, agent_def, spec, *, helpers):
+    model_cfg = helpers.resolve_model(agent_def)
+    tools = await helpers.resolve_tools(agent_def)
+    return MyCustomAgent(name=name, tools=tools)
+
+register_builder("custom", build_custom)
+```
+
+Then in YAML:
+
+```yaml
+agents:
+  my_agent:
+    type: custom
+```
+
+The build function receives `(name, agent_def, spec, *, helpers)` where `helpers` provides:
+
+- `helpers.resolve_model(agent_def)` - merge agent/default model config
+- `helpers.resolve_tools(agent_def)` - resolve all tool references
+- `helpers.build_agent(name)` - recursively build a sub-agent by name
+
+### Custom Model Providers
+
+```python
+from orxhestra.composer import register_provider
+
+register_provider("my_llm", MyCustomChatModel)
+```
+
+Built-in providers: `openai`, `anthropic`, `google`. Any unrecognized provider string is treated as a dotted import path to a custom `BaseChatModel` class.
+
+### Custom Builtin Tools
+
+```python
+from orxhestra.composer import register_builtin_tool
+
+register_builtin_tool("my_tool", lambda: my_tool_instance)
+```
+
+Then reference it in YAML:
+
+```yaml
+tools:
+  my_tool:
+    builtin: my_tool
+```
+
+### Custom tool types (`register_tool_resolver`)
+
+The five built-in `ToolDef` shapes (`function`, `mcp`, `builtin`, `agent`, `transfer`) cover most needs — but if you need a whole new *kind* of tool (a webhook, an HTTP RPC, a proprietary bus), reach for the `custom:` field + a resolver.
+
+```python
+from langchain_core.tools import Tool
+from orxhestra.composer import register_tool_resolver
+
+
+def build_webhook(config: dict) -> Tool:
+    """Resolver for `custom.type == "webhook"`.
+
+    The full ``custom`` dict (including the ``type`` key) is passed in.
+    Can be sync or async — the composer awaits whatever the resolver returns.
+    """
+    url = config["url"]
+    return Tool.from_function(
+        name=config.get("name", "webhook"),
+        description="POST JSON to a webhook and return the response text.",
+        func=lambda body: httpx.post(url, json=body).text,
+    )
+
+register_tool_resolver("webhook", build_webhook)
+```
+
+```yaml
+tools:
+  notifier:
+    custom:
+      type: webhook               # dispatches to build_webhook
+      url: https://example.com/notify
+      name: notify
+      description: "Send a payload to the notify webhook."
+```
+
+Async resolvers work transparently — the composer awaits whichever shape you return.
+
+## Python API
+
+| Method | Returns | Description |
+|--------|---------|-------------|
+| `Composer.from_yaml(path)` | `BaseAgent` | Parse YAML and build the root agent (sync) |
+| `Composer.from_yaml_async(path)` | `BaseAgent` | Same, async |
+| `Composer.runner_from_yaml(path)` | `Runner` | Build a Runner with sessions + trust middleware |
+| `Composer.runner_from_yaml_async(path)` | `Runner` | Same, async |
+| `Composer.server_from_yaml(path)` | `FastAPI` | Build an A2A server app |
+| `Composer.server_from_yaml_async(path)` | `FastAPI` | Same, async |
+| `Composer(spec).build()` | `BaseAgent` | **Public build hook** for callers that need to mutate `spec` between construction and build |
+| `Composer(spec).build_runner(root)` | `Runner` | Wrap a built tree in a Runner |
+| `Composer(spec).build_server(root)` | `FastAPI` | Wrap a built tree in an A2A app |
+
+| Registry function | Description |
+|-------------------|-------------|
+| `register_builder(type, fn)` | Add a custom agent type builder |
+| `register_provider(name, cls)` | Add a custom model provider |
+| `register_builtin_tool(name, factory)` | Add a custom built-in tool |
+| `register_tool_resolver(type, resolver)` | Add a new tool type accessible via `tools: { custom: { type: ... } }` |
+
+
+# /docs/composer/schema-reference.mdx
+
+---
+title: "YAML schema reference"
+description: "Flat reference of every field the composer accepts in orx.yaml. Ctrl-F for the field you need; every row links back to the narrative section."
+keywords: ["composer", "YAML schema", "ComposeSpec", "agent definition", "tool definition", "reference"]
+---
+
+Flat reference of every field the composer accepts in an `orx.yaml`. Kept short and grep-friendly — each row links back to the matching narrative section in [Composer](/composer/overview) when you want context.
+
+<Tip>
+  The canonical source is `orxhestra/composer/schema.py`. If this page ever drifts from the code, the code wins — file an issue so we can fix the doc.
+</Tip>
+
+## `ComposeSpec` (root)
+
+| Field | Type | Default | Notes |
+|-------|------|---------|-------|
+| `version` | `str` | current package version | Forward-compat stamp. No runtime effect today. |
+| `defaults` | [`DefaultsConfig`](#defaultsconfig) | `{}` | Inherited by every agent. |
+| `models` | `dict[str, ModelConfig]` | `{}` | Named LLM configs. |
+| `tools` | `dict[str, ToolDef]` | `{}` | Named tool definitions. |
+| `skills` | `dict[str, SkillItemDef]` | `{}` | Named skills (progressive disclosure). |
+| `agents` | `dict[str, AgentDef]` | **required** | All agents keyed by name. |
+| `main_agent` | `str` | **required** | Entry-point agent name. Must exist in `agents`. |
+| `runner` | [`RunnerConfig`](#runnerconfig) | `None` | Enables `runner_from_yaml()`. |
+| `server` | [`ServerConfig`](#serverconfig) | `None` | Enables `server_from_yaml()` (A2A). |
+| `identity` | [`IdentityConfig`](#identityconfig) | `None` | Ed25519 signing identity. |
+| `trust` | [`TrustConfig`](#trustconfig) | `None` | Signature verification policy. |
+| `attestation` | [`AttestationConfig`](#attestationconfig) | `None` | Audit + claim-issuance provider. |
+
+## `DefaultsConfig`
+
+| Field | Type | Default | Notes |
+|-------|------|---------|-------|
+| `model` | `ModelConfig` | `None` | Default LLM for agents that don't override. |
+| `max_iterations` | `int` | `10` | Tool-loop cap; loop agents also inherit this. |
+
+## `ModelConfig`
+
+| Field | Type | Default | Notes |
+|-------|------|---------|-------|
+| `provider` | `str` | `"anthropic"` | `openai`, `anthropic`, `google`, or a dotted import path. |
+| `name` | `str` | `"claude-opus-4-7"` | Provider-specific model id. |
+| `temperature` | `float \| None` | `None` | Sampling temperature. |
+| `**extra` | `dict` | — | Any extra keys (`max_tokens`, `api_key`, `base_url`, ...) are forwarded to the LangChain constructor. |
+
+## `ToolDef`
+
+Exactly one of `function` / `mcp` / `builtin` / `agent` / `transfer` / `custom` must be set.
+
+| Field | Type | Default | Notes |
+|-------|------|---------|-------|
+| `function` | `str \| None` | `None` | Dotted import path to a Python callable. |
+| `mcp` | [`MCPConfig`](#mcpconfig) \| `None` | `None` | MCP server connection. |
+| `builtin` | `str \| None` | `None` | Registered built-in name (`filesystem`, `shell`, ...). |
+| `agent` | `str \| None` | `None` | Name of an agent to wrap as an `AgentTool`. |
+| `transfer` | [`TransferConfig`](#transferconfig) \| `None` | `None` | Transfer-routing targets. |
+| `custom` | `dict[str, Any] \| None` | `None` | Escape hatch; must carry `"type"` key matching a resolver registered via `register_tool_resolver`. |
+| `skip_summarization` | `bool` | `False` | Skip LLM summarization of the tool's result. |
+| `name` | `str \| None` | `None` | Override the tool name exposed to the LLM. |
+| `description` | `str \| None` | `None` | Override the tool description. |
+
+### `MCPConfig`
+
+| Field | Type | Default | Notes |
+|-------|------|---------|-------|
+| `url` | `str \| None` | `None` | HTTP(S) URL of the MCP server. |
+| `server` | `str \| None` | `None` | Dotted import path to an in-memory `FastMCP` server. |
+
+Exactly one of `url` / `server` must be set.
+
+### `TransferConfig`
+
+| Field | Type | Default | Notes |
+|-------|------|---------|-------|
+| `targets` | `list[str]` | **required** | Agent names that can be transferred to. |
+
+## `AgentDef`
+
+Shared shape — per-type required fields are enforced by the schema validator.
+
+| Field | Type | Default | Applies to | Notes |
+|-------|------|---------|------------|-------|
+| `type` | `"llm" \| "react" \| "sequential" \| "parallel" \| "loop" \| "a2a"` | `"llm"` | all | Agent kind. Custom types register via `register_builder`. |
+| `description` | `str` | `""` | all | Used by routers and LLM transfer decisions. |
+| `url` | `str \| None` | `None` | **`a2a` (required)** | Remote A2A server URL. |
+| `model` | `ModelConfig \| str \| None` | `None` | `llm`, `react` | Inline config or name ref to `models`. |
+| `instructions` | `str \| None` | `None` | `llm`, `react` | System instructions. |
+| `tools` | `list[str \| ToolDef] \| None` | `None` | `llm`, `react` | Named refs or inline. |
+| `skills` | `list[str]` | `[]` | `llm`, `react` | Progressive-disclosure skill refs. |
+| `agents` | `list[str] \| None` | `None` | **composites (required)** | Sub-agent names for `sequential` / `parallel` / `loop`. |
+| `planner` | [`PlannerDef`](#plannerdef) \| `None` | `None` | `llm`, `react` | Planning strategy. |
+| `output_key` | `str \| None` | `None` | `llm`, `react` | Session-state key for final output. |
+| `output_schema` | `str \| None` | `None` | `llm`, `react` | Dotted import path to a Pydantic model. |
+| `include_contents` | `"default" \| "none" \| None` | `None` | `llm`, `react` | Content inclusion mode. |
+| `max_iterations` | `int \| None` | `None` | `llm`, `react`, `loop` | Tool-loop / iteration cap. |
+| `should_continue` | `str \| None` | `None` | `loop` | Dotted import path to a continuation callable. |
+
+<Tip>
+  Fields set on an agent type that ignores them (e.g. `tools` on a `sequential` agent) emit a `warnings.warn` at schema time. Run with `-W error` to turn those into hard failures.
+</Tip>
+
+### `PlannerDef`
+
+| Field | Type | Default | Notes |
+|-------|------|---------|-------|
+| `type` | `"plan_react" \| "task"` | `"plan_react"` | Planner strategy. |
+| `tasks` | `list[dict] \| None` | `None` | Pre-defined tasks for `task` planner; ignored for `plan_react`. |
+
+## `SkillItemDef`
+
+Exactly one of `content` / `mcp` / `directory` must be set.
+
+| Field | Type | Default | Notes |
+|-------|------|---------|-------|
+| `name` | `str` | **required** | Skill name (used by the agent's `load_skill` tool). |
+| `description` | `str` | `""` | Shown to the LLM during skill selection. |
+| `content` | `str \| None` | `None` | Inline Markdown content. |
+| `mcp` | [`MCPConfig`](#mcpconfig) \| `None` | `None` | Fetch from a FastMCP server at build time. |
+| `directory` | `str \| None` | `None` | Path to an [Agent Skills Protocol](https://agentskills.io) directory. |
+
+## `RunnerConfig`
+
+| Field | Type | Default | Notes |
+|-------|------|---------|-------|
+| `app_name` | `str` | `"agent-app"` | Session namespace. |
+| `session_service` | `"memory" \| "database" \| <dotted>` | `"memory"` | Session backend selector. |
+| `artifact_service` | `"memory" \| "file" \| None` | `None` | Artifact backend. |
+| `compaction` | [`CompactionConfigDef`](#compactionconfigdef) \| `None` | `None` | Auto-compaction. |
+| `config` | [`RunConfigDef`](#runconfigdef) \| `None` | `None` | LangChain `RunnableConfig` for every call. |
+
+### `CompactionConfigDef`
+
+| Field | Type | Default | Notes |
+|-------|------|---------|-------|
+| `char_threshold` | `int` | `100_000` | ~25k tokens; compact past this. |
+| `retention_chars` | `int` | `20_000` | ~5k tokens; always kept raw. |
+
+### `RunConfigDef`
+
+| Field | Type | Default | Notes |
+|-------|------|---------|-------|
+| `callbacks` | `list[str]` | `[]` | Dotted import paths to LangChain callback handlers. |
+| `tags` | `list[str]` | `[]` | Tags propagated to every call. |
+| `metadata` | `dict[str, str]` | `{}` | Run metadata. |
+
+## `ServerConfig`
+
+| Field | Type | Default | Notes |
+|-------|------|---------|-------|
+| `app_name` | `str` | `"agent-app"` | A2A card name. |
+| `version` | `str` | `"1.0.0"` | A2A card version. |
+| `url` | `str` | `"http://localhost:8000"` | Public URL. |
+| `skills` | `list[A2ASkillDef]` | `[]` | Advertised skills. |
+
+## `IdentityConfig`
+
+| Field | Type | Default | Notes |
+|-------|------|---------|-------|
+| `signing_key` | `str` | **required** | Path to a JSON key file. Created via `orx identity init`. Supports `${VAR}` expansion. |
+| `encryption_password` | `str \| None` | `None` | Password for Fernet-wrapped key files. Supports `${VAR}` expansion. |
+| `did_method` | `"key" \| "web"` | `"key"` | `"key"` derives the DID from the public key; `"web"` requires an explicit `did`. |
+| `did` | `str \| None` | `None` | Explicit DID. **Required when `did_method="web"`.** |
+
+## `TrustConfig`
+
+| Field | Type | Default | Notes |
+|-------|------|---------|-------|
+| `mode` | `"strict" \| "permissive"` | `"permissive"` | Strict drops failing events; permissive annotates them. |
+| `trusted_dids` | `list[str]` | `[]` | Allowlist. Empty means "any valid signer". |
+| `denied_dids` | `list[str]` | `[]` | Denylist. Takes precedence over allowlist. |
+| `require_chain` | `bool` | `False` | Enforce hash-chain continuity per branch. |
+| `allow_unsigned` | `bool` | `True` | When `False`, every event must be signed. |
+
+Only installed when an `identity:` block is also present (verification requires keys).
+
+## `AttestationConfig`
+
+| Field | Type | Default | Notes |
+|-------|------|---------|-------|
+| `provider` | `"noop" \| "local" \| <dotted>` | `"noop"` | Provider selector. |
+| `path` | `str \| None` | `None` | Required when `provider="local"`. |
+
+Dotted paths must resolve to a class implementing the [`AttestationProvider`](https://github.com/NicolaiLassen/orxhestra/blob/main/orxhestra/trust/attestation/protocol.py) protocol.
+
+## Environment-variable expansion
+
+Any string in `identity.signing_key`, `identity.encryption_password`, and `attestation.path` goes through `os.path.expandvars`, so `${ORX_SIGNING_KEY}` / `$HOME/.orx/...` work. Other fields are taken literally; interpolate with YAML anchors or templating if you need more than three spots.
+
+## See also
+
+- [Composer overview](/composer/overview) — narrative walkthrough with examples.
+- [Extending the composer](/composer/extending) — register custom agent types, model providers, built-in tools, and tool resolvers.
+- [`orxhestra/composer/schema.py`](https://github.com/NicolaiLassen/orxhestra/blob/main/orxhestra/composer/schema.py) — canonical source.
+
+
+# /docs/concepts/agents.mdx
+
+---
+title: "Agents"
+description: "All agents inherit from BaseAgent with async streaming. Learn about LlmAgent, ReActAgent, dynamic instructions, and composable agent hierarchies."
+keywords: ["LlmAgent", "ReActAgent", "BaseAgent", "AI agent", "agent hierarchy", "tool loop"]
+---
+
+All agents inherit from `BaseAgent` and implement a single method:
+
+```python
+async def astream(self, input: str, *, ctx: Context) -> AsyncIterator[Event]:
+    ...
+```
+
+Orchestrators and `AgentTool` call `astream()` on sub-agents, yielding `AGENT_MESSAGE` and `TOOL_RESPONSE` events throughout execution.
+
+```mermaid
+flowchart LR
+    classDef base fill:#f1f5f9,stroke:#94a3b8,stroke-dasharray:5 5,color:#334155
+    classDef llm fill:#dbeafe,stroke:#3b82f6,color:#1e3a8a
+    classDef composite fill:#dcfce7,stroke:#22c55e,color:#14532d
+    classDef infra fill:#fef9c3,stroke:#eab308,color:#713f12
+
+    BaseAgent:::base
+
+    BaseAgent --> LlmAgent:::llm
+    BaseAgent --> ReActAgent:::llm
+    BaseAgent --> SequentialAgent:::composite
+    BaseAgent --> ParallelAgent:::composite
+    BaseAgent --> LoopAgent:::composite
+
+    Runner:::infra --> BaseAgent
+    Runner --> SessionService:::infra
+
+    LlmAgent -. tools .-> Tools(["function_tool · AgentTool\ntransfer · exit_loop · MCP"])
+    LlmAgent -. planner .-> Planners(["PlanReActPlanner\nTaskPlanner"])
+```
+
+## LlmAgent
+
+The primary agent. Uses LangChain `BaseChatModel` with a manual tool-call loop.
+
+```mermaid
+sequenceDiagram
+    participant C as Caller
+    participant A as LlmAgent
+    participant P as Planner
+    participant L as LLM
+    participant T as Tool
+
+    C->>A: astream(input, ctx)
+    A-->>C: Event(AGENT_START)
+
+    loop ReAct loop (max_iterations)
+        A->>P: build_planning_instruction(ctx, request)
+        P-->>A: instruction string
+        A->>L: model.bind_tools().invoke(messages)
+        L-->>A: AIMessage
+
+        alt tool_calls present
+            A-->>C: Event(AGENT_MESSAGE, has_tool_calls=True)
+            A->>T: tool._arun(args)
+            T-->>A: result
+            A-->>C: Event(TOOL_RESPONSE)
+        else no tool_calls
+            A-->>C: Event(AGENT_MESSAGE, final response)
+            note over A: loop exits
+        end
+    end
+
+    A-->>C: Event(AGENT_END)
+```
+
+```python
+from orxhestra import LlmAgent
+
+agent = LlmAgent(
+    name="MyAgent",
+    model=model,
+    tools=[search_tool, calculator_tool],
+    instructions="You are a research assistant.",   # or a Callable[[ReadonlyContext], str]
+    description="Searches and calculates things.",
+    planner=my_planner,         # optional BasePlanner
+    output_schema=MySchema,     # optional: force structured output
+    max_iterations=10,
+    before_model_callback=None,
+    after_model_callback=None,
+    before_tool_callback=None,
+    after_tool_callback=None,
+)
+```
+
+### Dynamic instructions
+
+The `instructions` parameter accepts either a plain string or an instruction provider - a callable that receives a `ReadonlyContext` and returns a string:
+
+```python
+def my_instructions(ctx: ReadonlyContext) -> str:
+    user_name = ctx.state.get("user_name", "user")
+    return f"You are helping {user_name}. Be concise."
+
+agent = LlmAgent(name="Agent", model=model, instructions=my_instructions)
+```
+
+## ReActAgent
+
+A structured-reasoning variant that forces the LLM to emit explicit thought steps via `with_structured_output()` before acting. Extends `LlmAgent` - supports `instructions`, `planner`, callbacks, and all other LlmAgent features.
+
+```python
+from orxhestra import ReActAgent
+
+agent = ReActAgent(
+    name="ThinkingAgent",
+    model=model,
+    tools=[search_tool],
+    instructions="You are a research assistant. Always cite your sources.",
+    max_iterations=10,
+)
+```
+
+Custom `instructions` are appended to the built-in ReAct system prompt under an "Additional instructions" section. Planners work the same way - their output is appended after the instructions.
+
+Yields events with types: `AGENT_START` -> `AGENT_MESSAGE` (thoughts/actions) -> `TOOL_RESPONSE` (observations) -> ... -> `AGENT_MESSAGE` (final answer) -> `AGENT_END`.
+
+
+# /docs/concepts/events.mdx
+
+---
+title: "Events"
+description: "Every agent yields typed Event objects via async generators. Learn EventType values, convenience properties, metadata, and EventActions."
+keywords: ["events", "event streaming", "EventType", "async generator", "EventActions"]
+---
+
+Every agent yields a stream of unified `Event` objects. All events share the same `Event` class and are distinguished by their `type` field using the `EventType` enum.
+
+## EventType values
+
+| `EventType` | When emitted | Description |
+|---|---|---|
+| `USER_MESSAGE` | User input persisted by Runner | The user's message at the start of a turn |
+| `AGENT_MESSAGE` | Agent response | Final answers, thoughts, tool call requests, or partial streaming chunks |
+| `TOOL_RESPONSE` | Tool execution result | The result returned by a tool after execution |
+| `AGENT_START` | Start of `astream()` | Marks the beginning of an agent's execution |
+| `AGENT_END` | End of `astream()` | Marks the end of an agent's execution |
+
+## Convenience properties
+
+| Property | Type | Description |
+|---|---|---|
+| `event.text` | `str` | Concatenated text from all text parts in the event's content |
+| `event.thinking` | `str` | Concatenated thinking parts (extended thinking models like Claude with thinking enabled) |
+| `event.data` | `dict \| None` | First data part's dict, or `None` |
+| `event.tool_name` | `str \| None` | Name of the tool (for `TOOL_RESPONSE` events or first tool call) |
+| `event.tool_input` | `dict \| None` | Input arguments passed to the first tool call |
+| `event.tool_calls` | `list[ToolCallPart]` | List of `ToolCallPart` objects from the LLM response (access `.tool_name`, `.args`, `.tool_call_id`) |
+| `event.has_tool_calls` | `bool` | `True` if the event contains tool call requests |
+| `event.error` | `str \| None` | Error message from tool response or metadata |
+
+## Key methods
+
+| Method | Description |
+|---|---|
+| `event.is_final_response()` | Returns `True` if this is the agent's final answer (an `AGENT_MESSAGE` with no tool calls and not a partial streaming chunk) |
+| `event.to_langchain_message()` | Converts the event to the corresponding LangChain message type (`HumanMessage`, `AIMessage`, `ToolMessage`, etc.) |
+| `Event.from_langchain_message(msg)` | Class method that creates an `Event` from a LangChain message |
+| `Event.new_id()` | Static method that generates a new unique event ID (UUID) |
+
+## Checking event types
+
+Use the `EventType` enum and convenience methods instead of `isinstance` checks:
+
+```python
+from orxhestra.events.event import Event, EventType
+
+# Check for final response (replaces isinstance(event, FinalAnswerEvent))
+if event.is_final_response():
+    print(event.text)
+
+# Check for tool calls (replaces isinstance(event, ToolCallEvent))
+if event.has_tool_calls:
+    for tc in event.tool_calls:
+        print(f"Calling {tc.tool_name} with {tc.args}")
+
+# Check for tool results (replaces isinstance(event, ToolResultEvent))
+if event.type == EventType.TOOL_RESPONSE:
+    print(f"{event.tool_name} returned: {event.text}")
+
+# Check for agent lifecycle
+if event.type == EventType.AGENT_START:
+    print(f"Agent {event.agent_name} starting")
+```
+
+## Metadata conventions
+
+Events use the `metadata` dict for additional context. Common keys:
+
+| Key | Description |
+|---|---|
+| `react_step` | The ReAct loop iteration number |
+| `error` | Error message string when something went wrong |
+| `exception_type` | The Python exception class name (e.g. `"ValueError"`) |
+| `scratchpad` | Internal reasoning or planning notes from the agent |
+
+## EventActions
+
+Events carry `EventActions` for side-effects:
+
+```python
+class EventActions(BaseModel):
+    state_delta: dict[str, Any] = {}       # merged into session state
+    artifact_delta: dict[str, int] = {}    # artifact filenames → version saved
+    transfer_to_agent: str | None = None   # trigger agent handoff
+    escalate: bool | None = None           # stop parent LoopAgent
+    skip_summarization: bool | None = None
+    end_of_agent: bool | None = None
+    compaction: EventCompaction | None = None
+```
+
+## Event Filters
+
+The `orxhestra.events.filters` module provides reusable functions for preparing session events before they are sent to the LLM. These are used internally by `LlmAgent` and available for custom agents.
+
+### `should_include_event(event)`
+
+Returns `True` if the event should be included in LLM context. Filters out:
+
+- Partial (streaming) events
+- Lifecycle events (`AGENT_START`, `AGENT_END`)
+- Error-only metadata events
+- Scratchpad notes
+- Empty `AGENT_MESSAGE` events (no text, data, or tool calls)
+
+```python
+from orxhestra.events.filters import should_include_event
+
+visible = [e for e in session.events if should_include_event(e)]
+```
+
+### `apply_compaction(events)`
+
+Replaces raw events with compaction summaries where applicable. When events carry an `EventActions.compaction` entry, all raw events within that timestamp range are replaced by a single synthetic event containing the summary.
+
+```python
+from orxhestra.events.filters import apply_compaction
+
+events = apply_compaction(session.events)
+# Compacted ranges become single summary events
+```
+
+Both functions are also re-exported from `orxhestra.events`:
+
+```python
+from orxhestra.events import should_include_event, apply_compaction
+```
+
+## LlmResponse
+
+`AGENT_MESSAGE` events may carry an `llm_response: LlmResponse` field with token usage and model version:
+
+```python
+event.llm_response.input_tokens
+event.llm_response.output_tokens
+event.llm_response.model_version
+```
+
+## Signed Events
+
+Agents with a `signing_key` automatically sign every event they emit using Ed25519. This provides cryptographic proof of which agent produced each event.
+
+| Property / Method | Type | Description |
+|---|---|---|
+| `event.signature` | `str \| None` | Base64url-encoded Ed25519 signature |
+| `event.signer_did` | `str` | `did:key` identifier of the signing agent |
+| `event.is_signed` | `bool` | `True` if the event carries a signature |
+| `event.verify_signature()` | `bool` | Verify the signature using the signer's DID public key |
+| `event.signable_payload()` | `dict` | Canonical dict of fields included in the signature (`id`, `type`, `timestamp`, `agent_name`, `branch`, `content_text`) |
+
+```python
+# Verify a signed event
+if event.is_signed:
+    valid = event.verify_signature()
+    print(f"Signed by {event.signer_did}: {'valid' if valid else 'invalid'}")
+```
+
+Requires `orxhestra[auth]` (`pip install orxhestra[auth]`).
+
+
+# /docs/concepts/invocation-context.mdx
+
+---
+title: "InvocationContext"
+description: "InvocationContext carries session binding, shared state, run config, and event callbacks through the agent tree. Supports derived contexts and ReadonlyContext."
+keywords: ["InvocationContext", "invocation context", "agent state", "ReadonlyContext", "CallbackContext"]
+---
+
+`InvocationContext` is the runtime state passed through every agent in the call tree. It carries the session binding, a mutable shared state dict, run config, and an optional event callback for real-time event pushing.
+
+```python
+from orxhestra import InvocationContext
+
+ctx = InvocationContext(
+    session_id="session-1",
+    user_id="user-1",
+    app_name="my-app",
+    agent_name="RootAgent",
+    state={"user_name": "Alice"},
+    session=session,  # provides access to conversation history via session.events
+)
+```
+
+## Fields
+
+### Core Identity
+
+| Field | Type | Description |
+|---|---|---|
+| `invocation_id` | `str` | Unique ID for this invocation (auto-generated UUID) |
+| `session_id` | `str` | The session this invocation belongs to |
+| `user_id` | `str` | The user who initiated the session |
+| `app_name` | `str` | The application running the agent |
+| `agent_name` | `str` | The name of the currently executing agent |
+| `branch` | `str` | Dot-separated path for nested execution (e.g. `"root.child"`) |
+
+### State & Session
+
+| Field | Type | Description |
+|---|---|---|
+| `state` | `dict` | Mutable key-value store shared across the call tree |
+| `agent_states` | `dict[str, dict]` | Per-agent execution state for composite agents (e.g. LoopAgent step tracking) |
+| `end_of_agents` | `dict[str, bool]` | Tracks which agents have finished their turn |
+| `session` | `Session \| None` | Session with conversation history and persisted state |
+| `input_content` | `str \| None` | The input that initiated this invocation, preserved for resumption |
+| `run_config` | `dict` | LangChain `RunnableConfig` / `AgentConfig` for callbacks/tracing |
+
+### Control Flow
+
+| Field | Type | Description |
+|---|---|---|
+| `end_invocation` | `bool` | Kill switch — set `True` to force-stop the entire invocation |
+| `is_resumable` | `bool` | When `True`, enables pause/resume for long-running tools |
+| `long_running_tool_ids` | `set[str]` | Tool call IDs that should trigger invocation pause |
+
+### Services & Callbacks
+
+| Field | Type | Description |
+|---|---|---|
+| `current_agent` | `BaseAgent \| None` | Reference to the current agent instance |
+| `artifact_service` | `BaseArtifactService \| None` | Service for storing and retrieving file artifacts |
+| `memory_service` | `Any \| None` | Optional memory service for long-term recall |
+| `event_callback` | `Callable \| None` | Callback for pushing events to the parent stream |
+
+### Event Signing
+
+| Field | Type | Description |
+|---|---|---|
+| `signing_key` | `Ed25519PrivateKey \| None` | Ed25519 private key for signing events (requires `orxhestra[auth]`) |
+| `signing_did` | `str` | The `did:key` identifier corresponding to `signing_key` |
+
+## Derived contexts
+
+Sub-agents receive a **derived** context with their own `agent_name` and `branch` for isolation, while sharing the same `state` reference and `event_callback`:
+
+```python
+child_ctx = ctx.derive(agent_name="ChildAgent", branch_suffix="child")
+# child_ctx.branch == "RootAgent.child"
+# child_ctx.state is ctx.state  <- shared reference
+# child_ctx.event_callback is ctx.event_callback  <- propagated
+```
+
+All orchestrators (`SequentialAgent`, `ParallelAgent`, `LoopAgent`) and `AgentTool` call `derive()` automatically. `AgentTool` additionally calls `clear_session()` to give the child a fresh context without the parent's conversation history.
+
+## clear_session()
+
+Returns a copy of the context with an empty session - same IDs but no conversation history. Used by `AgentTool` to give child agents a clean slate:
+
+```python
+child_ctx = ctx.derive(agent_name="ChildAgent").clear_session()
+# child_ctx.session has no events - child starts fresh
+# child_ctx.state is still shared with parent
+```
+
+## event_callback
+
+`event_callback` is an optional callable that tools can use to push events to the parent agent's event stream in real-time. `LlmAgent` sets this automatically before tool execution using an `asyncio.Queue`, so `AgentTool` (and any custom tool) can emit events while running:
+
+```python
+# Inside a custom tool's _arun():
+if ctx.event_callback is not None:
+    ctx.event_callback(my_event)  # pushed to parent stream immediately
+```
+
+The callback propagates through `derive()`, so nested sub-agents also push events up to the root.
+
+## Methods
+
+### `get_events(*, current_branch=False, current_invocation=False)`
+
+Return session events with optional filtering. When `current_branch=True`, only events matching this context's branch are returned. When `current_invocation=True`, only events from this invocation ID are returned.
+
+```python
+# Get all events from this agent's branch in the current invocation
+events = ctx.get_events(current_branch=True, current_invocation=True)
+```
+
+### `get_previous_final_responses()`
+
+Return final response events from previous invocations (all branches). Useful for giving agents context about what happened in prior turns.
+
+### `set_agent_state(agent_name, *, agent_state=None, end_of_agent=False)`
+
+Set or clear execution state for a named agent. Used by composite agents to track child progress. When `end_of_agent=True`, marks the agent as finished and clears its state.
+
+### `reset_sub_agent_states(agent_name)`
+
+Recursively reset the state of all sub-agents of the named agent. Called by `LoopAgent` between iterations so child agents start fresh each cycle.
+
+### `should_pause_invocation(event)`
+
+Return `True` if the invocation should pause after this event. Triggered when `is_resumable=True` and the event contains tool calls with IDs in `long_running_tool_ids`.
+
+## ReadonlyContext & CallbackContext
+
+```python
+from orxhestra import ReadonlyContext, CallbackContext
+
+# Planners and instruction providers receive ReadonlyContext
+# state is exposed as MappingProxyType - no accidental mutations
+def instructions(ctx: ReadonlyContext) -> str:
+    return f"Help {ctx.state['user_name']}."
+
+# Callbacks receive CallbackContext - state is mutable, actions available
+async def after_model(ctx: CallbackContext, response: LlmResponse) -> None:
+    ctx.state["last_model"] = response.model_version
+    ctx.actions.state_delta["last_model"] = response.model_version
+```
+
+
+# /docs/concepts/runner-sessions.mdx
+
+---
+title: "Runner & Sessions"
+description: "Runner wires agents, session services, and context together. Automatic event persistence, state management, and multi-turn conversations."
+keywords: ["Runner", "sessions", "session management", "multi-turn", "InMemorySessionService"]
+---
+
+`Runner` is the main entry point for session-managed execution. It wires an agent, a session service, and the invocation context together.
+
+```python
+from orxhestra import Runner, InMemorySessionService
+
+runner = Runner(
+    agent=agent,
+    app_name="my-app",
+    session_service=InMemorySessionService(),
+)
+
+# Streaming is always on - partial events arrive as text is generated
+async for event in runner.astream(
+    user_id="user-1",
+    session_id="session-abc",
+    new_message="Hello!",
+):
+    if event.type == EventType.AGENT_MESSAGE and event.partial:
+        print(event.text, end="", flush=True)
+    elif event.is_final_response():
+        print(f"\n{event.text}")
+```
+
+`Runner` automatically:
+
+1. Fetches or creates the session
+2. Persists the user's message as a `USER_MESSAGE` event
+3. Builds an `Context` with the session reference
+4. Persists every agent event to the session via `append_event()`
+5. Applies `EventActions.state_delta` to the session state
+
+**Multi-turn conversations** work automatically - `LlmAgent` rebuilds LangChain message history from `session.events` on each turn, so the LLM sees the full conversation context.
+
+## Using sessions directly
+
+```python
+from orxhestra import InMemorySessionService
+
+svc = InMemorySessionService()
+session = await svc.create_session(app_name="demo", user_id="user-1")
+
+# All sessions for a user
+sessions = await svc.list_sessions(app_name="demo", user_id="user-1")
+
+# Delete
+await svc.delete_session(session.id)
+```
+
+<Tip>
+  Implement `BaseSessionService` to back sessions with any database. See [Architecture](/architecture#custom-session-backend) for an example.
+</Tip>
+
+## Database-backed sessions
+
+For production persistence, use `DatabaseSessionService` (requires `pip install orxhestra[database]`):
+
+```python
+from orxhestra.sessions import DatabaseSessionService
+
+svc = DatabaseSessionService("sqlite+aiosqlite:///sessions.db")
+await svc.initialize()
+
+session = await svc.create_session(app_name="demo", user_id="user-1")
+```
+
+Supports any SQLAlchemy async backend (SQLite via aiosqlite, PostgreSQL via asyncpg, etc.).
+
+## Session Compaction
+
+Long conversations accumulate events that eventually exceed the LLM's context window. The Runner supports automatic **compaction** — summarizing old events into a single condensed event while keeping recent events intact.
+
+```python
+from orxhestra import Runner, InMemorySessionService
+from orxhestra.sessions.compaction import CompactionConfig
+
+runner = Runner(
+    agent=agent,
+    app_name="my-app",
+    session_service=InMemorySessionService(),
+    compaction_config=CompactionConfig(
+        char_threshold=100_000,  # compact when content exceeds ~25k tokens
+        retention_chars=20_000,  # keep ~5k tokens of recent events raw
+        model=model,                 # optional: LLM for summarization
+    ),
+)
+```
+
+After each invocation, the Runner estimates the total character count of non-compacted events. If it exceeds `char_threshold`:
+
+1. The most recent events totalling `retention_chars` characters are kept as-is
+2. Older events are summarized into a single compaction event
+3. The compaction event is **appended** to the session — originals are preserved
+
+Compaction is **non-destructive**. Raw events are never deleted. Instead, `LlmAgent` applies `apply_compaction()` at the view layer to swap compacted ranges for their summaries when building LLM context.
+
+If `model` is provided, the summary is generated via an LLM call. Otherwise, a simple text extraction fallback is used.
+
+### Safety
+
+- Compaction never runs mid-stream — only after all agent events have been yielded
+- Events with unresolved tool calls are never compacted
+- Re-compaction is guarded by a timestamp boundary — previously compacted events are not re-summarized
+
+### Compaction events
+
+Compaction events are regular `AGENT_MESSAGE` events with an `EventActions.compaction` field:
+
+```python
+event.actions.compaction.summary        # the summary text
+event.actions.compaction.event_count    # how many events were compacted
+event.actions.compaction.start_timestamp
+event.actions.compaction.end_timestamp
+```
+
+`LlmAgent` automatically detects compaction events and includes the summary in the LLM context via `apply_compaction()` from `orxhestra.events.filters`. This filter replaces raw events in the compacted range with the summary, while preserving all events after the compaction boundary.
+
+### Composer YAML
+
+Enable compaction in the `runner` section:
+
+```yaml
+runner:
+  app_name: my-app
+  session_service: memory
+  compaction:
+    char_threshold: 100000   # ~25k tokens
+    retention_chars: 20000   # ~5k tokens
+```
+
+The Composer uses the default model for summarization when available.
+
+
+# /docs/examples.mdx
+
+---
+title: "Examples"
+description: "Runnable Python demos for every feature: basic agents, streaming, multi-agent pipelines, planners, structured output, A2A servers, and YAML composer."
+keywords: ["examples", "demos", "tutorials", "code examples", "agent examples", "Python examples"]
+---
+
+The `examples/` directory contains runnable demos for every major feature. Each example includes a `NotImplementedError` placeholder - replace it with your LLM of choice.
+
+## Core Examples
+
+| Example | What it demonstrates |
+|---|---|
+| `basic_agent.py` | Minimal agent with a single tool |
+| `streaming_agent.py` | AgentTool sub-agent streaming with real-time event bubbling |
+| `multi_agent.py` | SequentialAgent pipeline (researcher -> writer) |
+| `parallel_agent.py` | ParallelAgent running 3 research agents concurrently |
+| `loop_agent.py` | LoopAgent with writer/reviewer iterative refinement |
+| `transfer_agent.py` | Agent handoff via `make_transfer_tool` (triage -> specialists) |
+| `react_agent.py` | ReActAgent with structured thought-action-observation loop |
+| `planner_agent.py` | PlanReActPlanner with structured chain-of-thought |
+| `memory_agent.py` | Persistent memory with `InMemoryMemoryService` |
+| `memory_system.py` | File-based persistent memory with YAML frontmatter |
+| `structured_output.py` | Typed Pydantic output via `output_schema` |
+| `human_in_the_loop.py` | Interactive `ask_human` tool for user input |
+| `task_orchestration.py` | TaskPlanner with managed task board |
+| `multi_provider.py` | Same agent across OpenAI, Anthropic, and Google providers |
+| `database_sessions.py` | Persistent sessions with SQLite via `DatabaseSessionService` |
+| `background_tasks.py` | Background task lifecycle with `TaskStore` |
+| `mcp_agent.py` | MCP tool server integration |
+| `langfuse_tracing.py` | Langfuse tracing integration |
+| `a2a_server.py` | A2A protocol server endpoint |
+| `thinking_parts.py` | Processing extended thinking/reasoning tokens |
+| `signed_events.py` | Cryptographic event signing and verification |
+| `artifact_tools.py` | Saving and loading artifacts during agent execution |
+| `tool_confirmation.py` | Gating dangerous tools with confirmation callbacks |
+
+```bash
+# Run any example (after replacing the NotImplementedError with your LLM)
+uv run python examples/basic_agent.py
+```
+
+## Composer Examples
+
+YAML-based agent composition examples in `examples/composer/`:
+
+| Example | What it demonstrates |
+|---|---|
+| `composer/simple/` | Single agent, minimal YAML config |
+| `composer/pipeline/` | Sequential researcher -> writer pipeline with tools |
+| `composer/loop/` | Draft/review loop with `exit_loop` termination |
+| `composer/transfer/` | Triage agent with transfer routing to specialists |
+| `composer/coding/` | Plan-code-review loop with filesystem and shell tools |
+| `composer/a2a-server/` | A2A endpoint with Dockerfile for deployment |
+
+```bash
+# Run a composer example
+uv run python examples/composer/simple/run.py
+
+# Run the A2A server example
+uv run python examples/composer/a2a-server/run.py
+```
+
+
+# /docs/getting-started/installation.mdx
+
+---
+title: "Installation"
+description: "Install orxhestra with pip or uv. Add OpenAI, Anthropic, Google, MCP, or A2A provider extras. Python 3.10+ required."
+keywords: ["install", "pip", "uv", "orxhestra", "setup", "OpenAI", "Anthropic"]
+---
+
+## Basic install
+
+<Tabs>
+  <Tab title="pip">
+    ```bash
+    pip install orxhestra
+    ```
+  </Tab>
+  <Tab title="uv">
+    ```bash
+    uv add orxhestra
+    ```
+  </Tab>
+</Tabs>
+
+## With an LLM provider
+
+<Tabs>
+  <Tab title="OpenAI">
+    ```bash
+    pip install orxhestra[openai]
+    ```
+  </Tab>
+  <Tab title="Anthropic">
+    ```bash
+    pip install orxhestra[anthropic]
+    ```
+  </Tab>
+  <Tab title="Google Gemini">
+    ```bash
+    pip install orxhestra[google]
+    ```
+  </Tab>
+  <Tab title="MCP">
+    ```bash
+    pip install orxhestra[mcp]
+    ```
+  </Tab>
+</Tabs>
+
+<Info>
+  **Python >= 3.10** is required.
+</Info>
+
+
+# /docs/getting-started/quickstart.mdx
+
+---
+title: "Quick Start"
+description: "Build and run your first orxhestra agent in under five minutes — as a YAML file you run from the terminal, or as Python code."
+keywords: ["quickstart", "tutorial", "AI agent", "Python", "YAML", "composer", "getting started", "LLM agent", "tool calling"]
+---
+
+Pick the path that matches how you want to work. The YAML tab is the shortest route for most users — the SDK tab is for when you need full programmatic control.
+
+<Tabs>
+  <Tab title="YAML (Composer)">
+    <Steps>
+      <Step title="Install">
+        ```bash
+        pip install 'orxhestra[cli,anthropic]'
+        export ANTHROPIC_API_KEY=sk-ant-...
+        ```
+      </Step>
+
+      <Step title="Save orx.yaml">
+        ```yaml title="orx.yaml"
+        defaults:
+          model:
+            provider: anthropic
+            name: claude-opus-4-7
+
+        agents:
+          assistant:
+            type: llm
+            instructions: "You are a helpful weather assistant."
+
+        main_agent: assistant
+        ```
+      </Step>
+
+      <Step title="Run it">
+        ```bash
+        orx orx.yaml
+        ```
+
+        Drops you into an interactive REPL with your agent as the root. Type a question, watch the stream. `/help` lists the slash commands; `/exit` when done.
+      </Step>
+    </Steps>
+
+    <Tip>
+      Want to expose the same agent as an HTTP server?
+
+      ```bash
+      orx orx.yaml --serve -p 9000
+      ```
+
+      Serves A2A v1.0 JSON-RPC on `:9000`. See [Integrations → A2A](/integrations/a2a) for the wire format.
+    </Tip>
+
+    <Tip>
+      Want signed events and an audit log? Opt in with a single flag or YAML block:
+
+      ```bash
+      orx identity init --path ./keys/agent.key
+      orx orx.yaml --identity ./keys/agent.key
+      ```
+
+      The banner and `/session` command show the active signer DID. See [Composer → Identity, trust, and attestation](/composer/overview#identity-trust-and-attestation).
+    </Tip>
+  </Tab>
+
+  <Tab title="Python SDK">
+    ```bash
+    pip install 'orxhestra[anthropic]'
+    export ANTHROPIC_API_KEY=sk-ant-...
+    ```
+
+    ```python title="basic_agent.py"
+    import asyncio
+    from langchain_anthropic import ChatAnthropic
+    from langchain_core.tools import tool
+
+    from orxhestra import LlmAgent, Runner, InMemorySessionService
+
+
+    @tool
+    def get_weather(city: str) -> str:
+        """Get the current weather for a city."""
+        return f"The weather in {city} is sunny and 22 degrees."
+
+
+    agent = LlmAgent(
+        name="WeatherAgent",
+        model=ChatAnthropic(model="claude-opus-4-7"),
+        tools=[get_weather],
+        instructions="You are a helpful weather assistant.",
+    )
+
+    runner = Runner(
+        agent=agent,
+        app_name="demo",
+        session_service=InMemorySessionService(),
+    )
+
+
+    async def main():
+        async for event in runner.astream(
+            user_id="user-1",
+            session_id="session-1",
+            new_message="What's the weather in Copenhagen and Berlin?",
+        ):
+            if event.is_final_response():
+                print(event.text)
+
+
+    asyncio.run(main())
+    ```
+
+    ```bash
+    uv run python basic_agent.py
+    ```
+  </Tab>
+</Tabs>
+
+## Next steps
+
+<Cards>
+  <Card title="Compose a team" icon="wand-magic-sparkles" href="/composer/overview">
+    Multi-agent YAML with loops, parallel fan-out, and transfer routing.
+  </Card>
+  <Card title="Agent types" icon="sitemap" href="/concepts/agents">
+    LlmAgent, ReActAgent, and the four composite wrappers.
+  </Card>
+  <Card title="Tools" icon="wrench" href="/tools/overview">
+    Function tools, filesystem, shell, MCP, and custom tool types.
+  </Card>
+  <Card title="Trust & audit" icon="shield-check" href="/composer/overview#identity-trust-and-attestation">
+    Sign events, verify peers, persist audit logs — all opt-in.
+  </Card>
+</Cards>
+
+
+# /docs/index.mdx
+
+---
+title: "orxhestra"
+description: "Open-source Python framework for orchestrating multi-agent AI systems. Async streaming, composable agent hierarchies, planners, A2A & MCP integration."
+keywords: ["langchain", "multi-agent", "AI agents", "Python", "agent framework", "LLM agents", "A2A", "MCP", "async agents"]
+"og:title": "orxhestra - Multi-Agent Orchestration Framework for Python"
+---
+
+Multi-agent orchestration framework for Python — **compose entire agent teams in YAML**, run them in the terminal, or expose them as an A2A server. Python SDK below when you need full programmatic control.
+
+<Cards>
+  <Card title="Quick Start" icon="rocket" href="/getting-started/quickstart">
+    Build and run your first agent in under 5 minutes
+  </Card>
+  <Card title="Compose in YAML" icon="wand-magic-sparkles" href="/composer/overview">
+    Declarative multi-agent teams — no Python wiring needed
+  </Card>
+  <Card title="View on GitHub" icon="github" href="https://github.com/NicolaiLassen/orxhestra">
+    Source code, examples, and the plan file
+  </Card>
+</Cards>
+
+```bash
+pip install 'orxhestra[cli,anthropic]'
+orx                                  # interactive REPL with the built-in coding agent
+orx my-agents.yaml                    # run your own YAML spec
+orx my-agents.yaml --serve -p 9000    # same spec as an A2A server
+```
+
+---
+
+## Features
+
+<Cards>
+  <Card title="YAML-first composition" icon="wand-magic-sparkles" href="/composer/overview">
+    Declarative multi-agent teams — LLM agents, loops, pipelines, fan-out, transfer routing — in a single file. Built-in registries for custom agent types, LLM providers, built-in tools, and whole new tool kinds.
+  </Card>
+
+  <Card title="Async Event Streaming" icon="bolt" href="/runtime/streaming">
+    Every agent is an async generator yielding typed events — thoughts, tool calls, results, streaming chunks. Built for real-time UIs.
+  </Card>
+
+  <Card title="Composable Hierarchies" icon="sitemap" href="/orchestration/composite-agents">
+    Nest agents freely. Chain sequentially, run in parallel, loop until done, or wrap as tools. Plain Python asyncio.
+  </Card>
+
+  <Card title="Planners" icon="brain" href="/orchestration/planners">
+    Per-turn planning hooks inject dynamic instructions and post-process responses. Built-in PlanReAct and TaskPlanner.
+  </Card>
+
+  <Card title="Session Management" icon="database" href="/concepts/runner-sessions">
+    Pluggable session service persists events and state deltas automatically. In-memory included, bring your own database.
+  </Card>
+
+  <Card title="Rich Tool System" icon="wrench" href="/tools/overview">
+    Function tools, agent-as-tool, transfer handoffs, exit loop, long-running tools, tool confirmation, and a `register_tool_resolver` hook for whole new tool kinds — all built in.
+  </Card>
+
+  <Card title="Session Compaction" icon="compress" href="/concepts/runner-sessions#session-compaction">
+    Automatic LLM-based summarization of old session events. Keep context windows manageable across long conversations.
+  </Card>
+
+  <Card title="Identity, Trust & Audit" icon="shield-check" href="/composer/overview#identity-trust-and-attestation">
+    Opt-in Ed25519 event signing, DID-based agent identity, hash-chained audit logs, and pluggable `AttestationProvider`s — all wireable from a YAML block.
+  </Card>
+
+  <Card title="Full Observability" icon="chart-line" href="/runtime/tracing">
+    First-class tracing via AgentConfig callbacks. Works with Langfuse, LangSmith, or any LangChain callback handler.
+  </Card>
+</Cards>
+
+---
+
+## Works with any LangChain LLM
+
+<Tabs>
+  <Tab title="OpenAI">
+    ```bash
+    pip install orxhestra[openai]
+    ```
+  </Tab>
+  <Tab title="Anthropic">
+    ```bash
+    pip install orxhestra[anthropic]
+    ```
+  </Tab>
+  <Tab title="Google Gemini">
+    ```bash
+    pip install orxhestra[google]
+    ```
+  </Tab>
+  <Tab title="Any BaseChatModel">
+    ```bash
+    pip install orxhestra
+    # + your preferred langchain-* provider package
+    ```
+  </Tab>
+</Tabs>
+
+
+# /docs/integrations/a2a.mdx
+
+---
+title: "A2A Protocol"
+description: "Expose any agent as an A2A v1.0 protocol endpoint. JSON-RPC messaging, SSE streaming, agent card discovery, and A2AAgent client."
+keywords: ["A2A", "agent-to-agent", "A2A protocol", "JSON-RPC", "SSE streaming", "agent card", "interoperability"]
+---
+
+Expose any agent as a spec-compliant [A2A protocol](https://a2a-protocol.org/) endpoint (v1.0).
+
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant S as A2AServer
+    participant A as BaseAgent
+
+    Note over S: GET /.well-known/agent-card.json
+    C->>S: Agent Card discovery
+    S-->>C: AgentCard (name, skills, supportedInterfaces)
+
+    Note over S: POST / (JSON-RPC 2.0)
+    C->>S: SendMessage {message: {role, parts}}
+    S->>A: agent.astream(text, ctx)
+    A-->>S: SDK Events
+    S-->>C: Task {status: TASK_STATE_COMPLETED, artifacts, history}
+
+    C->>S: SendStreamingMessage {message: {role, parts}}
+    S->>A: agent.astream(text, ctx)
+    loop SSE stream
+        A-->>S: SDK Event
+        S-->>C: data: TaskStatusUpdateEvent
+        S-->>C: data: TaskArtifactUpdateEvent
+    end
+    S-->>C: data: {status: TASK_STATE_COMPLETED, final: true}
+```
+
+## Setup
+
+```python
+from orxhestra import LlmAgent, InMemorySessionService
+from orxhestra.a2a import A2AServer, AgentSkill
+
+agent = LlmAgent(name="MyAgent", model=model, tools=[...])
+
+server = A2AServer(
+    agent=agent,
+    session_service=InMemorySessionService(),
+    app_name="my-agent-service",
+    skills=[
+        AgentSkill(
+            id="qa", name="Q&A",
+            description="Answers general questions.",
+            tags=["general"],
+        ),
+    ],
+)
+
+app = server.as_fastapi_app()
+# uvicorn my_module:app --host 0.0.0.0 --port 8000
+```
+
+## Endpoints
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET` | `/.well-known/agent-card.json` | Agent Card discovery |
+| `POST` | `/` | JSON-RPC 2.0 dispatch |
+
+## JSON-RPC methods (v1.0)
+
+| Method | Description |
+|---|---|
+| `SendMessage` | Send message, receive completed Task |
+| `SendStreamingMessage` | Send message, receive SSE stream |
+| `GetTask` | Retrieve task by ID |
+| `CancelTask` | Cancel a running task |
+
+<Note>
+The server also accepts the legacy v0.x method names (`message/send`, `message/stream`, `tasks/get`, `tasks/cancel`) for backwards compatibility.
+</Note>
+
+## Example requests
+
+<Tabs>
+  <Tab title="Discover">
+    ```bash
+    curl http://localhost:8000/.well-known/agent-card.json
+    ```
+  </Tab>
+  <Tab title="Send (blocking)">
+    ```bash
+    curl -X POST http://localhost:8000/ \
+      -H "Content-Type: application/json" \
+      -H "A2A-Version: 1.0" \
+      -d '{
+        "jsonrpc": "2.0", "id": "1",
+        "method": "SendMessage",
+        "params": {
+          "message": {
+            "role": "user",
+            "parts": [{"text": "What is 2+2?", "mediaType": "text/plain"}]
+          }
+        }
+      }'
+    ```
+  </Tab>
+  <Tab title="Stream (SSE)">
+    ```bash
+    curl -N -X POST http://localhost:8000/ \
+      -H "Content-Type: application/json" \
+      -H "A2A-Version: 1.0" \
+      -d '{
+        "jsonrpc": "2.0", "id": "2",
+        "method": "SendStreamingMessage",
+        "params": {
+          "message": {
+            "role": "user",
+            "parts": [{"text": "Tell me a story", "mediaType": "text/plain"}]
+          }
+        }
+      }'
+    ```
+  </Tab>
+</Tabs>
+
+## A2A Client (A2AAgent)
+
+Use `A2AAgent` to call a remote A2A server from within your agent tree:
+
+```python
+from orxhestra.agents.a2a_agent import A2AAgent
+
+remote = A2AAgent(
+    name="RemoteAgent",
+    url="http://localhost:8000",
+    description="A remote agent via A2A protocol.",
+)
+
+# Use as a sub-agent or wrap with AgentTool
+async for event in remote.astream("What is the weather?"):
+    if event.is_final_response():
+        print(event.text)
+```
+
+## v1.0 Protocol Details
+
+A2A v1.0 uses:
+- **PascalCase** JSON-RPC method names (`SendMessage`, not `message/send`)
+- **Lowercase** role values (`user`, `agent`)
+- **Unified Part type** with oneof content fields (`text`, `raw`, `url`, `data`) plus `mediaType`
+- **`supportedInterfaces`** on AgentCard (replaces top-level `url`)
+
+
+# /docs/integrations/mcp.mdx
+
+---
+title: "MCP Integration"
+description: "Connect to MCP-compatible tool servers and use their tools inside any agent. MCPClient and MCPToolAdapter for seamless integration."
+keywords: ["MCP", "Model Context Protocol", "MCPClient", "MCPToolAdapter", "tool server", "FastMCP"]
+---
+
+Install with MCP support:
+
+```bash
+pip install orxhestra[mcp]
+```
+
+Connect to any MCP-compatible tool server and use its tools inside any agent.
+
+```mermaid
+sequenceDiagram
+    participant A as LlmAgent
+    participant W as WrappedMCPTool
+    participant C as MCPClient
+    participant S as MCP Server
+
+    Note over C,S: Setup (once)
+    C->>S: list_tools()
+    S-->>C: [Tool definitions]
+    C->>W: MCPToolAdapter wraps each tool
+
+    Note over A,W: Runtime (per LLM tool call)
+    A->>W: ainvoke({city: "Copenhagen"})
+    W->>C: call_tool("get_weather", {city: "Copenhagen"})
+    C->>S: Tool execution request
+    S-->>C: CallToolResult [TextContent]
+    C-->>W: result
+    W-->>A: "Sunny, 22°C"
+```
+
+## Usage
+
+```python
+from orxhestra.integrations.mcp import MCPClient, MCPToolAdapter
+
+# Connect to an MCP server (HTTP or in-memory)
+client = MCPClient("http://localhost:8001/mcp")
+
+# Wrap MCP tools as LangChain tools
+adapter = MCPToolAdapter(client)
+mcp_tools = await adapter.load_tools()
+
+agent = LlmAgent(
+    name="MCPAgent",
+    model=model,
+    tools=mcp_tools,
+    instructions="Use the available tools to answer questions.",
+)
+```
+
+## Testing with in-memory server
+
+For testing, pass a fastMCP server object directly (no HTTP needed):
+
+```python
+from fastmcp import FastMCP
+
+server = FastMCP("TestServer")
+
+@server.tool
+def add(a: int, b: int) -> int:
+    """Add two numbers."""
+    return a + b
+
+client = MCPClient(server)  # in-memory, no network
+adapter = MCPToolAdapter(client)
+tools = await adapter.load_tools()
+```
+
+`MCPToolAdapter.load_tools()` fetches the tool list from the MCP server and wraps each as a LangChain `BaseTool`.
+
+
+# /docs/orchestration/composite-agents.mdx
+
+---
+title: "Composite Agents"
+description: "Orchestrate multi-agent workflows with SequentialAgent pipelines, ParallelAgent concurrency, and LoopAgent iterative refinement."
+keywords: ["SequentialAgent", "ParallelAgent", "LoopAgent", "multi-agent", "orchestration", "agent pipeline"]
+---
+
+<Info>
+  Prefer YAML? Each composite maps directly to a `type:` key under the composer's `agents:` block. See [Composer → agent types](/composer/overview#agent-types) for the YAML equivalents of every pattern on this page.
+</Info>
+
+## SequentialAgent
+
+Chains sub-agents in order. The final answer of each agent becomes the input to the next.
+
+```mermaid
+flowchart LR
+    classDef agent fill:#dbeafe,stroke:#3b82f6,color:#1e3a8a
+    classDef io fill:#f1f5f9,stroke:#94a3b8,color:#334155
+
+    In([input]):::io --> A1([Agent 1]):::agent
+    A1 -->|final answer| A2([Agent 2]):::agent
+    A2 -->|final answer| A3([Agent 3]):::agent
+    A3 --> Out([output]):::io
+    A1 -.->|escalate| Out
+```
+
+```python
+from orxhestra import SequentialAgent
+
+pipeline = SequentialAgent(
+    name="ResearchWriterPipeline",
+    agents=[research_agent, writer_agent, editor_agent],
+)
+
+async for event in pipeline.astream("Write about quantum computing", ctx=ctx):
+    ...
+```
+
+Stops early if any event carries `actions.escalate=True`.
+
+## ParallelAgent
+
+Runs sub-agents concurrently. Events from all agents are merged into a single stream.
+
+```mermaid
+flowchart LR
+    classDef agent fill:#dbeafe,stroke:#3b82f6,color:#1e3a8a
+    classDef io fill:#f1f5f9,stroke:#94a3b8,color:#334155
+    classDef merge fill:#dcfce7,stroke:#22c55e,color:#14532d
+
+    In([input]):::io --> A1([Agent 1]):::agent
+    In --> A2([Agent 2]):::agent
+    In --> A3([Agent 3]):::agent
+    A1 --> M([merged\nevent stream]):::merge
+    A2 --> M
+    A3 --> M
+    M --> Out([output]):::io
+```
+
+```python
+from orxhestra import ParallelAgent
+
+parallel = ParallelAgent(
+    name="MultiSourceResearch",
+    agents=[web_agent, academic_agent, news_agent],
+)
+
+async for event in parallel.astream("Find info about fusion energy", ctx=ctx):
+    print(f"[{event.agent_name}] {event.type}")
+```
+
+Each sub-agent gets a derived context with an isolated branch so their state and events don't collide.
+
+## LoopAgent
+
+Repeats its sub-agents until a termination condition is met.
+
+```mermaid
+flowchart LR
+    classDef agent fill:#dbeafe,stroke:#3b82f6,color:#1e3a8a
+    classDef decision fill:#fef9c3,stroke:#eab308,color:#713f12
+    classDef io fill:#f1f5f9,stroke:#94a3b8,color:#334155
+
+    In([input]):::io --> A([sub-agent]):::agent
+    A --> D{escalate or\nmax_iterations?}:::decision
+    D -->|No, loop| A
+    D -->|Yes| Out([output]):::io
+```
+
+```python
+from orxhestra import LoopAgent, exit_loop_tool
+
+refine_agent = LlmAgent(
+    name="RefineAgent",
+    model=model,
+    tools=[edit_tool, exit_loop_tool],
+    instructions=(
+        "Improve the draft. Call exit_loop when the quality is acceptable. "
+        "Otherwise call the edit tool and keep refining."
+    ),
+)
+
+loop = LoopAgent(
+    name="RefinementLoop",
+    agents=[refine_agent],
+    max_iterations=5,
+)
+
+async for event in loop.astream(draft_text, ctx=ctx):
+    ...
+```
+
+`LoopAgent` stops when:
+
+- An event has `actions.escalate=True` (set by `exit_loop_tool`)
+- `max_iterations` is reached
+- Optional `should_continue(event) -> bool` callback returns `False`
+
+
+# /docs/orchestration/planners.mdx
+
+---
+title: "Planners"
+description: "Inject per-turn planning into agent system prompts. Built-in PlanReActPlanner for chain-of-thought and TaskPlanner for managed task boards."
+keywords: ["planner", "PlanReActPlanner", "TaskPlanner", "chain of thought", "planning", "ReAct"]
+---
+
+<Info>
+  Attaching a planner in YAML is a single line — see [Composer → `agents:`](/composer/overview#agents):
+
+  ```yaml
+  agents:
+    bot:
+      type: llm
+      planner:
+        type: task       # or plan_react
+  ```
+</Info>
+
+Planners inject planning instructions into the system prompt before each LLM call and can post-process the response.
+
+```python
+from orxhestra import BasePlanner, ReadonlyContext, LlmRequest, LlmResponse
+
+class MyPlanner(BasePlanner):
+    def build_planning_instruction(
+        self, ctx: ReadonlyContext, request: LlmRequest
+    ) -> str | None:
+        return "Think step by step before acting. Plan before calling tools."
+
+    def process_planning_response(
+        self, ctx: ReadonlyContext, response: LlmResponse
+    ) -> LlmResponse | None:
+        return None  # no post-processing needed
+```
+
+## PlanReActPlanner
+
+A built-in planner that enforces structured planning tags - the agent must emit a `/*PLANNING*/` block before reasoning and a `/*FINAL_ANSWER*/` block to conclude.
+
+```python
+from orxhestra import PlanReActPlanner, LlmAgent
+
+agent = LlmAgent(
+    name="PlanningAgent",
+    model=model,
+    tools=[...],
+    planner=PlanReActPlanner(),
+)
+```
+
+## TaskPlanner
+
+Maintains a task board in `ctx.state` and injects its current status into the system prompt. Pairs with `ManageTasksTool` so the agent can create, update, complete, and list tasks.
+
+```python
+from orxhestra import TaskPlanner, LlmAgent
+
+planner = TaskPlanner()
+
+agent = LlmAgent(
+    name="ProjectAgent",
+    model=model,
+    tools=[planner.get_manage_tasks_tool()],
+    planner=planner,
+    instructions=(
+        "Track your work with manage_tasks. "
+        "Initialize tasks at the start. Mark each complete when done."
+    ),
+)
+```
+
+The agent can call `manage_tasks` with actions: `initialize`, `list`, `create`, `update`, `complete`, `remove`.
+
+
+# /docs/orchestration/prompts.mdx
+
+---
+title: "Prompts"
+description: "Build structured system prompts from PromptContext with goals, instructions, skills, agent references, and workflow steps."
+keywords: ["prompts", "system prompt", "PromptContext", "prompt builder", "agent instructions"]
+---
+
+The prompt catalog builds structured system prompts from a `PromptContext`:
+
+```python
+from orxhestra import PromptContext, build_system_prompt
+
+prompt = build_system_prompt(PromptContext(
+    agent_name="WriterAgent",
+    goal="Write polished articles from research notes.",
+    instructions="Use markdown. Structure with headings. Be thorough.",
+    skills=[
+        {"name": "AP Style", "content": "Follow AP style guide for all prose."}
+    ],
+    agents=[
+        {"name": "ResearchAgent", "description": "Retrieves research on any topic."}
+    ],
+    workflow_instructions=(
+        "1. Call ResearchAgent to gather background information.\n"
+        "2. Outline the article structure.\n"
+        "3. Write the full article.\n"
+        "4. Review and refine."
+    ),
+))
+
+agent = LlmAgent(name="WriterAgent", model=model, instructions=prompt)
+```
+
+Sections are only included when non-empty - no boilerplate padding.
+
+
+# /docs/orchestration/skills.mdx
+
+---
+title: "Skills"
+description: "Reusable instruction blocks with progressive disclosure. Supports the Agent Skills Protocol (agentskills.io) with SKILL.md directories, frontmatter, and on-demand resource loading."
+keywords: ["skills", "InMemorySkillStore", "dynamic instructions", "skill store", "agent skills", "SKILL.md", "agentskills.io"]
+---
+
+<Info>
+  Skills are first-class in the composer: declare them under `skills:` and reference them from an agent's `skills:` list. See [Composer → `skills:`](/composer/overview#skills) for the YAML shape (inline content / directory / MCP-hosted).
+</Info>
+
+Skills are reusable instruction blocks that an agent can discover and load at runtime. orxhestra supports the [Agent Skills Protocol](https://agentskills.io) — the open standard adopted by Claude Code, Cursor, Gemini CLI, and 30+ other tools.
+
+## Progressive Disclosure (3-Tier Model)
+
+Skills use progressive disclosure to minimize token cost:
+
+| Tier | What | Tool | Token Cost |
+|------|------|------|-----------|
+| **L1 — Catalog** | Name + description | `list_skills` | ~50-100 tokens |
+| **L2 — Instructions** | Full SKILL.md body + metadata | `load_skill` | Up to ~5000 tokens |
+| **L3 — Resources** | Scripts, references, assets on demand | `load_skill_resource` | Varies |
+
+The agent browses the catalog (L1), loads instructions when relevant (L2), and fetches resource files only when needed (L3).
+
+## Inline Skills
+
+The simplest way to define skills — no files needed:
+
+```python
+from orxhestra.skills import InMemorySkillStore, Skill
+from orxhestra.skills import make_list_skills_tool, make_load_skill_tool
+
+store = InMemorySkillStore([
+    Skill(
+        name="summarization",
+        description="How to write concise summaries.",
+        content="Extract the 3-5 most important points. Use bullet points. Be concise.",
+    ),
+    Skill(
+        name="code_review",
+        description="How to conduct a thorough code review.",
+        content="Check correctness, readability, test coverage, and security.",
+    ),
+])
+
+agent = LlmAgent(
+    name="SkillfulAgent",
+    model=model,
+    tools=[
+        make_list_skills_tool(store),   # L1: discover available skills
+        make_load_skill_tool(store),    # L2: load a skill's instructions
+    ],
+)
+```
+
+## Directory Skills (Agent Skills Protocol)
+
+For richer skills with resources, use the standard directory layout:
+
+```
+.agents/skills/
+└── code-review/
+    ├── SKILL.md              # Frontmatter + instructions
+    ├── scripts/
+    │   └── lint.sh           # Executable scripts
+    ├── references/
+    │   └── style-guide.md    # Reference documents
+    └── assets/
+        └── template.json     # Data files
+```
+
+### SKILL.md Format
+
+```markdown
+---
+name: code-review
+description: Reviews code for quality and security
+license: MIT
+compatibility: Python 3.10+
+allowed-tools: bash read_file
+metadata:
+  author: team
+  version: "1.0"
+---
+
+## Instructions
+
+Review all code changes carefully. Check for:
+- Correctness and edge cases
+- Security vulnerabilities (OWASP top 10)
+- Test coverage
+- Code style consistency
+```
+
+### Loading Directory Skills
+
+```python
+from orxhestra.skills import scan_skill_directory, discover_skills
+
+# Load a single skill directory
+skill = scan_skill_directory(Path(".agents/skills/code-review"))
+
+# Auto-discover all skills under .agents/skills/
+skills = discover_skills(Path("."))
+```
+
+### On-Demand Resource Loading (L3)
+
+Directory skills can include resource files that the agent loads on demand:
+
+```python
+from orxhestra.skills import (
+    InMemorySkillStore,
+    make_list_skills_tool,
+    make_load_skill_tool,
+    make_load_skill_resource_tool,
+    discover_skills,
+)
+
+skills = discover_skills(Path("."))
+store = InMemorySkillStore(skills)
+
+agent = LlmAgent(
+    name="SkillfulAgent",
+    model=model,
+    tools=[
+        make_list_skills_tool(store),          # L1: catalog
+        make_load_skill_tool(store),           # L2: instructions + resource listing
+        make_load_skill_resource_tool(store),  # L3: load individual resource files
+    ],
+)
+```
+
+When the agent calls `load_skill("code-review")`, it sees:
+- Full instructions from SKILL.md
+- Allowed tools, compatibility info
+- A list of available resources (e.g. `scripts/lint.sh`, `references/style-guide.md`)
+
+It can then call `load_skill_resource("code-review", "scripts/lint.sh")` to fetch a specific file.
+
+<Note>
+Resource loading includes path traversal protection — resolved paths must stay within the skill's base directory.
+</Note>
+
+## Skill Models
+
+### SkillFrontmatter
+
+Parsed from the YAML header in SKILL.md:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `name` | `str` | Skill name |
+| `description` | `str` | Short description |
+| `license` | `str \| None` | License identifier |
+| `compatibility` | `str \| None` | Compatibility requirements |
+| `allowed_tools` | `list[str]` | Tools the skill may use |
+| `metadata` | `dict` | Arbitrary key-value metadata |
+
+### SkillResource
+
+A pointer to a file within the skill directory:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `path` | `str` | Relative path (e.g. `scripts/lint.sh`) |
+| `category` | `str` | `script`, `reference`, or `asset` |
+
+## Composer YAML
+
+Skills can be defined inline, loaded from MCP, or loaded from a directory:
+
+```yaml
+skills:
+  # Inline
+  summarize:
+    name: summarize
+    description: "Summarize text."
+    content: "Extract 3-5 key points."
+
+  # Directory (Agent Skills Protocol)
+  code-review:
+    name: code-review
+    directory: .agents/skills/code-review
+
+  # Remote (FastMCP server)
+  pdf:
+    name: pdf-processing
+    mcp:
+      url: "http://localhost:8001/mcp"
+```
+
+<Tip>
+**Custom backends** — Implement `BaseSkillStore` for any backend (database, API, vector store).
+</Tip>
+
+
+# /docs/runtime/callbacks.mdx
+
+---
+title: "Callbacks"
+description: "Attach before/after hooks at the model, tool, and agent level for logging, usage tracking, error handling, and flow control."
+keywords: ["callbacks", "hooks", "before_model_callback", "after_model_callback", "before_tool_callback", "logging"]
+---
+
+Attach hooks at the agent, model, and tool level:
+
+```python
+from orxhestra import InvocationContext, LlmAgent
+from orxhestra.models.llm_request import LlmRequest
+from orxhestra.models.llm_response import LlmResponse
+
+async def log_llm_call(ctx: InvocationContext, request: LlmRequest) -> None:
+    print(f"[{ctx.agent_name}] LLM call with {len(request.messages)} messages")
+
+async def track_usage(ctx: InvocationContext, response: LlmResponse) -> None:
+    print(f"Tokens: {response.input_tokens} in / {response.output_tokens} out")
+
+async def handle_llm_error(
+    ctx: InvocationContext, request: LlmRequest, error: Exception
+) -> LlmResponse | None:
+    """Called when an LLM call fails. Return a LlmResponse to recover, or None to propagate."""
+    print(f"LLM error: {error}")
+    return None  # yields an Event with error metadata
+
+async def log_tool(ctx: InvocationContext, name: str, args: dict) -> None:
+    print(f"[TOOL] {name}({args})")
+
+agent = LlmAgent(
+    name="TrackedAgent",
+    model=model,
+    before_model_callback=log_llm_call,
+    after_model_callback=track_usage,
+    on_model_error_callback=handle_llm_error,
+    before_tool_callback=log_tool,
+)
+```
+
+## AgentTool callbacks
+
+`AgentTool` supports `before_agent_callback` and `after_agent_callback` to intercept child agent events:
+
+```python
+from orxhestra.tools.agent_tool import AgentTool
+
+def on_child_event(event, child_ctx):
+    if event.is_final_response():
+        print(f"Child answered: {event.text}")
+    return None  # return a string to short-circuit
+
+tool = AgentTool(child_agent, before_agent_callback=on_child_event)
+```
+
+
+# /docs/runtime/human-in-the-loop.mdx
+
+---
+title: "Human-in-the-Loop"
+description: "Let AI agents ask users questions interactively with an ask_human tool pattern. Pause execution, collect input, and resume."
+keywords: ["human-in-the-loop", "interactive", "ask_human", "user input", "agent conversation"]
+---
+
+Create an `ask_human` tool that lets the agent ask the user questions interactively:
+
+```python
+from langchain_core.tools import tool
+
+@tool
+def ask_human(question: str) -> str:
+    """Ask the human user a question and return their response."""
+    print(f"\n  Agent asks: {question}")
+    return input("  Your answer: ").strip()
+
+agent = LlmAgent(
+    name="Assistant",
+    model=model,
+    tools=[ask_human, book_meeting, send_email],
+    instructions=(
+        "When you don't have enough information to complete a task, "
+        "use the ask_human tool to ask the user for the missing details."
+    ),
+)
+```
+
+The agent will call `ask_human` whenever it needs clarification, then use the response to proceed.
+
+<Note>
+**Full example** - See `examples/human_in_the_loop.py` for a complete runnable demo.
+</Note>
+
+
+# /docs/runtime/providers.mdx
+
+---
+title: "LLM Providers"
+description: "29 LLM providers with model-prefix auto-detection: OpenAI, Anthropic, Google, Groq, Ollama, Mistral, Cohere, DeepSeek, and more. Register your own via register_provider."
+keywords: ["LLM providers", "OpenAI", "Anthropic", "Google Gemini", "Ollama", "LangChain providers", "register_provider"]
+---
+
+## Supported Providers
+
+orxhestra supports all major LLM providers via LangChain integrations.
+
+| Provider | Name | Package | Install |
+|----------|------|---------|---------|
+| OpenAI | `openai` | `langchain-openai` | `pip install orxhestra[openai]` |
+| Azure OpenAI | `azure_openai` | `langchain-openai` | `pip install orxhestra[openai]` |
+| Azure AI | `azure_ai` | `langchain-azure-ai` | `pip install langchain-azure-ai` |
+| Anthropic | `anthropic` | `langchain-anthropic` | `pip install orxhestra[anthropic]` |
+| Anthropic Bedrock | `anthropic_bedrock` | `langchain-aws` | `pip install langchain-aws` |
+| Google GenAI | `google` | `langchain-google-genai` | `pip install orxhestra[google]` |
+| Google Vertex AI | `google_vertexai` | `langchain-google-vertexai` | `pip install langchain-google-vertexai` |
+| AWS Bedrock | `bedrock_converse` | `langchain-aws` | `pip install langchain-aws` |
+| Mistral | `mistralai` | `langchain-mistralai` | `pip install langchain-mistralai` |
+| Cohere | `cohere` | `langchain-cohere` | `pip install langchain-cohere` |
+| Fireworks | `fireworks` | `langchain-fireworks` | `pip install langchain-fireworks` |
+| Together | `together` | `langchain-together` | `pip install langchain-together` |
+| Groq | `groq` | `langchain-groq` | `pip install langchain-groq` |
+| NVIDIA NIM | `nvidia` | `langchain-nvidia-ai-endpoints` | `pip install langchain-nvidia-ai-endpoints` |
+| HuggingFace | `huggingface` | `langchain-huggingface` | `pip install langchain-huggingface` |
+| DeepSeek | `deepseek` | `langchain-deepseek` | `pip install langchain-deepseek` |
+| Ollama | `ollama` | `langchain-ollama` | `pip install langchain-ollama` |
+| xAI (Grok) | `xai` | `langchain-xai` | `pip install langchain-xai` |
+| IBM watsonx | `ibm` | `langchain-ibm` | `pip install langchain-ibm` |
+| Perplexity | `perplexity` | `langchain-perplexity` | `pip install langchain-perplexity` |
+| OpenRouter | `openrouter` | `langchain-openrouter` | `pip install langchain-openrouter` |
+| Upstage | `upstage` | `langchain-upstage` | `pip install langchain-upstage` |
+
+## CLI Auto-Detection
+
+The CLI automatically detects the provider from the model name:
+
+```bash
+orx --model gpt-5.4           # → openai
+orx --model claude-sonnet-4-6 # → anthropic
+orx --model gemini-2.0-flash  # → google
+orx --model mistral-large     # → mistralai
+orx --model deepseek-chat     # → deepseek
+orx --model grok-2            # → xai
+orx --model command-r-plus    # → cohere
+```
+
+## YAML Configuration
+
+```yaml
+defaults:
+  model:
+    provider: anthropic
+    name: claude-sonnet-4-6
+    temperature: 0.7
+
+# Or use named models
+models:
+  fast:
+    provider: groq
+    name: llama-3.3-70b-versatile
+  smart:
+    provider: anthropic
+    name: claude-opus-4-7
+
+agents:
+  researcher:
+    model: fast
+  writer:
+    model: smart
+```
+
+## Azure OpenAI
+
+Azure OpenAI requires explicit provider since model names overlap with OpenAI:
+
+```yaml
+defaults:
+  model:
+    provider: azure_openai
+    name: gpt-5.4
+    azure_endpoint: https://my-resource.openai.azure.com/
+    api_version: "2024-12-01-preview"
+    azure_deployment: gpt-5.4
+```
+
+## Custom Providers
+
+Register a custom provider or use a dotted import path:
+
+```python
+from orxhestra.composer.builders.models import register
+
+register("my_provider", MyCustomChatModel)
+```
+
+Or in YAML:
+
+```yaml
+defaults:
+  model:
+    provider: my_module.MyCustomChatModel
+    name: my-model
+```
+
+## Environment Variables
+
+| Provider | Env Var |
+|----------|---------|
+| OpenAI | `OPENAI_API_KEY` |
+| Azure OpenAI | `AZURE_OPENAI_API_KEY` |
+| Anthropic | `ANTHROPIC_API_KEY` |
+| Google | `GOOGLE_API_KEY` |
+| Mistral | `MISTRAL_API_KEY` |
+| Groq | `GROQ_API_KEY` |
+| DeepSeek | `DEEPSEEK_API_KEY` |
+| xAI | `XAI_API_KEY` |
+| Cohere | `COHERE_API_KEY` |
+| Together | `TOGETHER_API_KEY` |
+| Fireworks | `FIREWORKS_API_KEY` |
+| NVIDIA | `NVIDIA_API_KEY` |
+| Perplexity | `PPLX_API_KEY` |
+| OpenRouter | `OPENROUTER_API_KEY` |
+| Upstage | `UPSTAGE_API_KEY` |
+
+
+# /docs/runtime/streaming.mdx
+
+---
+title: "Streaming"
+description: "Stream token-by-token events from agents in real-time. Sub-agent streaming via AgentTool with branch isolation and event bubbling."
+keywords: ["streaming", "real-time", "async streaming", "token streaming", "AgentTool", "event stream"]
+---
+
+All agents stream by default - `astream()` yields `Event` objects as they occur:
+
+```python
+from orxhestra.events.event import Event, EventType
+
+async for event in agent.astream("Write about distributed systems"):
+    if event.type == EventType.AGENT_MESSAGE and event.partial:
+        # Token-by-token streaming
+        print(event.text, end="", flush=True)
+    elif event.is_final_response():
+        print(f"\n[DONE] {event.text}")
+```
+
+Partial events are suppressed automatically if the LLM decides to call a tool instead of answering - only real text chunks are streamed.
+
+## Sub-agent streaming via AgentTool
+
+When using `AgentTool`, sub-agent events stream through the parent in real-time via `ctx.event_callback`. Events carry `branch` and `agent_name` fields so you can distinguish which sub-agent is producing output:
+
+```python
+from orxhestra import LlmAgent
+from orxhestra.tools.agent_tool import AgentTool
+
+weather_agent = LlmAgent(name="WeatherAgent", model=model, tools=[get_weather])
+travel_agent = LlmAgent(name="TravelAgent", model=model, tools=[get_attractions])
+
+planner = LlmAgent(
+    name="TripPlanner",
+    model=model,
+    tools=[AgentTool(weather_agent), AgentTool(travel_agent)],
+    instructions="Use the sub-agents to plan a trip.",
+)
+
+async for event in planner.astream("Plan a trip to Copenhagen"):
+    if event.branch:
+        # Event from a sub-agent (e.g. branch="WeatherAgent")
+        print(f"  [{event.agent_name}] {event.text}", end="")
+    elif event.is_final_response():
+        print(f"\nFinal: {event.text}")
+```
+
+Sub-agents run in parallel when the LLM calls multiple tools at once - their events are interleaved in the stream as they arrive.
+
+## How it works
+
+1. Before tool execution, `LlmAgent` creates an `asyncio.Queue` and sets `ctx.event_callback = queue.put_nowait` on the tool context.
+2. `AgentTool` calls `ctx.event_callback(event)` for each child event as it streams.
+3. `LlmAgent` yields events from the queue concurrently while tools run, so events appear in real-time.
+4. The `event_callback` propagates through `ctx.derive()`, so nested sub-agents also push events up to the root.
+
+Any custom tool can use `ctx.event_callback` to push events - it's not limited to `AgentTool`.
+
+## With Runner
+
+```python
+async for event in runner.astream(
+    user_id="user-1",
+    session_id="session-1",
+    new_message="Write me a long essay about distributed systems.",
+):
+    if event.is_final_response():
+        print(f"\n[DONE] {event.text}")
+    elif event.type == EventType.AGENT_MESSAGE and event.partial:
+        print(event.text, end="", flush=True)
+```
+
+
+# /docs/runtime/structured-output.mdx
+
+---
+title: "Structured Output"
+description: "Force agents to return validated Pydantic objects instead of free-form text. Uses output_schema with automatic JSON parsing and fallback."
+keywords: ["structured output", "Pydantic", "output_schema", "typed responses", "JSON output"]
+---
+
+Force an agent to return a typed Pydantic object instead of free-form text. Pass `output_schema` to `LlmAgent`.
+
+```python
+from pydantic import BaseModel, Field
+from orxhestra import LlmAgent
+from orxhestra.events.event import Event, EventType
+
+class CompanyAnalysis(BaseModel):
+    name: str = Field(description="Company name")
+    industry: str = Field(description="Primary industry")
+    strengths: list[str] = Field(description="Key strengths")
+    risks: list[str] = Field(description="Key risks")
+    recommendation: str = Field(description="Buy, Hold, or Sell")
+    confidence: float = Field(description="Confidence score 0-1")
+
+agent = LlmAgent(
+    name="AnalystAgent",
+    model=model,
+    tools=[get_financials, get_news_sentiment],
+    output_schema=CompanyAnalysis,
+    instructions="You are a financial analyst.",
+)
+```
+
+The parsed object is available on `event.data` when it's the final response:
+
+```python
+async for event in agent.astream("Analyze Apple", ctx=ctx):
+    if event.is_final_response():
+        analysis = event.data  # CompanyAnalysis instance
+        print(f"{analysis.name}: {analysis.recommendation} ({analysis.confidence:.0%})")
+```
+
+## How it works
+
+1. `PydanticOutputParser.get_format_instructions()` is appended to the system prompt
+2. When the LLM responds, `PydanticOutputParser.parse()` extracts and validates JSON
+3. If direct parsing fails, `with_structured_output()` is used as a fallback
+4. Works with streaming and multi-agent compositions
+
+
+# /docs/runtime/tracing.mdx
+
+---
+title: "Tracing"
+description: "Full observability with Langfuse, LangSmith, or any LangChain callback handler. Automatic tracing of LLM calls, tool executions, and agent runs."
+keywords: ["tracing", "Langfuse", "LangSmith", "observability", "AgentConfig", "monitoring", "LLM tracing"]
+---
+
+`AgentConfig` mirrors LangChain's `RunnableConfig` fields - pass `callbacks`, `tags`, `metadata`, `run_name` directly. The entire agent run is wrapped in a single parent trace with all child operations nested automatically.
+
+```python
+from langfuse.langchain import CallbackHandler
+from orxhestra import AgentConfig
+
+run_config = AgentConfig(
+    callbacks=[CallbackHandler()],  # Langfuse, LangSmith, or any BaseCallbackHandler
+    tags=["production", "user-facing"],
+    metadata={"user_id": "u-123"},
+    run_name="MyAgent",
+)
+
+async for event in runner.astream(
+    user_id="user-1",
+    session_id="session-1",
+    new_message="Hello!",
+    config=run_config,
+):
+    ...
+```
+
+<Tip>
+**Environment variables** - Set the following for Langfuse:
+
+```bash
+export LANGFUSE_SECRET_KEY="sk-lf-..."
+export LANGFUSE_PUBLIC_KEY="pk-lf-..."
+export LANGFUSE_BASE_URL="https://cloud.langfuse.com"
+```
+</Tip>
+
+## What gets traced
+
+- Each agent run as a single parent trace (named after the agent)
+- All LLM calls (`ainvoke` / `astream`) as child spans with token usage
+- All tool executions as child spans with inputs/outputs
+- Structured output fallback calls
+- Works with composite agents - each sub-agent creates its own nested trace
+
+<Note>
+**A2A boundaries** - A2A is HTTP, so callbacks can't cross the wire. Each A2A server should create its own handler. Link traces by passing a `trace_id` in task metadata.
+</Note>
+
+
+# /docs/tools/artifacts.mdx
+
+---
+title: "Artifact Tools"
+description: "Save, load, and list file artifacts during agent execution. Agents can persist files, code, reports, and binary data across turns."
+keywords: ["artifacts", "file storage", "save artifact", "load artifact", "agent files"]
+---
+
+Artifact tools let agents save, load, and list files during execution. Useful for persisting generated code, reports, images, or any data the agent produces.
+
+## Setup
+
+```python
+from orxhestra import LlmAgent, Runner, InMemorySessionService
+from orxhestra.artifacts.in_memory_artifact_service import InMemoryArtifactService
+from orxhestra.tools.artifact_tools import make_artifact_tools
+
+artifact_tools = make_artifact_tools()
+
+agent = LlmAgent(
+    name="Coder",
+    model=model,
+    tools=artifact_tools,
+    instructions="Use save_artifact to persist files. Use load_artifact to read them back.",
+)
+
+runner = Runner(
+    agent=agent,
+    app_name="my-app",
+    session_service=InMemorySessionService(),
+    artifact_service=InMemoryArtifactService(),
+)
+```
+
+## Available tools
+
+| Tool | Description |
+|------|-------------|
+| `save_artifact` | Save a file or blob to the artifact store |
+| `load_artifact` | Load an artifact by filename (optionally a specific version) |
+| `list_artifacts` | List all saved artifact filenames in the current session |
+
+### save_artifact
+
+```
+save_artifact(filename, content, mime_type="", is_base64=false)
+```
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `filename` | `str` | Name of the artifact (e.g. `"report.md"`) |
+| `content` | `str` | Text content, or base64-encoded binary data |
+| `mime_type` | `str` | MIME type (auto-detected from filename if empty) |
+| `is_base64` | `bool` | Set `true` if content is base64-encoded binary |
+
+Returns a confirmation string with the version number and byte count.
+
+### load_artifact
+
+```
+load_artifact(filename, version=null)
+```
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `filename` | `str` | Name of the artifact to load |
+| `version` | `int \| null` | Specific version to load (latest if omitted) |
+
+Returns the file content as text, or base64-encoded string for binary files.
+
+### list_artifacts
+
+Returns a newline-separated list of all saved artifact filenames, or `"No artifacts saved."`.
+
+## Versioning
+
+Every `save_artifact` call increments the version number for that filename. The version is tracked in `EventActions.artifact_delta` so artifact changes appear in the session event log.
+
+## CallContext API
+
+Tools can also save and load artifacts programmatically via `CallContext`:
+
+```python
+from orxhestra.tools import CallContext
+
+call_ctx = CallContext(ctx)
+
+# Save
+version = await call_ctx.save_artifact("report.md", "# Report\n...", mime_type="text/markdown")
+
+# Load (latest)
+data = await call_ctx.load_artifact("report.md")
+
+# Load specific version
+data = await call_ctx.load_artifact("report.md", version=1)
+
+# List all
+filenames = await call_ctx.list_artifacts()
+```
+
+## Artifact services
+
+| Service | Storage | Install |
+|---------|---------|---------|
+| `InMemoryArtifactService` | In-memory (volatile) | Built-in |
+| `FileArtifactService` | Local filesystem | Built-in |
+
+```python
+from orxhestra.artifacts.in_memory_artifact_service import InMemoryArtifactService
+from orxhestra.artifacts.file_artifact_service import FileArtifactService
+
+# In-memory (for testing)
+svc = InMemoryArtifactService()
+
+# File-based (persistent)
+svc = FileArtifactService(base_dir="/tmp/artifacts")
+```
+
+## Composer YAML
+
+Artifact tools are not yet available as a builtin in Composer YAML. Use the Python API to add them to your agent.
+
+
+# /docs/tools/confirmation.mdx
+
+---
+title: "Tool Confirmation"
+description: "Gate dangerous tool executions with CallContext.request_confirmation(). Pause and require approval before delete, drop, or other risky operations."
+keywords: ["tool confirmation", "human approval", "safety", "before_tool_callback"]
+---
+
+Gate dangerous tool executions with `CallContext.request_confirmation()`:
+
+```python
+from orxhestra.tools import CallContext
+
+async def confirm_dangerous(ctx, tool_name: str, tool_args: dict) -> None:
+    if tool_name in ("delete_file", "drop_table"):
+        call_ctx = CallContext(ctx)
+        call_ctx.request_confirmation()
+```
+
+When `request_confirmation()` is called from a `before_tool_callback`, the tool execution is paused and a confirmation request event is yielded. The caller must approve or reject before execution continues.
+
+```python
+agent = LlmAgent(
+    name="SafeAgent",
+    model=model,
+    tools=[delete_file, drop_table, search],
+    before_tool_callback=confirm_dangerous,
+)
+```
+
+
+# /docs/tools/filesystem.mdx
+
+---
+title: "Filesystem Tools"
+description: "ls, read_file, write_file, edit_file, mkdir, glob, and grep — built on a pluggable FilesystemBackend (local, in-memory) with offset/limit pagination, diff summaries, and context lines."
+keywords: ["filesystem tools", "read_file", "write_file", "edit_file", "grep", "glob", "FilesystemBackend"]
+---
+
+## Overview
+
+The filesystem tools provide sandboxed file access within the agent's workspace. All paths are validated against the workspace root to prevent directory traversal.
+
+## Tools
+
+### read_file
+
+Reads a file with line numbers (`cat -n` style). Supports pagination via `offset` and `limit`.
+
+```python
+# Read first 100 lines
+read_file("src/main.py", offset=0, limit=100)
+
+# Read lines 200-300
+read_file("src/main.py", offset=200, limit=100)
+```
+
+**Output format:**
+```
+Lines 1-100 of 450 (use offset=100 to read more)
+1	import asyncio
+2	from pathlib import Path
+3	...
+```
+
+**Size guard:** Files larger than 256 KB require explicit `offset` and `limit` parameters. Without them, the tool returns an error message directing the agent to use pagination.
+
+### grep
+
+Search file contents with context lines, case-insensitive matching, and result limits.
+
+```python
+# Basic search
+grep("def process", path="src/")
+
+# With context lines (like grep -C 3)
+grep("TODO", context=3)
+
+# Case-insensitive with glob filter
+grep("error", glob_filter="*.py", case_insensitive=True)
+
+# Before/after context (like grep -B 2 -A 5)
+grep("raise ValueError", before=2, after=5)
+```
+
+**Parameters:**
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `pattern` | required | Text to search for |
+| `path` | `"."` | Directory to search |
+| `glob_filter` | `"*"` | File glob filter |
+| `context` | `0` | Lines before and after (`-C`) |
+| `before` | `0` | Lines before match (`-B`) |
+| `after` | `0` | Lines after match (`-A`) |
+| `case_insensitive` | `False` | Case-insensitive matching |
+| `max_results` | `50` | Maximum matches returned |
+
+### edit_file
+
+Replaces text and shows a unified diff:
+
+```
+Edited src/main.py (line 42):
+- old_function()
++ new_function()
+(1 lines removed, 1 lines added)
+```
+
+### glob
+
+Find files matching a pattern. Capped at 100 results.
+
+```python
+glob("**/*.py")           # All Python files
+glob("src/**/*.test.ts")  # All test files in src/
+```
+
+### ls, write_file, mkdir
+
+Standard file operations, all workspace-scoped.
+
+## Workspace Isolation
+
+All paths are resolved relative to the workspace root (set via `$AGENT_WORKSPACE` or the CLI's `--workspace` flag). Path traversal attempts (`../../../etc/passwd`) are blocked.
+
+## YAML Configuration
+
+```yaml
+tools:
+  fs:
+    builtin: "filesystem"
+```
+
+
+# /docs/tools/long-running.mdx
+
+---
+title: "Long-Running Tools"
+description: "Handle slow tools like deployments and data processing with LongRunningFunctionTool, preventing the LLM from re-invoking while pending."
+keywords: ["long-running tools", "LongRunningFunctionTool", "async tools", "deployment"]
+---
+
+For tools that take significant time (deployments, data processing), use `LongRunningFunctionTool`. It instructs the LLM not to re-invoke the tool while pending:
+
+```python
+from orxhestra.tools import LongRunningFunctionTool
+
+async def deploy_service(env: str) -> str:
+    """Deploy the service to the given environment."""
+    await some_long_operation(env)
+    return f"Deployed to {env}"
+
+tool = LongRunningFunctionTool(deploy_service)
+agent = LlmAgent(name="deployer", model=model, tools=[tool.as_tool()])
+```
+
+The tool description is automatically appended with:
+
+> NOTE: This is a long-running operation. Do not call this tool again if it has already returned some intermediate or pending status.
+
+
+# /docs/tools/overview.mdx
+
+---
+title: "Tools"
+description: "Function tools, AgentTool sub-agents, transfer handoffs, exit loop, long-running tools, MCP adapters, and CallContext for stateful tools."
+keywords: ["tools", "function tool", "AgentTool", "transfer tool", "MCP", "tool calling", "CallContext"]
+---
+
+```mermaid
+flowchart LR
+    classDef agent fill:#dbeafe,stroke:#3b82f6,color:#1e3a8a
+    classDef tool fill:#f3e8ff,stroke:#a855f7,color:#581c87
+    classDef effect fill:#fff7ed,stroke:#f97316,color:#7c2d12
+    classDef external fill:#f0fdf4,stroke:#22c55e,color:#14532d
+
+    A([LlmAgent]):::agent
+
+    A --> FT[function_tool]:::tool
+    A --> AT[AgentTool]:::tool
+    A --> TT[make_transfer_tool]:::tool
+    A --> EL[exit_loop_tool]:::tool
+    A --> LR[LongRunningFunctionTool]:::tool
+    A --> MCP[MCPToolAdapter]:::tool
+
+    FT -->|wraps| Fn["async def fn()"]:::external
+    AT -->|invokes| SA([sub-agent]):::agent
+    SA -->|derive context\nbranch isolation| IC["Context\n.derive()"]:::effect
+    TT -->|sets| EA1["EventActions\n.transfer_to_agent"]:::effect
+    EL -->|sets| EA2["EventActions\n.escalate = True"]:::effect
+    MCP -->|fetches from| MS[("MCP Server")]:::external
+```
+
+## Function tools
+
+Wrap any async function as a LangChain `BaseTool`:
+
+```python
+from orxhestra import function_tool
+
+async def search_web(query: str) -> str:
+    """Search the web and return results."""
+    ...
+
+tool = function_tool(search_web)
+# or: function_tool(search_web, name="web_search", description="...")
+```
+
+Or use LangChain's `@tool` decorator directly - both work with `LlmAgent`.
+
+## AgentTool - sub-agents as tools
+
+Wrap a `BaseAgent` so it can be called as a tool by a parent agent:
+
+```python
+from orxhestra import LlmAgent
+from orxhestra.tools.agent_tool import AgentTool
+
+research_agent = LlmAgent(name="ResearchAgent", model=model, tools=[search_tool])
+
+parent = LlmAgent(
+    name="Coordinator",
+    model=model,
+    tools=[AgentTool(research_agent)],
+    instructions="Delegate research to ResearchAgent.",
+)
+```
+
+The tool derives a child context with branch isolation and a clean session automatically. Sub-agent events stream through the parent in real-time via `ctx.event_callback` - each event carries a `branch` field (e.g. `"ResearchAgent"`) for attribution.
+
+### AgentTool callbacks
+
+Hook into the child agent's event stream with `before_agent_callback` (intercept each event, optionally short-circuit) and `after_agent_callback` (run after completion):
+
+```python
+def check_event(event, child_ctx):
+    if child_ctx.state.get("needs_approval"):
+        return "Paused: awaiting approval."  # short-circuits, returns this as tool result
+    return None  # continue
+
+tool = AgentTool(research_agent, before_agent_callback=check_event)
+```
+
+Any custom tool can push events the same way:
+
+```python
+if ctx.event_callback is not None:
+    ctx.event_callback(my_event)
+```
+
+## Transfer tool - explicit agent handoff
+
+```python
+from orxhestra import make_transfer_tool
+
+transfer = make_transfer_tool([billing_agent, support_agent, tech_agent])
+# The LLM can call "transfer_to_agent" with the target agent name.
+# EventActions.transfer_to_agent is set; the parent routes accordingly.
+```
+
+## Exit loop tool
+
+Signal a `LoopAgent` to stop iterating:
+
+```python
+from orxhestra import exit_loop_tool
+
+loop_agent = LoopAgent(
+    name="RefineLoop",
+    agents=[refine_agent],
+    # refine_agent has exit_loop_tool in its tools list
+)
+```
+
+## CallContext
+
+Inside a tool's `_arun()`, use `CallContext` to read/write agent state:
+
+```python
+from orxhestra.tools import CallContext
+
+class MyStatefulTool(BaseTool):
+    _ctx: CallContext | None = None
+
+    def inject_context(self, ctx: InvocationContext) -> None:
+        self._ctx = CallContext(ctx)
+
+    async def _arun(self, query: str) -> str:
+        self._ctx.state["last_query"] = query
+        return "done"
+```
+
+`LlmAgent` automatically calls `inject_context()` on any tool that exposes it before each tool execution.
+
+## Filesystem tools
+
+Sandboxed file operations restricted to a configurable workspace directory. All paths are validated to prevent escaping the workspace.
+
+```python
+from orxhestra.tools import make_filesystem_tools
+
+tools = make_filesystem_tools(workspace="/tmp/my-workspace")
+# or use $AGENT_WORKSPACE env var / default /tmp/agent-workspace
+
+agent = LlmAgent(name="coder", model=model, tools=tools)
+```
+
+| Tool | Description |
+|------|-------------|
+| `ls` | List files and directories |
+| `read_file` | Read file contents (returns base64 for images) |
+| `write_file` | Write content to a file, creating parents as needed |
+| `edit_file` | Replace the first occurrence of `old` with `new` |
+| `mkdir` | Create a directory and parents |
+| `glob` | Find files matching a glob pattern (e.g. `**/*.py`) |
+| `grep` | Search file contents for a text pattern |
+
+In Composer YAML, use the `filesystem` builtin:
+
+```yaml
+tools:
+  fs:
+    builtin: filesystem
+```
+
+## Shell tools
+
+Sandboxed shell execution with timeout, output truncation, and command filtering.
+
+```python
+from orxhestra.tools import make_shell_tools
+
+tools = make_shell_tools(
+    workspace="/tmp/my-workspace",
+    timeout=30,                          # max seconds per command
+    max_output_bytes=102400,             # truncate beyond 100KB
+    allowed_commands=["python", "npm"],   # whitelist (optional)
+    denied_commands=["rm", "shutdown"],   # blocklist (optional)
+    env={"NODE_ENV": "test"},            # extra env vars (optional)
+)
+```
+
+| Tool | Description |
+|------|-------------|
+| `shell_exec` | Run a command and return stdout + stderr |
+| `shell_exec_background` | Start a command in the background, return PID |
+
+Configuration via environment variables:
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `AGENT_WORKSPACE` | `/tmp/agent-workspace` | Working directory |
+| `AGENT_SHELL_TIMEOUT` | `30` | Max seconds per command |
+| `AGENT_SHELL_MAX_OUTPUT` | `102400` | Output truncation limit (bytes) |
+
+In Composer YAML, use the `shell` builtin:
+
+```yaml
+tools:
+  sh:
+    builtin: shell
+```
+
+
+# /docs/tools/todo.mdx
+
+---
+title: "Todo Tool"
+description: "Structured task tracking with write_todos. Agents create, update, and complete task lists that integrate with the TaskPlanner for per-turn status injection."
+keywords: ["todo", "task tracking", "write_todos", "TaskPlanner", "task management"]
+---
+
+The todo tool gives agents structured task management. The agent calls `write_todos` to create and update a task list, and the `TaskPlanner` injects the current status into the system prompt before each LLM call.
+
+## Setup
+
+```python
+from orxhestra import LlmAgent
+from orxhestra.tools.todo_tool import TodoList, make_todo_tool
+from orxhestra.planners.task_planner import TaskPlanner
+
+todo_list = TodoList()
+todo_tool = make_todo_tool(todo_list)
+planner = TaskPlanner(todo_list=todo_list)
+
+agent = LlmAgent(
+    name="ProjectAgent",
+    model=model,
+    tools=[todo_tool],
+    planner=planner,
+    instructions="Use write_todos to track your work on multi-step tasks.",
+)
+```
+
+## write_todos
+
+The agent calls `write_todos` with a JSON array of task objects. Each call **replaces** the entire list.
+
+```json
+[
+  {"content": "Research the topic", "status": "completed"},
+  {"content": "Write the outline", "status": "in_progress"},
+  {"content": "Draft the article", "status": "pending"},
+  {"content": "Review and edit", "status": "pending", "required": true}
+]
+```
+
+### Task fields
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `content` | `str` | Yes | What needs to be done (imperative form) |
+| `status` | `str` | Yes | `"pending"`, `"in_progress"`, `"completed"`, or `"blocked"` |
+| `description` | `str` | No | Longer explanation of the task |
+| `required` | `bool` | No | Whether the task must be completed (default `false`) |
+
+### Auto-generated fields
+
+| Field | Description |
+|-------|-------------|
+| `id` | Auto-assigned (`t1`, `t2`, ...) |
+| `updated_by` | Agent name (if `agent_name` passed to `make_todo_tool`) |
+| `updated_at` | Timestamp of last update |
+
+## TaskPlanner
+
+`TaskPlanner` reads from the shared `TodoList` and injects the current status into the system prompt before each LLM call:
+
+```
+Current tasks (v3):
+  t1 [done] Research the topic
+  t2 [in_progress] Write the outline
+  t3 [pending] Draft the article
+  t4 [pending] Review and edit (required)
+
+Progress: 1/4 completed.
+```
+
+### Initial task seeding
+
+You can pre-seed tasks via the planner:
+
+```python
+planner = TaskPlanner(
+    todo_list=todo_list,
+    tasks=[
+        {"title": "Research", "status": "pending"},
+        {"title": "Write", "status": "pending"},
+        {"title": "Review", "status": "pending"},
+    ],
+)
+```
+
+Tasks are seeded on the first LLM call if the todo list is empty.
+
+### Checking completion
+
+```python
+planner.has_pending_tasks(readonly_context)  # True if any task is not completed
+```
+
+## TodoList API
+
+```python
+from orxhestra.tools.todo_tool import TodoList
+
+todo_list = TodoList()
+
+# Update tasks
+todo_list.update([
+    {"content": "Step 1", "status": "completed"},
+    {"content": "Step 2", "status": "in_progress"},
+], actor="MyAgent")
+
+# Check status
+todo_list.has_pending()       # True
+todo_list.get_active_task()   # "Step 2"
+todo_list.build_status_text() # Formatted status block
+todo_list.render()            # Rich-formatted output (for CLI)
+
+# Access
+todo_list.todos    # list[dict]
+todo_list.version  # int (incremented on each update)
+```
+
+## Verification nudge
+
+When all tasks are marked as completed, the tool automatically appends a reminder for the agent to verify its work before responding — unless a task already contains "verify", "test", or "check" in its content.

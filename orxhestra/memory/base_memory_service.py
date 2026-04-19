@@ -1,4 +1,33 @@
-"""Base memory service abstraction for agents."""
+"""Abstract memory service — the persistence seam for long-term recall.
+
+Implementations store and search :class:`Memory` entries scoped by
+``(app_name, user_id)``.  Agents hit this interface twice per turn:
+once at the start to pull in relevant context
+(:meth:`search_memory`), once after the agent finishes to persist new
+information (:meth:`add_session_to_memory`, :meth:`add_events_to_memory`,
+or :meth:`add_memory`).
+
+Three ingestion shapes are supported so backends can pick the
+granularity that suits them:
+
+- :meth:`add_session_to_memory` — full session; required.
+- :meth:`add_events_to_memory` — delta batch; optional (default
+  raises ``NotImplementedError``).
+- :meth:`add_memory` — explicit :class:`Memory` entries; optional.
+
+Built-in backends:
+
+- :class:`~orxhestra.memory.in_memory_service.InMemoryMemoryService`
+  — dict-backed, process-local.
+- :class:`~orxhestra.memory.file_memory_service.FileMemoryService`
+  — Markdown-on-disk, per-project directories.
+
+See Also
+--------
+orxhestra.memory.memory.Memory : The unit stored in a memory service.
+orxhestra.tools.memory_tools : ``save_memory`` / ``load_memory`` tool
+    factories — the primary way agents interact with memory.
+"""
 
 from __future__ import annotations
 

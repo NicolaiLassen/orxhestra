@@ -1,50 +1,134 @@
 ---
 title: "Quick Start"
-description: "Create an AI agent with tools, wire it through the Runner, and stream events in under 5 minutes. Full working Python example included."
-keywords: ["quickstart", "tutorial", "AI agent", "Python", "getting started", "LLM agent", "tool calling"]
+description: "Build and run your first orxhestra agent in under five minutes — as a YAML file you run from the terminal, or as Python code."
+keywords: ["quickstart", "tutorial", "AI agent", "Python", "YAML", "composer", "getting started", "LLM agent", "tool calling"]
 ---
 
-```python
-import asyncio
-from langchain_anthropic import ChatAnthropic
-from langchain_core.tools import tool
+Pick the path that matches how you want to work. The YAML tab is the shortest route for most users — the SDK tab is for when you need full programmatic control.
 
-from orxhestra import LlmAgent, Runner, InMemorySessionService
-from orxhestra.events.event import Event, EventType
+<Tabs>
+  <Tab title="YAML (Composer)">
+    <Steps>
+      <Step title="Install">
+        ```bash
+        pip install 'orxhestra[cli,anthropic]'
+        export ANTHROPIC_API_KEY=sk-ant-...
+        ```
+      </Step>
 
-@tool
-def get_weather(city: str) -> str:
-    """Get the current weather for a city."""
-    return f"The weather in {city} is sunny and 22 degrees."
+      <Step title="Save orx.yaml">
+        ```yaml title="orx.yaml"
+        defaults:
+          model:
+            provider: anthropic
+            name: claude-opus-4-7
 
-agent = LlmAgent(
-    name="WeatherAgent",
-    model=ChatAnthropic(model="claude-haiku-4-5-20251001"),
-    tools=[get_weather],
-    instructions="You are a helpful weather assistant.",
-)
+        agents:
+          assistant:
+            type: llm
+            instructions: "You are a helpful weather assistant."
 
-runner = Runner(
-    agent=agent,
-    app_name="demo",
-    session_service=InMemorySessionService(),
-)
+        main_agent: assistant
+        ```
+      </Step>
 
-async def main():
-    async for event in runner.astream(
-        user_id="user-1",
-        session_id="session-1",
-        new_message="What's the weather in Copenhagen and Berlin?",
-    ):
-        if event.is_final_response():
-            print(event.text)
+      <Step title="Run it">
+        ```bash
+        orx orx.yaml
+        ```
 
-asyncio.run(main())
-```
+        Drops you into an interactive REPL with your agent as the root. Type a question, watch the stream. `/help` lists the slash commands; `/exit` when done.
+      </Step>
+    </Steps>
 
-<Tip>
-  ```bash
-  export ANTHROPIC_API_KEY=sk-ant-...
-  uv run python examples/basic_agent.py
-  ```
-</Tip>
+    <Tip>
+      Want to expose the same agent as an HTTP server?
+
+      ```bash
+      orx orx.yaml --serve -p 9000
+      ```
+
+      Serves A2A v1.0 JSON-RPC on `:9000`. See [Integrations → A2A](/integrations/a2a) for the wire format.
+    </Tip>
+
+    <Tip>
+      Want signed events and an audit log? Opt in with a single flag or YAML block:
+
+      ```bash
+      orx identity init --path ./keys/agent.key
+      orx orx.yaml --identity ./keys/agent.key
+      ```
+
+      The banner and `/session` command show the active signer DID. See [Composer → Identity, trust, and attestation](/composer/overview#identity-trust-and-attestation).
+    </Tip>
+  </Tab>
+
+  <Tab title="Python SDK">
+    ```bash
+    pip install 'orxhestra[anthropic]'
+    export ANTHROPIC_API_KEY=sk-ant-...
+    ```
+
+    ```python title="basic_agent.py"
+    import asyncio
+    from langchain_anthropic import ChatAnthropic
+    from langchain_core.tools import tool
+
+    from orxhestra import LlmAgent, Runner, InMemorySessionService
+
+
+    @tool
+    def get_weather(city: str) -> str:
+        """Get the current weather for a city."""
+        return f"The weather in {city} is sunny and 22 degrees."
+
+
+    agent = LlmAgent(
+        name="WeatherAgent",
+        model=ChatAnthropic(model="claude-opus-4-7"),
+        tools=[get_weather],
+        instructions="You are a helpful weather assistant.",
+    )
+
+    runner = Runner(
+        agent=agent,
+        app_name="demo",
+        session_service=InMemorySessionService(),
+    )
+
+
+    async def main():
+        async for event in runner.astream(
+            user_id="user-1",
+            session_id="session-1",
+            new_message="What's the weather in Copenhagen and Berlin?",
+        ):
+            if event.is_final_response():
+                print(event.text)
+
+
+    asyncio.run(main())
+    ```
+
+    ```bash
+    uv run python basic_agent.py
+    ```
+  </Tab>
+</Tabs>
+
+## Next steps
+
+<Cards>
+  <Card title="Compose a team" icon="wand-magic-sparkles" href="/composer/overview">
+    Multi-agent YAML with loops, parallel fan-out, and transfer routing.
+  </Card>
+  <Card title="Agent types" icon="sitemap" href="/concepts/agents">
+    LlmAgent, ReActAgent, and the four composite wrappers.
+  </Card>
+  <Card title="Tools" icon="wrench" href="/tools/overview">
+    Function tools, filesystem, shell, MCP, and custom tool types.
+  </Card>
+  <Card title="Trust & audit" icon="shield-check" href="/composer/overview#identity-trust-and-attestation">
+    Sign events, verify peers, persist audit logs — all opt-in.
+  </Card>
+</Cards>

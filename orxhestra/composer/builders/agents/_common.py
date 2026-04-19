@@ -1,9 +1,11 @@
-"""Shared builder logic for LLM-based agents (LlmAgent, ReActAgent)."""
+"""Shared builder logic — common helpers for LLM-based and composite agents."""
 
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
+from orxhestra.agents.base_agent import BaseAgent
+from orxhestra.composer.errors import ComposerError
 from orxhestra.composer.schema import AgentDef, ComposeSpec, PlannerDef
 
 if TYPE_CHECKING:
@@ -141,6 +143,69 @@ async def resolve_llm_kwargs(
         kwargs["tools"] = [*existing, *skill_tools]
 
     return kwargs
+
+
+async def build_composite(
+    name: str,
+    agent_def: AgentDef,
+    *,
+    helpers: Helpers,
+    agent_cls: type[BaseAgent],
+    kind: str,
+    extra_kwargs: dict[str, Any] | None = None,
+) -> BaseAgent:
+    """Shared construction path for composite agents.
+
+    ``SequentialAgent`` and ``ParallelAgent`` build identically: validate
+    that an ``agents`` list was provided, recursively build every
+    referenced sub-agent, then instantiate the target class with
+    ``name``, ``agents``, and ``description``.  ``LoopAgent`` follows the
+    same shape plus a small set of extra kwargs (``max_iterations`` /
+    ``should_continue``).  Factor the path out here so every composite
+    builder stays a thin one-liner.
+
+    Parameters
+    ----------
+    name : str
+        Agent name from the YAML spec.
+    agent_def : AgentDef
+        Parsed agent definition — must carry a non-empty ``agents`` list.
+    helpers : Helpers
+        Builder dependency bag; only ``build_agent`` is used.
+    agent_cls : type[BaseAgent]
+        The composite class to instantiate (``SequentialAgent``,
+        ``ParallelAgent``, ``LoopAgent``).
+    kind : str
+        Human-readable agent-type label used in the error message when
+        ``agents`` is missing (e.g. ``"sequential"``).
+    extra_kwargs : dict[str, Any], optional
+        Additional keyword arguments forwarded to ``agent_cls`` — used
+        by ``LoopAgent`` to pass ``max_iterations`` and optional
+        ``should_continue``.
+
+    Returns
+    -------
+    BaseAgent
+        The constructed composite agent.
+
+    Raises
+    ------
+    ComposerError
+        When ``agent_def.agents`` is missing or empty.
+    """
+    if not agent_def.agents:
+        msg = f"{kind} agent '{name}' must have an 'agents' list"
+        raise ComposerError(msg)
+
+    sub_agents = [await helpers.build_agent(n) for n in agent_def.agents]
+    kwargs: dict[str, Any] = {
+        "name": name,
+        "agents": sub_agents,
+        "description": agent_def.description,
+    }
+    if extra_kwargs:
+        kwargs.update(extra_kwargs)
+    return agent_cls(**kwargs)
 
 
 def _build_planner(planner_def: PlannerDef) -> BasePlanner:

@@ -1,4 +1,29 @@
-"""Abstract session service interface."""
+"""Abstract session service — the persistence seam for conversations.
+
+Implementations store and retrieve :class:`Session` objects along
+with the event log each session carries.  The runner calls into this
+interface on every turn; any async backend that can round-trip a
+:class:`Session` works (SQL, key/value stores, cloud databases).
+
+:meth:`BaseSessionService.append_event` provides a default
+implementation that applies ``event.actions.state_delta`` to the
+session and appends the event — subclasses only need to implement
+the five abstract methods (``create_session``, ``get_session``,
+``update_session``, ``delete_session``, ``list_sessions``) unless
+they want to override persistence of append semantics.
+
+Built-in backends:
+
+- :class:`~orxhestra.sessions.in_memory_session_service.InMemorySessionService` —
+  dict-backed, process-local.
+- :class:`~orxhestra.sessions.database_session_service.DatabaseSessionService` —
+  SQLAlchemy async backend (SQLite, Postgres, MySQL, ...).
+
+See Also
+--------
+orxhestra.sessions.session.Session : The unit this service stores.
+orxhestra.runner.Runner : Primary consumer.
+"""
 
 from __future__ import annotations
 

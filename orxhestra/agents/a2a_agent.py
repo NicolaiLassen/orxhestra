@@ -23,6 +23,9 @@ A2AStatus = dict[str, Any]
 A2ATask = dict[str, Any]
 A2AResponse = dict[str, Any]
 
+_Ed25519PrivateKey = Any
+_DidResolver = Any
+
 
 class A2AAgent(BaseAgent):
     """Agent that delegates to a remote A2A v1.0 server over HTTP.
@@ -39,6 +42,20 @@ class A2AAgent(BaseAgent):
         (e.g. ``"http://localhost:9000"``).
     description : str
         Description used for routing decisions.
+    signing_key : Ed25519PrivateKey, optional
+        When set, outgoing A2A messages are signed with this key and
+        the server's :class:`AgentCard` is used to verify responses.
+        Requires ``orxhestra[auth]``.
+    signing_did : str
+        DID matching ``signing_key``.  Attached to each signed
+        message.
+    require_signed_response : bool
+        When ``True``, responses from the remote server that lack a
+        valid signature raise :class:`RuntimeError`.  Defaults to
+        ``False`` for back-compat with unsigned peers.
+    resolver : DidResolver, optional
+        Resolver used to verify response signatures.  Defaults to a
+        :class:`CompositeResolver` covering ``did:key``.
 
     See Also
     --------
@@ -46,6 +63,7 @@ class A2AAgent(BaseAgent):
     AgentCard : Remote card the server publishes for discovery.
     Message : A2A-wire message type sent on each turn.
     Task : Remote task wrapping the message execution.
+    orxhestra.a2a.signing : Signature helpers used on the wire.
 
     Examples
     --------
@@ -63,9 +81,21 @@ class A2AAgent(BaseAgent):
         name: str,
         url: str,
         description: str = "",
+        *,
+        signing_key: _Ed25519PrivateKey | None = None,
+        signing_did: str = "",
+        require_signed_response: bool = False,
+        resolver: _DidResolver | None = None,
     ) -> None:
-        super().__init__(name=name, description=description)
+        super().__init__(
+            name=name,
+            description=description,
+            signing_key=signing_key,
+            signing_did=signing_did,
+        )
         self.url: str = url.rstrip("/")
+        self.require_signed_response = require_signed_response
+        self._resolver = resolver
 
     async def astream(
         self,
@@ -106,7 +136,31 @@ class A2AAgent(BaseAgent):
         yield self._emit_event(ctx, EventType.AGENT_END)
 
     async def _send_message(self, text: str) -> str:
-        """Send a ``SendMessage`` JSON-RPC request and return the answer."""
+        """Send a ``SendMessage`` JSON-RPC request and return the answer.
+
+        When :attr:`signing_key` is set, the outgoing message is
+        signed via :func:`orxhestra.a2a.signing.sign_message`.  When
+        :attr:`require_signed_response` is true, the returned agent
+        message is verified before its text is extracted.
+
+        Parameters
+        ----------
+        text : str
+            Body of the outgoing user message.
+
+        Returns
+        -------
+        str
+            Plain text of the remote agent's reply.
+
+        Raises
+        ------
+        ImportError
+            If ``httpx`` is not installed.
+        RuntimeError
+            If ``require_signed_response`` is set and the response
+            message is unsigned or the signature fails to verify.
+        """
         try:
             import httpx
         except ImportError:
@@ -114,18 +168,29 @@ class A2AAgent(BaseAgent):
                 "A2AAgent requires httpx. Install with: pip install httpx"
             ) from None
 
-        message: A2AMessage = {
-            "messageId": str(uuid4()),
-            "role": "user",
-            "parts": [{"text": text, "mediaType": "text/plain"}],
-        }
+        from orxhestra.a2a.types import Message as A2AMessageModel
+        from orxhestra.a2a.types import Part as A2APartModel
+        from orxhestra.a2a.types import Role
+
+        message_model = A2AMessageModel(
+            message_id=str(uuid4()),
+            role=Role.USER,
+            parts=[A2APartModel(text=text, media_type="text/plain")],
+        )
+
+        if self.signing_key is not None and self.signing_did:
+            from orxhestra.a2a.signing import sign_message as sign_a2a_message
+
+            message_model = sign_a2a_message(
+                message_model, self.signing_key, self.signing_did,
+            )
 
         payload: dict[str, Any] = {
             "jsonrpc": "2.0",
             "id": 1,
             "method": "SendMessage",
             "params": {
-                "message": message,
+                "message": message_model.model_dump(by_alias=True, exclude_none=True),
             },
         }
 
@@ -141,7 +206,56 @@ class A2AAgent(BaseAgent):
             resp.raise_for_status()
             data: A2AResponse = resp.json()
 
+        if self.require_signed_response:
+            await self._verify_response(data)
+
         return self._extract_answer(data)
+
+    async def _verify_response(self, data: A2AResponse) -> None:
+        """Raise ``RuntimeError`` when the response lacks a valid signature.
+
+        Walks the JSON-RPC result looking for the agent's
+        ``status.message`` (or direct ``message``) and verifies it via
+        :func:`orxhestra.a2a.signing.verify_message`.
+
+        Parameters
+        ----------
+        data : dict[str, Any]
+            Parsed JSON-RPC response body.
+
+        Raises
+        ------
+        RuntimeError
+            If no agent message is present or signature verification
+            fails.
+        """
+        from orxhestra.a2a.signing import verify_message as verify_a2a_message
+        from orxhestra.a2a.types import Message as A2AMessageModel
+
+        resolver = self._resolver
+        if resolver is None:
+            from orxhestra.security.did import DidKeyResolver
+
+            resolver = DidKeyResolver()
+            self._resolver = resolver
+
+        result = data.get("result", {}) or {}
+        raw_message = result.get("message")
+        if raw_message is None:
+            status = (result.get("status") or {}) if isinstance(result, dict) else {}
+            raw_message = status.get("message")
+
+        if raw_message is None:
+            raise RuntimeError(
+                "A2AAgent require_signed_response=True but response has no agent message."
+            )
+
+        message = A2AMessageModel.model_validate(raw_message)
+        if not await verify_a2a_message(message, resolver):
+            raise RuntimeError(
+                "A2AAgent response signature missing or invalid; "
+                "refusing to accept under require_signed_response=True."
+            )
 
     @staticmethod
     def _extract_answer(data: A2AResponse) -> str:

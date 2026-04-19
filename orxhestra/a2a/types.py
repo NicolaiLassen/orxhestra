@@ -18,13 +18,38 @@ from pydantic import BaseModel, Field
 
 
 def _to_camel(name: str) -> str:
-    """Convert snake_case to camelCase."""
+    """Convert a ``snake_case`` identifier to ``camelCase``.
+
+    Used as the :mod:`pydantic` alias generator for
+    :class:`A2AModel` so models serialise with the camelCase field
+    names the A2A wire format expects.
+
+    Parameters
+    ----------
+    name : str
+        A ``snake_case`` field name.
+
+    Returns
+    -------
+    str
+        The ``camelCase`` equivalent.  Single-word names pass through
+        unchanged.
+    """
     parts = name.split("_")
     return parts[0] + "".join(p.capitalize() for p in parts[1:])
 
 
 class A2AModel(BaseModel):
-    """Base for all A2A models with camelCase alias support."""
+    """Base class for every A2A wire type in orxhestra.
+
+    Enables population by either Python (snake_case) or JSON
+    (camelCase) names and sets :func:`_to_camel` as the alias
+    generator so every field serialises in camelCase for the wire.
+
+    See Also
+    --------
+    _to_camel : Alias function used by this model.
+    """
 
     model_config = {"populate_by_name": True, "alias_generator": _to_camel}
 
@@ -32,9 +57,34 @@ class A2AModel(BaseModel):
 
 
 class Part(A2AModel):
-    """A2A v1.0 Part — exactly one of text/raw/url/data must be set.
+    """A2A v1.0 :class:`Part` — a single content chunk on a :class:`Message`.
 
-    Common fields ``media_type`` and ``filename`` apply to any content type.
+    Exactly one of ``text``, ``raw``, ``url``, or ``data`` must be
+    set.  The common ``media_type`` and ``filename`` fields apply to
+    any content type.
+
+    Attributes
+    ----------
+    text : str, optional
+        Plain text content when the part is textual.
+    raw : str, optional
+        Base64-encoded binary payload.
+    url : str, optional
+        URL pointing to an external payload.
+    data : dict[str, Any], optional
+        Structured JSON-serializable payload.
+    media_type : str, optional
+        MIME type of the payload.
+    filename : str, optional
+        Original filename, for binary and URL parts.
+    metadata : dict[str, Any], optional
+        Arbitrary implementation-specific metadata.
+
+    See Also
+    --------
+    text_part : Helper constructor for ``text`` parts.
+    file_part : Helper constructor for binary / URL parts.
+    data_part : Helper constructor for structured ``data`` parts.
     """
 
     text: str | None = None
@@ -113,7 +163,19 @@ def data_part(data: dict[str, Any], media_type: str = "application/json") -> Par
 
 
 class Role(str, Enum):
-    """A2A v1.0 Message roles per spec."""
+    """A2A v1.0 message role — who produced the :class:`Message`.
+
+    Values
+    ------
+    USER
+        The message originated from a human or upstream caller.
+    AGENT
+        The message was produced by an agent (local or remote).
+
+    See Also
+    --------
+    Message.role : Field that carries this value on the wire.
+    """
 
     USER = "user"
     AGENT = "agent"
@@ -283,7 +345,30 @@ class Task(A2AModel):
 
 
 class TaskStatusUpdateEvent(A2AModel):
-    """A2A v1.0 TaskStatusUpdateEvent."""
+    """A2A v1.0 streaming event — a change in :class:`TaskStatus`.
+
+    Emitted by ``SendStreamingMessage`` whenever a task transitions
+    to a new state or surfaces a progress message.
+
+    Attributes
+    ----------
+    task_id : str
+        Task whose status is changing.
+    context_id : str
+        Conversation context the task belongs to.
+    status : TaskStatus
+        New status snapshot (state + optional message + timestamp).
+    final : bool
+        When ``True``, no further status updates will be emitted for
+        this task.  Used by clients to close the stream.
+    metadata : dict[str, Any], optional
+        Arbitrary implementation-specific metadata.
+
+    See Also
+    --------
+    TaskArtifactUpdateEvent : Sibling event for artifact deltas.
+    events_to_a2a_stream : Produces these events from SDK events.
+    """
 
     task_id: str
     context_id: str
@@ -293,7 +378,33 @@ class TaskStatusUpdateEvent(A2AModel):
 
 
 class TaskArtifactUpdateEvent(A2AModel):
-    """A2A v1.0 TaskArtifactUpdateEvent."""
+    """A2A v1.0 streaming event — an :class:`Artifact` delta for a task.
+
+    Emitted by ``SendStreamingMessage`` when an agent produces a
+    piece of final output (answer, tool result).  Streamed in chunks
+    with ``append`` / ``last_chunk`` flags.
+
+    Attributes
+    ----------
+    task_id : str
+        Task the artifact belongs to.
+    context_id : str
+        Conversation context the task belongs to.
+    artifact : Artifact
+        Artifact payload (new or extending an earlier chunk).
+    append : bool, optional
+        When ``True``, ``artifact.parts`` extend the previously sent
+        chunk rather than replacing it.
+    last_chunk : bool, optional
+        When ``True``, this is the final chunk for the artifact.
+    metadata : dict[str, Any], optional
+        Arbitrary implementation-specific metadata.
+
+    See Also
+    --------
+    TaskStatusUpdateEvent : Sibling event for status transitions.
+    Artifact : The payload carried by this event.
+    """
 
     task_id: str
     context_id: str
@@ -306,7 +417,15 @@ class TaskArtifactUpdateEvent(A2AModel):
 
 
 class AgentProvider(A2AModel):
-    """Agent provider information."""
+    """Organization responsible for hosting an agent.
+
+    Attributes
+    ----------
+    organization : str
+        Human-readable organization name.
+    url : str
+        URL to the organization's home page or documentation.
+    """
 
     organization: str
     url: str
@@ -361,12 +480,55 @@ class AgentCapabilities(A2AModel):
 
 
 class AgentInterface(A2AModel):
-    """A2A v1.0 AgentInterface — protocol binding endpoint."""
+    """A2A v1.0 :class:`AgentInterface` — a protocol binding endpoint.
+
+    Describes one way the agent can be reached.  An :class:`AgentCard`
+    typically advertises a single :class:`AgentInterface`, but may
+    advertise several for multi-tenant deployments.
+
+    Attributes
+    ----------
+    url : str
+        URL where the binding is reachable.
+    protocol_binding : str
+        Wire format.  Currently ``"JSONRPC"``.
+    protocol_version : str
+        Spec version the endpoint implements.  ``"1.0"`` for A2A v1.
+    tenant : str, optional
+        Tenant identifier for multi-tenant deployments.
+    """
 
     url: str
     protocol_binding: str = "JSONRPC"
     protocol_version: str = "1.0"
     tenant: str | None = None
+
+
+class VerificationMethod(A2AModel):
+    """W3C DID Core verification method advertised on an :class:`AgentCard`.
+
+    Allows A2A peers to cryptographically identify the server that
+    published the card.  Consumers resolve this via
+    :class:`orxhestra.security.did.DidResolver`.
+
+    Attributes
+    ----------
+    id : str
+        Fully-qualified verification method identifier, typically
+        ``"<did>#<fragment>"``.
+    type : str
+        Key type.  ``"Ed25519VerificationKey2020"`` for the keys
+        orxhestra produces.
+    controller : str
+        DID that owns this key.
+    public_key_multibase : str
+        Multibase-encoded public key (z-prefixed base58btc).
+    """
+
+    id: str
+    type: str = "Ed25519VerificationKey2020"
+    controller: str
+    public_key_multibase: str
 
 
 class AgentCard(A2AModel):
@@ -397,6 +559,14 @@ class AgentCard(A2AModel):
         Link to agent documentation.
     icon_url : str, optional
         Link to an icon displayed in clients.
+    controller : str, optional
+        DID of the entity controlling this agent.  Populated when the
+        server has a signing identity configured.  Peers use this to
+        resolve the matching :class:`VerificationMethod`.
+    verification_method : list[VerificationMethod], optional
+        Ed25519 keys peers can use to verify signed messages from the
+        server.  Populated when the server has a signing identity
+        configured.
     """
 
     name: str
@@ -414,12 +584,26 @@ class AgentCard(A2AModel):
     provider: AgentProvider | None = None
     documentation_url: str | None = None
     icon_url: str | None = None
+    controller: str | None = None
+    verification_method: list[VerificationMethod] | None = None
 
 
 
 
 class JSONRPCError(A2AModel):
-    """JSON-RPC 2.0 error object."""
+    """JSON-RPC 2.0 error object attached to an error :class:`JSONRPCResponse`.
+
+    Attributes
+    ----------
+    code : int
+        Numeric error code.  See :class:`A2AErrorCode` for the
+        A2A-specific values.
+    message : str
+        Short human-readable error message.
+    data : Any, optional
+        Free-form error payload (stack trace excerpts, offending
+        parameter, etc.).
+    """
 
     code: int
     message: str
@@ -427,7 +611,19 @@ class JSONRPCError(A2AModel):
 
 
 class JSONRPCRequest(A2AModel):
-    """JSON-RPC 2.0 request."""
+    """JSON-RPC 2.0 request envelope sent to an A2A server.
+
+    Attributes
+    ----------
+    jsonrpc : str
+        Protocol marker, always ``"2.0"``.
+    id : str or int
+        Correlation id echoed on the response.
+    method : str
+        RPC method name (``"SendMessage"``, ``"GetTask"``, ...).
+    params : dict[str, Any], optional
+        Method-specific parameters.
+    """
 
     jsonrpc: Literal["2.0"] = "2.0"
     id: str | int
@@ -436,7 +632,19 @@ class JSONRPCRequest(A2AModel):
 
 
 class JSONRPCResponse(A2AModel):
-    """JSON-RPC 2.0 response."""
+    """JSON-RPC 2.0 response envelope returned by an A2A server.
+
+    Attributes
+    ----------
+    jsonrpc : str
+        Protocol marker, always ``"2.0"``.
+    id : str or int
+        Correlation id echoed from the originating request.
+    result : Any, optional
+        Successful result payload.  Mutually exclusive with ``error``.
+    error : JSONRPCError, optional
+        Error detail when the call failed.
+    """
 
     jsonrpc: Literal["2.0"] = "2.0"
     id: str | int
@@ -447,7 +655,20 @@ class JSONRPCResponse(A2AModel):
 
 
 class SendMessageConfiguration(A2AModel):
-    """A2A v1.0 SendMessageConfiguration."""
+    """Per-call send options for ``SendMessage`` / ``SendStreamingMessage``.
+
+    Attributes
+    ----------
+    accepted_output_modes : list[str], optional
+        Output MIME types the caller will accept.  Overrides the
+        agent card's ``default_output_modes`` for this call.
+    history_length : int, optional
+        Maximum number of prior messages to include in the task
+        ``history`` field.
+    return_immediately : bool, optional
+        When ``True``, the server returns the newly created task
+        without waiting for completion.
+    """
 
     accepted_output_modes: list[str] | None = None
     history_length: int | None = None
@@ -455,7 +676,17 @@ class SendMessageConfiguration(A2AModel):
 
 
 class MessageSendParams(A2AModel):
-    """Parameters for SendMessage / SendStreamingMessage."""
+    """Parameter object for ``SendMessage`` / ``SendStreamingMessage``.
+
+    Attributes
+    ----------
+    message : Message
+        The message to deliver to the agent.
+    configuration : SendMessageConfiguration, optional
+        Per-call overrides.
+    metadata : dict[str, Any], optional
+        Arbitrary implementation-specific metadata.
+    """
 
     message: Message
     configuration: SendMessageConfiguration | None = None
@@ -463,14 +694,31 @@ class MessageSendParams(A2AModel):
 
 
 class TaskQueryParams(A2AModel):
-    """Parameters for GetTask."""
+    """Parameter object for ``GetTask``.
+
+    Attributes
+    ----------
+    id : str
+        Task identifier to fetch.
+    history_length : int, optional
+        Maximum number of messages to include in the returned
+        ``task.history``.
+    """
 
     id: str
     history_length: int | None = None
 
 
 class TaskIdParams(A2AModel):
-    """Parameters for CancelTask."""
+    """Parameter object for ``CancelTask``.
+
+    Attributes
+    ----------
+    id : str
+        Task identifier to cancel.
+    metadata : dict[str, Any], optional
+        Arbitrary implementation-specific metadata.
+    """
 
     id: str
     metadata: dict[str, Any] | None = None
@@ -479,7 +727,46 @@ class TaskIdParams(A2AModel):
 
 
 class A2AErrorCode:
-    """A2A v1.0 JSON-RPC error codes."""
+    """A2A v1.0 JSON-RPC error codes.
+
+    Groups the standard JSON-RPC codes (``-32700`` through
+    ``-32603``) with the A2A-specific extensions (``-32001`` through
+    ``-32009``) per the v1.0 spec.  Values are class attributes so
+    they can be referenced as ``A2AErrorCode.TASK_NOT_FOUND`` without
+    instantiating.
+
+    Attributes
+    ----------
+    PARSE_ERROR : int
+        JSON could not be parsed.
+    INVALID_REQUEST : int
+        JSON-RPC envelope is malformed.
+    METHOD_NOT_FOUND : int
+        Requested RPC method is not implemented.
+    INVALID_PARAMS : int
+        Parameters failed validation.
+    INTERNAL_ERROR : int
+        Unhandled server-side exception.
+    TASK_NOT_FOUND : int
+        ``GetTask`` / ``CancelTask`` referenced an unknown task.
+    TASK_NOT_CANCELABLE : int
+        ``CancelTask`` targeted a task in a terminal state.
+    PUSH_NOTIFICATION_NOT_SUPPORTED : int
+        Agent does not implement push notifications.
+    UNSUPPORTED_OPERATION : int
+        Operation not supported by this agent.
+    CONTENT_TYPE_NOT_SUPPORTED : int
+        A part's ``media_type`` is outside the agent's accepted set.
+    INVALID_AGENT_RESPONSE : int
+        Agent returned content that does not match the expected
+        schema.
+    EXTENDED_AGENT_CARD_NOT_CONFIGURED : int
+        Requested extended card metadata is not exposed.
+    EXTENSION_SUPPORT_REQUIRED : int
+        Message relies on an unsupported A2A extension.
+    VERSION_NOT_SUPPORTED : int
+        Client advertised a spec version the server cannot speak.
+    """
 
     # Standard JSON-RPC
     PARSE_ERROR = -32700

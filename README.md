@@ -1,7 +1,7 @@
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/NicolaiLassen/orxhestra/main/assets/lockup.svg">
-    <img src="https://raw.githubusercontent.com/NicolaiLassen/orxhestra/main/assets/lockup_light.svg" width="420" alt="orxhestra logo">
+    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/NicolaiLassen/orxhestra/main/assets/lockup_stacked.svg">
+    <img src="https://raw.githubusercontent.com/NicolaiLassen/orxhestra/main/assets/lockup_stacked_light.svg" width="240" alt="orxhestra logo">
   </picture>
 </p>
 

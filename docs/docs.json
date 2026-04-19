@@ -103,10 +103,6 @@
       "x": "https://x.com/orxhestra"
     }
   },
-  "banner": {
-    "content": "",
-    "dismissible": true
-  },
   "contextual": {
     "options": ["copy", "view", "chatgpt", "claude"]
   },
@@ -114,12 +110,6 @@
     "thumbsRating": true,
     "suggestEdit": true,
     "raiseIssue": true
-  },
-  "integrations": {
-    "_analytics_note": "Remove this key and populate one of the provider blocks below to enable analytics.",
-    "_plausible_example": { "domain": "orxhestra.com" },
-    "_ga4_example": { "measurementId": "G-XXXXXXXXXX" },
-    "_posthog_example": { "apiKey": "phc_xxx", "apiHost": "https://us.i.posthog.com" }
   },
   "seo": {
     "metatags": {

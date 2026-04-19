@@ -651,9 +651,10 @@ def main() -> None:
 
     # Distribute to docs (Mintlify) and assets (raw GitHub URL).
     distributables = (
-        "icon.svg", "lockup.svg", "favicon.svg", "mark.svg",
-        "icon_light.svg", "lockup_light.svg", "favicon_light.svg",
-        "icon_black.svg", "lockup_black.svg",
+        "icon.svg", "lockup.svg", "lockup_stacked.svg", "favicon.svg", "mark.svg",
+        "icon_light.svg", "lockup_light.svg", "lockup_stacked_light.svg",
+        "favicon_light.svg",
+        "icon_black.svg", "lockup_black.svg", "lockup_stacked_black.svg",
     )
     for fname in distributables:
         shutil.copy(BRAND / fname, DOCS_IMAGES / fname)

@@ -438,7 +438,7 @@ def orx_repl(
                 cur_line, cur_col = len(buf_lines) - 1, len(buf_lines[-1])
             if cur_line > 0:
                 target_col = min(cur_col, len(buf_lines[cur_line - 1]))
-                offset = sum(len(l) + 1 for l in buf_lines[:cur_line - 1]) + target_col
+                offset = sum(len(ln) + 1 for ln in buf_lines[:cur_line - 1]) + target_col
                 set_cursor(offset)
                 return
         if key.down_arrow and "\n" in buf:
@@ -454,7 +454,7 @@ def orx_repl(
                 cur_line, cur_col = len(buf_lines) - 1, len(buf_lines[-1])
             if cur_line < len(buf_lines) - 1:
                 target_col = min(cur_col, len(buf_lines[cur_line + 1]))
-                offset = sum(len(l) + 1 for l in buf_lines[:cur_line + 1]) + target_col
+                offset = sum(len(ln) + 1 for ln in buf_lines[:cur_line + 1]) + target_col
                 set_cursor(offset)
                 return
 

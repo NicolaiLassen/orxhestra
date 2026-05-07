@@ -335,22 +335,10 @@ def orx_repl(
                 ac_idx.current = 0
             return
 
-        # Multi-line newline insert. Different terminals send wildly
-        # different bytes for "modified Enter":
-        #   - kitty/ghostty (with kitty keyboard protocol): key.shift
-        #     gets set on the parsed Enter.
-        #   - iTerm2 with "Send Esc+" or Terminal.app with "Use Option
-        #     as Meta key": Alt/Option+Enter sends "\x1b\r".
-        #   - Some emit "\x1bOM" (xterm SS3 enter).
-        #   - Kitty CSI u format: "\x1b[13;<mod>u" for modified Enter.
-        # Universal fallback: type "\" then press Enter — the trailing
-        # backslash is replaced with a newline (popular in shells).
-        # Note: do NOT include key.ctrl here. Some terminals (including
-        # VS Code's integrated terminal in certain configs) send "\n"
-        # for plain Enter; pyink 1.1.16+ disambiguates that from \r by
-        # setting key.ctrl, but treating ctrl+return as newline-insert
-        # would then break plain Enter submit. Use "\Enter" as the
-        # universal newline shortcut instead.
+        # Newline insert: accept whatever modifier+Enter sequence the
+        # terminal sends. Ctrl is intentionally NOT a trigger — some
+        # terminals send "\n" for plain Enter and pyink can't always
+        # distinguish that from Ctrl+J at the byte level.
         is_modified_enter = (
             (key.return_key and (key.shift or key.meta))
             or ch in ("\x1b\r", "\x1b\n", "\x1bOM")

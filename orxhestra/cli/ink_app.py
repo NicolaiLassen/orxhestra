@@ -345,8 +345,14 @@ def orx_repl(
         #   - Kitty CSI u format: "\x1b[13;<mod>u" for modified Enter.
         # Universal fallback: type "\" then press Enter — the trailing
         # backslash is replaced with a newline (popular in shells).
+        # Note: do NOT include key.ctrl here. Some terminals (including
+        # VS Code's integrated terminal in certain configs) send "\n"
+        # for plain Enter; pyink 1.1.16+ disambiguates that from \r by
+        # setting key.ctrl, but treating ctrl+return as newline-insert
+        # would then break plain Enter submit. Use "\Enter" as the
+        # universal newline shortcut instead.
         is_modified_enter = (
-            (key.return_key and (key.shift or key.meta or key.ctrl))
+            (key.return_key and (key.shift or key.meta))
             or ch in ("\x1b\r", "\x1b\n", "\x1bOM")
             or (ch and ch.startswith("\x1b[13;") and ch.endswith("u"))
         )

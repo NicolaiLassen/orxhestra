@@ -47,7 +47,7 @@ Identity / trust / attestation (opt-in, requires ``orxhestra[auth]``)::
     )
 """
 
-__version__ = "0.1.6"
+__version__ = "0.1.7"
 
 from orxhestra.agents import (
     AgentConfig,

@@ -66,18 +66,21 @@ def _build_input_model(tool_name: str, json_schema: dict[str, Any]) -> type[Base
     return create_model(f"{tool_name}Input", **fields)
 
 
-def _json_type_to_python(json_type: str) -> type:
-    """Map a JSON Schema type string to a Python type.
+def _json_type_to_python(json_type: str | list[str]) -> type:
+    """Map a JSON Schema type to a Python type.
 
     Parameters
     ----------
-    json_type : str
-        A JSON Schema primitive type name.
+    json_type : str or list[str]
+        A JSON Schema primitive type name, or the array-of-types form
+        (``["string", "null"]``) that draft-07+ uses to express nullable
+        or union-typed fields.
 
     Returns
     -------
     type
-        The corresponding Python type, defaulting to str.
+        The corresponding Python type. Lists collapse to their first
+        non-"null" entry; unknown types default to ``str``.
     """
     mapping = {
         "string": str,
@@ -87,6 +90,11 @@ def _json_type_to_python(json_type: str) -> type:
         "array": list,
         "object": dict,
     }
+    if isinstance(json_type, list):
+        non_null = [t for t in json_type if t != "null"]
+        if not non_null:
+            return type(None)
+        json_type = non_null[0]
     return mapping.get(json_type, str)
 
 

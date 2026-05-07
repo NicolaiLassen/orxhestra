@@ -38,12 +38,17 @@ class LiveHandle(Protocol):
     Attributes
     ----------
     update : callable
-        Replace the live region content with a new renderable.
+        Replace the live region content with a new Rich renderable.
+    update_text : callable
+        Submit the cumulative buffer text + markdown class. Preferred
+        for streaming so the implementation can window/throttle/spill
+        without the caller knowing.
     stop : callable
         End the live region, optionally freezing content to history.
     """
 
     def update(self, renderable: Any) -> None: ...
+    def update_text(self, text: str, markdown_cls: type) -> None: ...
     def stop(self, *, keep: bool = True) -> None: ...
 
 
@@ -119,6 +124,43 @@ class Writer(Protocol):
         ...
 
 
+# Bounds for the live streaming region. Keep per-frame layout work
+# constant regardless of total response length. See _StreamRenderer.
+_STREAM_TAIL_LINES = 80
+_SPILL_THRESHOLD = 400
+_MAX_LINE_CHARS = 2000
+_RENDER_INTERVAL = 1.0 / 12
+
+
+def _soft_wrap_long_lines(text: str, max_chars: int = _MAX_LINE_CHARS) -> str:
+    """Break pathologically long single lines (e.g. minified JSON).
+
+    Yoga layout cost grows with the longest line; uncapped lines can
+    starve the pyink render loop. Splits at the last whitespace inside
+    the chunk when possible, falls back to a hard cut otherwise.
+    """
+    out: list[str] = []
+    for line in text.split("\n"):
+        if len(line) <= max_chars:
+            out.append(line)
+            continue
+        i = 0
+        while i < len(line):
+            end = i + max_chars
+            if end >= len(line):
+                out.append(line[i:])
+                break
+            chunk = line[i:end]
+            ws = chunk.rfind(" ")
+            if ws > max_chars // 2:
+                out.append(chunk[:ws])
+                i += ws + 1
+            else:
+                out.append(chunk)
+                i = end
+    return "\n".join(out)
+
+
 def rich_to_ansi(console: Console, *args: Any, **kwargs: Any) -> str:
     """Render Rich content to a raw ANSI string.
 
@@ -189,6 +231,11 @@ class _ConsoleLive:
         """Replace the live display content."""
         if self._live:
             self._live.update(renderable)
+
+    def update_text(self, text: str, markdown_cls: type) -> None:
+        """Replace the live content with ``markdown_cls(text)``."""
+        if self._live:
+            self._live.update(markdown_cls(text))
 
     def stop(self, *, keep: bool = True) -> None:
         """Stop the live display."""
@@ -299,15 +346,150 @@ class _InkSpinnerHandle:
         self._set_spinner_text("")
 
 
+class _StreamRenderer:
+    """Background thread converting markdown to ANSI off the worker.
+
+    Keeps the agent worker thread free of Rich rendering cost. Holds a
+    single-slot mailbox: the producer overwrites the latest
+    ``(text, markdown_cls)`` and notifies; the scheduler wakes up to
+    every ``_RENDER_INTERVAL`` seconds, takes the slot, converts, and
+    pushes to pyink state.
+
+    Spill-to-history: when accumulated text exceeds ``_SPILL_THRESHOLD``
+    lines, older content is frozen as immutable history items and
+    dropped from the live tail. This bounds per-frame layout work so the
+    pyink input handler (including Ctrl+C) is never starved.
+
+    Lock discipline: the mailbox lock is only held for O(1) slot
+    read/write — never around Rich conversion or state setters — so
+    the producer never blocks behind the renderer.
+    """
+
+    def __init__(
+        self,
+        set_stream: Callable,
+        set_history: Callable,
+        console: Console,
+    ) -> None:
+        import threading
+
+        self._set_stream = set_stream
+        self._set_history = set_history
+        self._console = console
+        self._cond = threading.Condition()
+        self._slot: tuple[str, type] | None = None
+        self._stopped = False
+        self._spilled_lines = 0
+        self._last_text = ""
+        self._last_markdown_cls: type | None = None
+        self._bullet_emitted = False
+        self._thread = threading.Thread(target=self._run, daemon=True)
+        self._thread.start()
+
+    def submit(self, text: str, markdown_cls: type) -> None:
+        """Producer: store latest text + markdown class; wake scheduler."""
+        with self._cond:
+            self._slot = (text, markdown_cls)
+            self._cond.notify()
+
+    def _run(self) -> None:
+        import time
+
+        while True:
+            with self._cond:
+                while self._slot is None and not self._stopped:
+                    self._cond.wait(timeout=_RENDER_INTERVAL)
+                if self._stopped and self._slot is None:
+                    return
+                slot = self._slot
+                self._slot = None
+                stopped_now = self._stopped
+
+            if slot is None:
+                continue
+            text, markdown_cls = slot
+            self._last_text = text
+            self._last_markdown_cls = markdown_cls
+
+            # Always run spill (updates _spilled_lines, may push to
+            # history) so stop()'s final flush stays bounded; but skip
+            # set_stream when we're already stopping — the worker is
+            # about to push the final tail to scrollback and clear the
+            # dynamic region in one batch, and any late set_stream
+            # would cause a flicker between the two frames.
+            visible = self._maybe_spill(text)
+            if not stopped_now:
+                try:
+                    wrapped = _soft_wrap_long_lines(visible)
+                    ansi = rich_to_ansi(self._console, markdown_cls(wrapped))
+                    self._set_stream(ansi)
+                except Exception:
+                    pass
+
+            if stopped_now:
+                return
+            time.sleep(_RENDER_INTERVAL)
+
+    def _maybe_spill(self, text: str) -> str:
+        """Freeze older content to history once the buffer is too large."""
+        all_lines = text.split("\n")
+        unspilled = all_lines[self._spilled_lines:]
+        if len(unspilled) <= _SPILL_THRESHOLD:
+            return "\n".join(unspilled)
+
+        keep = unspilled[-_STREAM_TAIL_LINES:]
+        spill = unspilled[:-_STREAM_TAIL_LINES]
+        spill_text = "\n".join(spill)
+        if self._last_markdown_cls is not None and spill_text.strip():
+            try:
+                wrapped = _soft_wrap_long_lines(spill_text)
+                ansi = rich_to_ansi(
+                    self._console, self._last_markdown_cls(wrapped),
+                )
+                if ansi:
+                    item_type = "response" if not self._bullet_emitted else "rich"
+                    self._set_history(
+                        lambda h, a=ansi, t=item_type: [
+                            *h, {"type": t, "ansi": a},
+                        ],
+                    )
+                    self._bullet_emitted = True
+            except Exception:
+                pass
+        self._spilled_lines += len(spill)
+        return "\n".join(keep)
+
+    def stop(self, *, keep: bool = True) -> tuple[str | None, str]:
+        """Stop the scheduler and return the final tail ANSI + item type."""
+        with self._cond:
+            self._stopped = True
+            self._cond.notify_all()
+        self._thread.join(timeout=0.5)
+
+        item_type = "response" if not self._bullet_emitted else "rich"
+        if not keep or self._last_markdown_cls is None:
+            return None, item_type
+        all_lines = self._last_text.split("\n")
+        tail_text = "\n".join(all_lines[self._spilled_lines:])
+        if not tail_text.strip():
+            return None, item_type
+        try:
+            wrapped = _soft_wrap_long_lines(tail_text)
+            return (
+                rich_to_ansi(self._console, self._last_markdown_cls(wrapped)),
+                item_type,
+            )
+        except Exception:
+            return None, item_type
+
+
 class _InkLiveHandle:
     """Live-updating region backed by pyink state.
 
-    Renders Rich content to ANSI and pushes it into the stream
-    buffer. Throttled to ``_MIN_INTERVAL`` to avoid excessive
-    re-renders during fast token streaming.
+    Delegates Rich→ANSI conversion to a background ``_StreamRenderer``
+    thread so the agent worker is never blocked by rendering, and
+    bounds per-frame layout work via spill-to-history.
     """
-
-    _MIN_INTERVAL = 1.0 / 12
 
     def __init__(
         self,
@@ -320,42 +502,55 @@ class _InkLiveHandle:
         self._set_phase = set_phase
         self._set_history = set_history
         self._console = console
-        self._last_renderable: Any = None
-        self._last_update = 0.0
+        self._renderer = _StreamRenderer(set_stream, set_history, console)
+        self._stopped = False
 
     def update(self, renderable: Any) -> None:
-        """Replace the stream content with a re-rendered *renderable*.
+        """Convert and push immediately. Used by non-streaming callers.
 
-        Throttled to ~12 FPS so pyink can keep up with fast tokens.
+        Streaming callers should prefer :meth:`update_text`.
         """
-        import time
-
-        self._last_renderable = renderable
-        now = time.monotonic()
-        if now - self._last_update < self._MIN_INTERVAL:
+        if self._stopped:
             return
-        self._last_update = now
-        ansi = rich_to_ansi(self._console, renderable)
-        self._set_stream(ansi)
+        try:
+            ansi = rich_to_ansi(self._console, renderable)
+            self._set_stream(ansi)
+        except Exception:
+            pass
+
+    def update_text(self, text: str, markdown_cls: type) -> None:
+        """Submit raw text + markdown class to the background renderer."""
+        if self._stopped:
+            return
+        self._renderer.submit(text, markdown_cls)
 
     def stop(self, *, keep: bool = True) -> None:
-        """End the live region.
+        """End the live region. Idempotent.
 
         Parameters
         ----------
         keep : bool
-            If True, render the final content through Rich and push
-            it to history as a ``"response"`` item with a bullet.
+            If True, push the final un-spilled tail into history as a
+            ``"response"`` (with bullet) or ``"rich"`` item depending on
+            whether earlier spill chunks already received the bullet.
+
+        Order matters here: the history append must precede the stream
+        clear so pyink's batched render shows the response transitioning
+        from the dynamic area into scrollback in a single frame, with
+        no blank-frame flicker.
         """
-        # Clear stream and phase first, then add to history.
-        # All three set_state calls batch into one render cycle
-        # (schedule_update only queues one call_soon_threadsafe).
+        if self._stopped:
+            return
+        self._stopped = True
+        final_ansi, item_type = self._renderer.stop(keep=keep)
+        if keep and final_ansi:
+            self._set_history(
+                lambda h, a=final_ansi, t=item_type: [
+                    *h, {"type": t, "ansi": a},
+                ],
+            )
         self._set_stream("")
         self._set_phase("idle")
-        if keep and self._last_renderable is not None:
-            ansi = rich_to_ansi(self._console, self._last_renderable)
-            if ansi:
-                self._set_history(lambda h: [*h, {"type": "response", "ansi": ansi}])
 
 
 class InkWriter:
@@ -401,6 +596,7 @@ class InkWriter:
         self._set_phase = set_phase
         self._console = console
         self._approval_callback = approval_callback
+        self._active_live: _InkLiveHandle | None = None
 
     def print_rich(self, *args: Any, item_type: str | None = None, **kwargs: Any) -> None:
         """Render Rich content and append to history.
@@ -445,16 +641,31 @@ class InkWriter:
         """
         self._set_phase("streaming")
         self._set_stream("")
-        return _InkLiveHandle(
+        handle = _InkLiveHandle(
             self._set_stream,
             self._set_phase,
             self._set_history,
             self._console,
         )
+        self._active_live = handle
+        return handle
 
     def stop_live(self, handle: _InkLiveHandle, *, keep: bool = True) -> None:
         """Stop the live region, optionally freezing content to history."""
         handle.stop(keep=keep)
+        if self._active_live is handle:
+            self._active_live = None
+
+    def cancel_live(self) -> None:
+        """Pre-empt any active live region without freezing it to history.
+
+        Called from the input handler on Ctrl+C so the renderer thread
+        stops pushing tokens immediately and the live tail clears.
+        """
+        handle = self._active_live
+        if handle is not None:
+            handle.stop(keep=False)
+            self._active_live = None
 
     async def prompt_input(self, label: str) -> str:
         """Prompt user for input via the selector UI.

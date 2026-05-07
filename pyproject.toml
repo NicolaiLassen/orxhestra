@@ -1,6 +1,6 @@
 [project]
 name = "orxhestra"
-version = "0.1.6"
+version = "0.1.7"
 description = "Multi-Agent Orchestration Framework for Python"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -50,7 +50,7 @@ auth = ["cryptography>=43.0", "base58>=2.1", "PyJWT>=2.8"]
 database = ["sqlalchemy[asyncio]>=2.0", "aiosqlite>=0.20"]
 mcp = ["fastmcp>=2.0.0"]
 composer = ["pyyaml>=6.0"]
-cli = ["rich>=13.0", "pyyaml>=6.0", "pyinklib>=1.1.15"]
+cli = ["rich>=13.0", "pyyaml>=6.0", "pyinklib>=1.1.17"]
 all = [
     "fastapi>=0.115.0",
     "langchain-openai>=1.1.11",
@@ -59,7 +59,7 @@ all = [
     "fastmcp>=2.0.0",
     "pyyaml>=6.0",
     "rich>=13.0",
-    "pyinklib>=1.1.15",
+    "pyinklib>=1.1.17",
     "sqlalchemy[asyncio]>=2.0",
     "aiosqlite>=0.20",
     "cryptography>=43.0",

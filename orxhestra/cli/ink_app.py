@@ -6,6 +6,7 @@ import asyncio
 import re as _re
 import shutil as _shutil
 import threading
+from collections import deque
 from typing import TYPE_CHECKING, Any
 
 from pyink import Box, Static, Text, component, render
@@ -181,6 +182,21 @@ def orx_repl(
     writer_ref = use_ref(None)
     ac_idx = use_ref(0)
 
+    # Pending message queue: messages typed while the agent is running
+    # are appended here and drained in FIFO order by _dispatch_agent
+    # once the current turn completes. Queued messages render as
+    # floating user lines in the dynamic area (between stream and
+    # input) — NOT in scrollback — so the in-flight response's final
+    # chunk is never committed after a queued user line. When the
+    # worker dequeues a message it pushes the user line into history
+    # at the correct moment.
+    pending_msgs = use_ref(deque())
+    queue_lock = use_ref(threading.Lock())
+    # Snapshot of pending_msgs for rendering. Lives in state (not ref)
+    # so mutations trigger a re-render. Updated under queue_lock so
+    # the snapshot and the deque can never disagree on order.
+    pending_view, set_pending_view = use_state(())
+
     app = use_app()
 
     if writer_ref.current is None:
@@ -293,7 +309,13 @@ def orx_repl(
 
         if key.ctrl and ch == "c":
             if running.current:
-                running.current = False
+                with queue_lock.current:
+                    pending_msgs.current.clear()
+                    set_pending_view(())
+                    running.current = False
+                w = writer_ref.current
+                if w is not None and hasattr(w, "cancel_live"):
+                    w.cancel_live()
                 set_phase("idle")
                 set_spinner_text("")
                 set_stream("")
@@ -311,6 +333,37 @@ def orx_repl(
                 set_buf(completed)
                 set_cursor(len(completed))
                 ac_idx.current = 0
+            return
+
+        # Newline insert: accept whatever modifier+Enter sequence the
+        # terminal sends. Ctrl is intentionally NOT a trigger — some
+        # terminals send "\n" for plain Enter and pyink can't always
+        # distinguish that from Ctrl+J at the byte level.
+        is_modified_enter = (
+            (key.return_key and (key.shift or key.meta))
+            or ch in ("\x1b\r", "\x1b\n", "\x1bOM")
+            or (ch and ch.startswith("\x1b[13;") and ch.endswith("u"))
+        )
+        backslash_enter = (
+            key.return_key
+            and not (key.shift or key.meta or key.ctrl)
+            and cursor > 0
+            and cursor <= len(buf)
+            and buf[cursor - 1] == "\\"
+            and not suggestions
+        )
+        if is_modified_enter:
+            pos = cursor
+            set_buf(lambda t, p=pos: t[:p] + "\n" + t[p:])
+            set_cursor(lambda c: c + 1)
+            ac_idx.current = 0
+            return
+        if backslash_enter:
+            # Replace the trailing "\" with a newline. Cursor stays at
+            # the same offset (was after "\", now after "\n").
+            pos = cursor
+            set_buf(lambda t, p=pos: t[:p - 1] + "\n" + t[p:])
+            ac_idx.current = 0
             return
 
         # Enter.
@@ -335,18 +388,30 @@ def orx_repl(
                     orx_path_ref.current, workspace_ref.current,
                     set_history, app,
                 )
-            elif not running.current:
+            else:
+                # Atomically check running state and either dispatch
+                # immediately or enqueue. Same lock the worker uses, so
+                # the producer never races with the consumer's drain
+                # path. Queued messages render in the floating dynamic
+                # area (via pending_view) — they get pushed into
+                # scrollback only when the worker actually dequeues
+                # them, so the previous turn's response is always fully
+                # committed before the next user line lands in history.
+                with queue_lock.current:
+                    if running.current:
+                        pending_msgs.current.append(msg)
+                        snapshot = tuple(pending_msgs.current)
+                        set_pending_view(snapshot)
+                        return
+                    running.current = True
+                set_history(lambda h, m=msg: [
+                    *h, {"type": "user", "text": m},
+                ])
                 _dispatch_agent(
                     msg, state_ref.current, writer_ref.current,
                     set_history, set_phase, running,
+                    pending_msgs, queue_lock, set_pending_view,
                 )
-            else:
-                set_history(lambda h: [
-                    *h,
-                    {"type": "plain",
-                     "ansi": "  Agent is still running.",
-                     "color": _MUTED},
-                ])
             return
 
         # Arrow keys for autocomplete.
@@ -356,6 +421,42 @@ def orx_repl(
         if key.down_arrow and suggestions:
             ac_idx.current = min(len(suggestions) - 1, ac_idx.current + 1)
             return
+
+        # Multi-line cursor navigation. When the buffer spans multiple
+        # lines, up/down move between lines first; only fall through to
+        # history nav when the cursor is on the top/bottom line.
+        if key.up_arrow and "\n" in buf:
+            buf_lines = buf.split("\n")
+            remaining = cursor
+            cur_line, cur_col = 0, 0
+            for i, line in enumerate(buf_lines):
+                if remaining <= len(line):
+                    cur_line, cur_col = i, remaining
+                    break
+                remaining -= len(line) + 1
+            else:
+                cur_line, cur_col = len(buf_lines) - 1, len(buf_lines[-1])
+            if cur_line > 0:
+                target_col = min(cur_col, len(buf_lines[cur_line - 1]))
+                offset = sum(len(ln) + 1 for ln in buf_lines[:cur_line - 1]) + target_col
+                set_cursor(offset)
+                return
+        if key.down_arrow and "\n" in buf:
+            buf_lines = buf.split("\n")
+            remaining = cursor
+            cur_line, cur_col = 0, 0
+            for i, line in enumerate(buf_lines):
+                if remaining <= len(line):
+                    cur_line, cur_col = i, remaining
+                    break
+                remaining -= len(line) + 1
+            else:
+                cur_line, cur_col = len(buf_lines) - 1, len(buf_lines[-1])
+            if cur_line < len(buf_lines) - 1:
+                target_col = min(cur_col, len(buf_lines[cur_line + 1]))
+                offset = sum(len(ln) + 1 for ln in buf_lines[:cur_line + 1]) + target_col
+                set_cursor(offset)
+                return
 
         # History.
         if key.up_arrow:
@@ -389,10 +490,20 @@ def orx_repl(
             set_cursor(lambda c: min(len(buf), c + 1))
             return
         if key.home:
-            set_cursor(0)
+            # Jump to start of current line (or buffer if single-line).
+            if "\n" in buf:
+                line_start = buf.rfind("\n", 0, cursor) + 1
+                set_cursor(line_start)
+            else:
+                set_cursor(0)
             return
         if key.end:
-            set_cursor(len(buf))
+            # Jump to end of current line (or buffer if single-line).
+            if "\n" in buf:
+                next_nl = buf.find("\n", cursor)
+                set_cursor(len(buf) if next_nl == -1 else next_nl)
+            else:
+                set_cursor(len(buf))
             return
 
         # Backspace.
@@ -435,6 +546,19 @@ def orx_repl(
             flex_direction="row",
         ))
 
+    # Floating queued user messages — typed while the agent is
+    # running. They live here (not in scrollback) until the worker
+    # drains them, so the in-flight response is always committed to
+    # history before any queued user-line lands there.
+    if pending_view:
+        for queued in pending_view:
+            dynamic.append(Box(
+                Text("❯ ", color=_ACCENT),
+                Text(queued, bold=True),
+                flex_direction="row",
+                margin_top=1,
+            ))
+
     # Selector (approval or human_input).
     if sel_active:
         dynamic.append(_selector_view(
@@ -444,22 +568,49 @@ def orx_repl(
             show_type_option=sel_show_type.current,
         ))
 
-    # Input area with border + cursor.
-    before = buf[:cursor]
-    char_at = buf[cursor] if cursor < len(buf) else " "
-    after = buf[cursor + 1:] if cursor < len(buf) else ""
-
+    # Input area with border + cursor. For multi-line buffers, render
+    # one row per line; the first row carries the \u276f prompt, the rest
+    # use a blank-aligned indent so the columns line up.
     prompt_label = "?" if freetext else "\u276f"
+
+    lines = buf.split("\n") if buf else [""]
+    # Map cursor offset \u2192 (line_idx, col_idx).
+    remaining = cursor
+    cursor_line = 0
+    cursor_col = 0
+    for i, line in enumerate(lines):
+        if remaining <= len(line):
+            cursor_line, cursor_col = i, remaining
+            break
+        remaining -= len(line) + 1  # +1 for the \n
+    else:
+        cursor_line = len(lines) - 1
+        cursor_col = len(lines[-1])
+
+    rows = []
+    for i, line in enumerate(lines):
+        prompt = f"  {prompt_label} " if i == 0 else "    "
+        if i == cursor_line:
+            before = line[:cursor_col]
+            char_at = line[cursor_col] if cursor_col < len(line) else " "
+            after = line[cursor_col + 1:] if cursor_col < len(line) else ""
+            rows.append(Box(
+                Text(prompt, color=_ACCENT, bold=True),
+                Text(before, bold=True),
+                Text(char_at, bold=True, inverse=True),
+                Text(after, bold=True),
+                flex_direction="row",
+            ))
+        else:
+            rows.append(Box(
+                Text(prompt, color=_ACCENT, bold=True),
+                Text(line, bold=True),
+                flex_direction="row",
+            ))
 
     input_children = [
         Text(_SEPARATOR, color=_MUTED, dim=True),
-        Box(
-            Text(f"  {prompt_label} ", color=_ACCENT, bold=True),
-            Text(before, bold=True),
-            Text(char_at, bold=True, inverse=True),
-            Text(after, bold=True),
-            flex_direction="row",
-        ),
+        Box(*rows, flex_direction="column"),
     ]
     if suggestions and not sel_active and not freetext:
         input_children.append(_autocomplete_menu(
@@ -607,9 +758,21 @@ def _dispatch_slash(text, state, writer, orx_path, workspace,
 
 
 def _dispatch_agent(message, state, writer, set_history,
-                    set_phase, running_ref):
-    set_history(lambda h: [*h, {"type": "user", "text": message}])
-    running_ref.current = True
+                    set_phase, running_ref,
+                    pending_msgs_ref, queue_lock_ref, set_pending_view):
+    """Spawn the worker thread that drains the user-message queue.
+
+    The caller has already pushed the user-line for ``message`` to
+    history and flipped ``running_ref.current`` to True under
+    ``queue_lock_ref.current``. The worker runs the turn, then loops:
+    pop the next pending message under the lock, push *its* user-line
+    to history (so it lands AFTER the prior turn's response has been
+    committed by the live handle's ``stop``), and run it. When the
+    queue is empty the worker flips ``running_ref.current`` to False
+    under the same lock — so the Enter handler's check-and-enqueue is
+    race-free. The lock is only held for O(1) work, never across
+    ``stream_response``.
+    """
 
     def run():
         try:
@@ -618,40 +781,79 @@ def _dispatch_agent(message, state, writer, set_history,
             set_history(lambda h: [
                 *h, {"type": "plain", "ansi": "Error: rich required."},
             ])
-            running_ref.current = False
+            with queue_lock_ref.current:
+                pending_msgs_ref.current.clear()
+                set_pending_view(())
+                running_ref.current = False
             return
 
         from orxhestra.cli.stream import stream_response
 
         loop = asyncio.new_event_loop()
+        current = message
         try:
-            state.auto_approve = loop.run_until_complete(stream_response(
-                state.runner, state.session_id, message,
-                writer, Markdown,
-                todo_list=state.todo_list,
-                auto_approve=state.auto_approve,
-            ))
-            state.turn_count += 1
-        except Exception as exc:
-            err_msg = str(exc)
-            # Truncate long error messages (e.g. API quota errors)
-            if len(err_msg) > 200:
-                err_msg = err_msg[:200] + "..."
-            set_history(lambda h: [
-                *h, {"type": "plain", "ansi": f"Error: {err_msg}", "color": "red"},
-            ])
+            while current is not None:
+                try:
+                    state.auto_approve = loop.run_until_complete(stream_response(
+                        state.runner, state.session_id, current,
+                        writer, Markdown,
+                        todo_list=state.todo_list,
+                        auto_approve=state.auto_approve,
+                    ))
+                    state.turn_count += 1
+                except Exception as exc:
+                    err_msg = str(exc)
+                    if len(err_msg) > 200:
+                        err_msg = err_msg[:200] + "..."
+                    set_history(lambda h, e=err_msg: [
+                        *h, {"type": "plain",
+                             "ansi": f"Error: {e}", "color": "red"},
+                    ])
+                    # Drop the queue on error so we don't loop on
+                    # whatever caused the failure.
+                    with queue_lock_ref.current:
+                        pending_msgs_ref.current.clear()
+                        set_pending_view(())
+                        running_ref.current = False
+                    current = None
+                    break
+
+                # Atomically: either drain the queue and stay running,
+                # or flip running=False under the same lock so the
+                # Enter handler's check-and-enqueue is race-free.
+                # Drain semantics: messages typed while the previous
+                # turn was streaming all show in history as user-lines,
+                # but only the LAST one triggers a new completion. The
+                # intermediate ones are treated as superseded thoughts.
+                with queue_lock_ref.current:
+                    if pending_msgs_ref.current:
+                        drained = list(pending_msgs_ref.current)
+                        pending_msgs_ref.current.clear()
+                        set_pending_view(())
+                    else:
+                        running_ref.current = False
+                        drained = None
+                if drained:
+                    for line in drained:
+                        set_history(lambda h, m=line: [
+                            *h, {"type": "user", "text": m},
+                        ])
+                    current = drained[-1]
+                else:
+                    current = None
         finally:
-            running_ref.current = False
             set_phase("idle")
-        # Cancel pending tasks before closing to avoid
-        # "Task was destroyed but it is pending" warnings.
-        for task in asyncio.all_tasks(loop):
-            task.cancel()
-        try:
-            pending = asyncio.all_tasks(loop)
-            loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
-        except Exception:
-            pass
-        loop.close()
+            # Cancel pending tasks before closing to avoid
+            # "Task was destroyed but it is pending" warnings.
+            for task in asyncio.all_tasks(loop):
+                task.cancel()
+            try:
+                leftover = asyncio.all_tasks(loop)
+                loop.run_until_complete(
+                    asyncio.gather(*leftover, return_exceptions=True),
+                )
+            except Exception:
+                pass
+            loop.close()
 
     threading.Thread(target=run, daemon=True).start()

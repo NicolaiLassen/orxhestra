@@ -83,16 +83,6 @@ def _history_item(item, _index=0):
             margin_top=1,
             margin_bottom=1,
         )
-    if t == "user_continuation":
-        # Queued message that was drained mid-session: render as a
-        # follow-up attached to the previous response (no top margin),
-        # so a chain of turns reads as one continuous flow.
-        return Box(
-            Text("\u276f ", color=_ACCENT),
-            Text(item["text"], bold=True),
-            flex_direction="row",
-            margin_bottom=1,
-        )
     if t == "response":
         # Prepend bullet directly to avoid flex-row spacing issues
         # where ANSI codes can consume the space between ● and text.
@@ -742,7 +732,7 @@ def _dispatch_agent(message, state, writer, set_history,
                 if drained:
                     for line in drained:
                         set_history(lambda h, m=line: [
-                            *h, {"type": "user_continuation", "text": m},
+                            *h, {"type": "user", "text": m},
                         ])
                     current = drained[-1]
                 else:

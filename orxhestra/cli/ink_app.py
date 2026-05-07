@@ -335,20 +335,40 @@ def orx_repl(
                 ac_idx.current = 0
             return
 
-        # Multi-line newline insert. Most terminals send the same byte
-        # for Enter and Shift+Enter, so we accept Shift+Enter (when the
-        # terminal supports the kitty keyboard protocol) AND
-        # Alt/Option+Enter (universal: terminals send "\x1b\r") as the
-        # newline binding.
-        is_newline_insert = (
-            (key.return_key and key.shift)
-            or ch == "\x1b\r"
-            or ch == "\x1b\n"
+        # Multi-line newline insert. Different terminals send wildly
+        # different bytes for "modified Enter":
+        #   - kitty/ghostty (with kitty keyboard protocol): key.shift
+        #     gets set on the parsed Enter.
+        #   - iTerm2 with "Send Esc+" or Terminal.app with "Use Option
+        #     as Meta key": Alt/Option+Enter sends "\x1b\r".
+        #   - Some emit "\x1bOM" (xterm SS3 enter).
+        #   - Kitty CSI u format: "\x1b[13;<mod>u" for modified Enter.
+        # Universal fallback: type "\" then press Enter — the trailing
+        # backslash is replaced with a newline (popular in shells).
+        is_modified_enter = (
+            (key.return_key and (key.shift or key.meta or key.ctrl))
+            or ch in ("\x1b\r", "\x1b\n", "\x1bOM")
+            or (ch and ch.startswith("\x1b[13;") and ch.endswith("u"))
         )
-        if is_newline_insert:
+        backslash_enter = (
+            key.return_key
+            and not (key.shift or key.meta or key.ctrl)
+            and cursor > 0
+            and cursor <= len(buf)
+            and buf[cursor - 1] == "\\"
+            and not suggestions
+        )
+        if is_modified_enter:
             pos = cursor
             set_buf(lambda t, p=pos: t[:p] + "\n" + t[p:])
             set_cursor(lambda c: c + 1)
+            ac_idx.current = 0
+            return
+        if backslash_enter:
+            # Replace the trailing "\" with a newline. Cursor stays at
+            # the same offset (was after "\", now after "\n").
+            pos = cursor
+            set_buf(lambda t, p=pos: t[:p - 1] + "\n" + t[p:])
             ac_idx.current = 0
             return
 

@@ -117,7 +117,7 @@ class _StreamState:
         if self.in_stream:
             if self.live_handle is not None:
                 if self.buffer:
-                    self.live_handle.update(markdown_cls(self.buffer))
+                    self.live_handle.update_text(self.buffer, markdown_cls)
                 writer.stop_live(self.live_handle, keep=True)
                 self.live_handle = None
             elif self.buffer:
@@ -271,9 +271,7 @@ async def stream_response(
                 if not s.in_stream:
                     s.in_stream = True
                     s.live_handle = writer.start_live()
-                    s.live_handle.update(markdown_cls(s.buffer))
-                else:
-                    s.live_handle.update(markdown_cls(s.buffer))
+                s.live_handle.update_text(s.buffer, markdown_cls)
                 continue
 
             if event.has_tool_calls:

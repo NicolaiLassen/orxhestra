@@ -335,6 +335,23 @@ def orx_repl(
                 ac_idx.current = 0
             return
 
+        # Multi-line newline insert. Most terminals send the same byte
+        # for Enter and Shift+Enter, so we accept Shift+Enter (when the
+        # terminal supports the kitty keyboard protocol) AND
+        # Alt/Option+Enter (universal: terminals send "\x1b\r") as the
+        # newline binding.
+        is_newline_insert = (
+            (key.return_key and key.shift)
+            or ch == "\x1b\r"
+            or ch == "\x1b\n"
+        )
+        if is_newline_insert:
+            pos = cursor
+            set_buf(lambda t, p=pos: t[:p] + "\n" + t[p:])
+            set_cursor(lambda c: c + 1)
+            ac_idx.current = 0
+            return
+
         # Enter.
         if key.return_key:
             if suggestions:
@@ -391,6 +408,42 @@ def orx_repl(
             ac_idx.current = min(len(suggestions) - 1, ac_idx.current + 1)
             return
 
+        # Multi-line cursor navigation. When the buffer spans multiple
+        # lines, up/down move between lines first; only fall through to
+        # history nav when the cursor is on the top/bottom line.
+        if key.up_arrow and "\n" in buf:
+            buf_lines = buf.split("\n")
+            remaining = cursor
+            cur_line, cur_col = 0, 0
+            for i, line in enumerate(buf_lines):
+                if remaining <= len(line):
+                    cur_line, cur_col = i, remaining
+                    break
+                remaining -= len(line) + 1
+            else:
+                cur_line, cur_col = len(buf_lines) - 1, len(buf_lines[-1])
+            if cur_line > 0:
+                target_col = min(cur_col, len(buf_lines[cur_line - 1]))
+                offset = sum(len(l) + 1 for l in buf_lines[:cur_line - 1]) + target_col
+                set_cursor(offset)
+                return
+        if key.down_arrow and "\n" in buf:
+            buf_lines = buf.split("\n")
+            remaining = cursor
+            cur_line, cur_col = 0, 0
+            for i, line in enumerate(buf_lines):
+                if remaining <= len(line):
+                    cur_line, cur_col = i, remaining
+                    break
+                remaining -= len(line) + 1
+            else:
+                cur_line, cur_col = len(buf_lines) - 1, len(buf_lines[-1])
+            if cur_line < len(buf_lines) - 1:
+                target_col = min(cur_col, len(buf_lines[cur_line + 1]))
+                offset = sum(len(l) + 1 for l in buf_lines[:cur_line + 1]) + target_col
+                set_cursor(offset)
+                return
+
         # History.
         if key.up_arrow:
             h = cmd_hist.current
@@ -423,10 +476,20 @@ def orx_repl(
             set_cursor(lambda c: min(len(buf), c + 1))
             return
         if key.home:
-            set_cursor(0)
+            # Jump to start of current line (or buffer if single-line).
+            if "\n" in buf:
+                line_start = buf.rfind("\n", 0, cursor) + 1
+                set_cursor(line_start)
+            else:
+                set_cursor(0)
             return
         if key.end:
-            set_cursor(len(buf))
+            # Jump to end of current line (or buffer if single-line).
+            if "\n" in buf:
+                next_nl = buf.find("\n", cursor)
+                set_cursor(len(buf) if next_nl == -1 else next_nl)
+            else:
+                set_cursor(len(buf))
             return
 
         # Backspace.
@@ -491,22 +554,49 @@ def orx_repl(
             show_type_option=sel_show_type.current,
         ))
 
-    # Input area with border + cursor.
-    before = buf[:cursor]
-    char_at = buf[cursor] if cursor < len(buf) else " "
-    after = buf[cursor + 1:] if cursor < len(buf) else ""
-
+    # Input area with border + cursor. For multi-line buffers, render
+    # one row per line; the first row carries the \u276f prompt, the rest
+    # use a blank-aligned indent so the columns line up.
     prompt_label = "?" if freetext else "\u276f"
+
+    lines = buf.split("\n") if buf else [""]
+    # Map cursor offset \u2192 (line_idx, col_idx).
+    remaining = cursor
+    cursor_line = 0
+    cursor_col = 0
+    for i, line in enumerate(lines):
+        if remaining <= len(line):
+            cursor_line, cursor_col = i, remaining
+            break
+        remaining -= len(line) + 1  # +1 for the \n
+    else:
+        cursor_line = len(lines) - 1
+        cursor_col = len(lines[-1])
+
+    rows = []
+    for i, line in enumerate(lines):
+        prompt = f"  {prompt_label} " if i == 0 else "    "
+        if i == cursor_line:
+            before = line[:cursor_col]
+            char_at = line[cursor_col] if cursor_col < len(line) else " "
+            after = line[cursor_col + 1:] if cursor_col < len(line) else ""
+            rows.append(Box(
+                Text(prompt, color=_ACCENT, bold=True),
+                Text(before, bold=True),
+                Text(char_at, bold=True, inverse=True),
+                Text(after, bold=True),
+                flex_direction="row",
+            ))
+        else:
+            rows.append(Box(
+                Text(prompt, color=_ACCENT, bold=True),
+                Text(line, bold=True),
+                flex_direction="row",
+            ))
 
     input_children = [
         Text(_SEPARATOR, color=_MUTED, dim=True),
-        Box(
-            Text(f"  {prompt_label} ", color=_ACCENT, bold=True),
-            Text(before, bold=True),
-            Text(char_at, bold=True, inverse=True),
-            Text(after, bold=True),
-            flex_direction="row",
-        ),
+        Box(*rows, flex_direction="column"),
     ]
     if suggestions and not sel_active and not freetext:
         input_children.append(_autocomplete_menu(

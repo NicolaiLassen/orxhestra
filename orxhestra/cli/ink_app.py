@@ -248,25 +248,6 @@ def orx_repl(
     total_opts = len(sel_options) + (1 if sel_show_type.current else 0)
 
     def on_key(ch, key):
-        # Debug helper: ORX_KEY_DEBUG=1 surfaces every keypress as a
-        # muted history line so we can see exactly what bytes the
-        # terminal sends for whatever shortcut we're trying to bind.
-        import os as _os
-        if _os.environ.get("ORX_KEY_DEBUG"):
-            flags = [
-                name for name in (
-                    "shift", "ctrl", "meta", "super_key", "tab",
-                    "return_key", "escape", "backspace", "delete",
-                    "up_arrow", "down_arrow", "left_arrow", "right_arrow",
-                    "home", "end",
-                ) if getattr(key, name, False)
-            ]
-            ch_repr = repr(ch) if ch else "''"
-            line = f"  key: ch={ch_repr} flags={'|'.join(flags) or '-'}"
-            set_history(lambda h, ln=line: [
-                *h, {"type": "plain", "ansi": ln, "color": _MUTED, "dim": True},
-            ])
-
         # ── Free-text input mode (answering human_input) ──
         if freetext:
             if key.return_key:

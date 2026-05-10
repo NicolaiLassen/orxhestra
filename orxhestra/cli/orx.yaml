@@ -6,7 +6,7 @@
 #
 # Usage:
 #   orx                     # loads this template
-#   orx --model gpt-5.4     # override the model
+#   orx --model gpt-5.5     # override the model
 #
 # To customise, copy this file and run: orx my-orx.yaml
 
@@ -15,7 +15,7 @@ version: "0.0.21"
 defaults:
   model:
     provider: openai
-    name: gpt-5.4
+    name: gpt-5.5
 
 tools:
   filesystem:

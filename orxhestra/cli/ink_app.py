@@ -682,6 +682,7 @@ def run_ink_app(
             state.model_name,
             workspace,
             signer_did=state.signer_did,
+            effort=state.effort,
         ),
     )
 

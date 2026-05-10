@@ -42,7 +42,7 @@ def detect_provider(model_name: str) -> str:
     return "openai"
 
 
-def create_llm(model_name: str) -> BaseChatModel:
+def create_llm(model_name: str, effort: str | None = None) -> BaseChatModel:
     """Create a LangChain BaseChatModel from a model name string.
 
     Raises a clear error if the provider package is missing or if
@@ -52,6 +52,10 @@ def create_llm(model_name: str) -> BaseChatModel:
     ----------
     model_name : str
         Model name string used to detect the provider and instantiate the model.
+    effort : str or None, optional
+        Unified reasoning effort (``"low"``, ``"medium"``, ``"high"``).
+        Translated per-provider via :func:`effort_model_kwargs`. ``None``
+        leaves the model defaults untouched.
 
     Returns
     -------
@@ -65,10 +69,13 @@ def create_llm(model_name: str) -> BaseChatModel:
         msg = f"Missing {env_var}. Set it with: export {env_var}=sk-..."
         raise RuntimeError(msg)
 
+    from orxhestra.cli.config import effort_model_kwargs
     from orxhestra.composer.builders.models import create
 
+    extra: dict = effort_model_kwargs(provider, effort) if effort else {}
+
     try:
-        return create(provider, model_name)
+        return create(provider, model_name, **extra)
     except Exception as exc:
         hint: str = PROVIDER_INSTALL_HINTS.get(provider, "")
         msg = f"Failed to create model '{model_name}' ({provider}): {exc}"

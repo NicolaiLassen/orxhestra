@@ -33,7 +33,7 @@ import sys
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from orxhestra.cli.config import DEFAULT_MODEL
+from orxhestra.cli.config import DEFAULT_EFFORT, DEFAULT_MODEL
 
 if TYPE_CHECKING:
     from rich.console import Console
@@ -91,6 +91,17 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "-m", "--model",
         default=os.environ.get("ORX_MODEL", DEFAULT_MODEL),
         help=f"Model name (default: {DEFAULT_MODEL}). Also reads $ORX_MODEL.",
+    )
+    parser.add_argument(
+        "-e", "--effort",
+        choices=["low", "medium", "high"],
+        default=os.environ.get("ORX_EFFORT", DEFAULT_EFFORT),
+        help=(
+            f"Reasoning effort: low (fast) | medium | high (default: "
+            f"{DEFAULT_EFFORT}). Translated per-provider — OpenAI uses "
+            "reasoning_effort, Anthropic uses thinking budget, Google uses "
+            "thinking_level. Also reads $ORX_EFFORT."
+        ),
     )
     parser.add_argument(
         "-w", "--workspace",
@@ -385,7 +396,7 @@ async def _async_main(args: argparse.Namespace) -> None:
     from orxhestra.cli.builder import build_from_orx
 
     state: ReplState = await build_from_orx(
-        orx_path, args.model, args.workspace
+        orx_path, args.model, args.workspace, effort=args.effort,
     )
     state.auto_approve = args.auto_approve
 

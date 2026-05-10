@@ -52,6 +52,17 @@ class ReplState(BaseModel):
     runner: Runner = Field(description="Active Runner instance for agent execution.")
     session_id: str = Field(description="Current session identifier.")
     model_name: str = Field(description="Name of the LLM model in use.")
+    effort: str | None = Field(
+        default=None,
+        description="Active reasoning effort level (low|medium|high).",
+    )
+    spec_raw: dict | None = Field(
+        default=None,
+        description=(
+            "Parsed orx YAML used to build the agent tree. Drives the "
+            "/agent command's per-agent introspection."
+        ),
+    )
     todo_list: TodoList | None = Field(
         default=None, description="Active todo list for task tracking."
     )

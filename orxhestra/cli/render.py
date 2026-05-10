@@ -239,6 +239,7 @@ def render_banner(
     model_name: str,
     workspace: str,
     signer_did: str | None = None,
+    effort: str | None = None,
 ) -> Any:
     """Return a Rich renderable for the welcome banner.
 
@@ -312,9 +313,15 @@ def render_banner(
             f"\n[{lbl}]identity:[/{lbl}]  "
             f"[orx.muted]disabled (pass --identity to enable)[/orx.muted]"
         )
+    model_row: str = f"[{lbl}]model:[/{lbl}]     {model_name}"
+    if effort:
+        model_row += (
+            f"  [orx.muted]·[/orx.muted]  "
+            f"[{lbl}]effort:[/{lbl}] {effort}"
+        )
     content: str = (
         f"[orx.accent]orx[/orx.accent] {ver}\n"
-        f"[{lbl}]model:[/{lbl}]     {model_name}\n"
+        f"{model_row}\n"
         f"[{lbl}]workspace:[/{lbl}] {ws_display}\n"
         f"[{lbl}]agents:[/{lbl}]    {agent_names}"
         f"{identity_row}"

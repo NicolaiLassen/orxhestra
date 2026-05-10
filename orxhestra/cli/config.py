@@ -13,9 +13,43 @@ from pathlib import Path
 
 APP_NAME: str = "orx-cli"
 DEFAULT_USER_ID: str = "cli-user"
-DEFAULT_MODEL: str = os.environ.get("ORX_MODEL", "gpt-5.4")
+DEFAULT_MODEL: str = os.environ.get("ORX_MODEL", "gpt-5.5")
+DEFAULT_EFFORT: str = os.environ.get("ORX_EFFORT", "medium")
 HISTORY_DIR: Path = Path.home() / ".orx"
 HISTORY_FILE: Path = HISTORY_DIR / "history"
+
+# Anthropic / Cohere thinking budgets, indexed by unified effort level.
+_ANTHROPIC_THINKING_BUDGET: dict[str, int | None] = {
+    "low": None,
+    "medium": 5000,
+    "high": 10000,
+}
+
+
+def effort_model_kwargs(provider: str, effort: str) -> dict[str, object]:
+    """Return provider-specific model kwargs for a reasoning effort level.
+
+    Maps a unified ``"low" / "medium" / "high"`` effort level to the
+    parameter shape each provider expects:
+
+    - Anthropic / Bedrock / Cohere: ``thinking.budget_tokens``
+    - OpenAI / Azure OpenAI: ``reasoning_effort`` (+ Responses API)
+    - Google / Vertex: ``thinking_level``
+    - xAI / DeepSeek / Mistral / Groq: ``reasoning_effort``
+    - All others: empty (silently ignored)
+    """
+    if provider in ("anthropic", "aws", "bedrock", "aws_bedrock", "cohere"):
+        budget = _ANTHROPIC_THINKING_BUDGET.get(effort)
+        if budget is None:
+            return {}
+        return {"thinking": {"type": "enabled", "budget_tokens": budget}}
+    if provider in ("openai", "azure", "azure_openai", "azure_ai"):
+        return {"reasoning_effort": effort, "use_responses_api": True}
+    if provider in ("google", "google_genai", "google_vertexai", "vertexai"):
+        return {"thinking_level": effort}
+    if provider in ("xai", "deepseek", "mistralai", "mistral", "groq"):
+        return {"reasoning_effort": effort}
+    return {}
 
 # Provider detection: prefix -> provider name for model registry.
 # Order matters — first match wins.

@@ -33,6 +33,7 @@ _DESC: str = "orx.help.desc"
 _HELP_TEXT: str = (
     f"[{_CMD}]Commands:[/{_CMD}]\n"
     f"  [{_CMD}]/model <name>[/{_CMD}]  [{_DESC}]Switch model[/{_DESC}]\n"
+    f"  [{_CMD}]/agent [name][/{_CMD}]  [{_DESC}]List agents or show one[/{_DESC}]\n"
     f"  [{_CMD}]/clear[/{_CMD}]         [{_DESC}]Clear session[/{_DESC}]\n"
     f"  [{_CMD}]/compact[/{_CMD}]       [{_DESC}]Compact context[/{_DESC}]\n"
     f"  [{_CMD}]/todos[/{_CMD}]         [{_DESC}]Show tasks[/{_DESC}]\n"
@@ -530,6 +531,145 @@ async def _cmd_theme(
     )
 
 
+def _agent_model_effort(
+    spec_raw: dict, name: str,
+) -> tuple[str | None, str | None]:
+    """Pull the model name + effort an agent declares (if any).
+
+    Returns ``(None, None)`` when the agent inherits both from defaults.
+    """
+    agents: dict = spec_raw.get("agents", {}) or {}
+    a: dict = agents.get(name) or {}
+    model_name: str | None = None
+    raw_model = a.get("model")
+    if isinstance(raw_model, dict):
+        model_name = raw_model.get("name")
+    elif isinstance(raw_model, str):
+        model_name = raw_model
+    effort: str | None = a.get("effort")
+    if effort is None and isinstance(raw_model, dict):
+        effort = raw_model.get("effort")
+        if effort is None:
+            re = raw_model.get("reasoning_effort")
+            if isinstance(re, str):
+                effort = re
+    return model_name, effort
+
+
+def _agent_tools(spec_raw: dict, name: str) -> list[str]:
+    """Best-effort extraction of an agent's tool names from raw YAML."""
+    agents: dict = spec_raw.get("agents", {}) or {}
+    a: dict = agents.get(name) or {}
+    tools = a.get("tools")
+    if isinstance(tools, list):
+        return [str(t) for t in tools]
+    if isinstance(tools, dict):
+        return list(tools.keys())
+    return []
+
+
+async def _cmd_agent(
+    state: ReplState,
+    cmd_arg: str | None,
+    *,
+    writer: Writer,
+    **_kw: object,
+) -> None:
+    """Show the agent roster or details for a specific agent.
+
+    With no argument: a one-line table of every agent's effective
+    model and effort, plus its tool count. With a name argument:
+    full details for that agent (description, model, effort, tools,
+    sub-agents).
+    """
+    spec: dict = state.spec_raw or {}
+    agents: dict = spec.get("agents", {}) or {}
+    if not agents:
+        writer.print_rich(
+            "[orx.status]No agents defined in this orx file.[/orx.status]"
+        )
+        return
+
+    default_model = state.model_name
+    default_effort = state.effort or "—"
+
+    if not cmd_arg:
+        from rich.table import Table
+
+        table = Table(
+            show_header=True,
+            header_style="orx.help.cmd",
+            box=None,
+            pad_edge=False,
+            padding=(0, 2),
+        )
+        table.add_column("agent")
+        table.add_column("model")
+        table.add_column("effort")
+        table.add_column("tools")
+        for name in agents:
+            m, e = _agent_model_effort(spec, name)
+            model_cell = m or "[orx.muted](default)[/orx.muted]"
+            effort_cell = e or "[orx.muted](default)[/orx.muted]"
+            tools = _agent_tools(spec, name)
+            if tools:
+                tools_cell = ", ".join(tools[:3]) + (
+                    f", +{len(tools) - 3}" if len(tools) > 3 else ""
+                )
+            else:
+                tools_cell = "[orx.muted]—[/orx.muted]"
+            table.add_row(name, model_cell, effort_cell, tools_cell)
+        writer.print_rich(table)
+        writer.print_rich(
+            f"[orx.muted]defaults: {default_model} · effort {default_effort}"
+            f"  ·  /agent <name> for details[/orx.muted]"
+        )
+        return
+
+    name = cmd_arg.strip()
+    if name not in agents:
+        writer.print_rich(
+            f"[orx.status]Unknown agent: {name}. "
+            f"Try /agent for the list.[/orx.status]"
+        )
+        return
+
+    a: dict = agents.get(name) or {}
+    m, e = _agent_model_effort(spec, name)
+    model_disp = m or f"{default_model} [orx.muted](default)[/orx.muted]"
+    effort_disp = e or f"{default_effort} [orx.muted](default)[/orx.muted]"
+    description = a.get("description") or "[orx.muted]—[/orx.muted]"
+    tools = _agent_tools(spec, name)
+    tools_disp = ", ".join(tools) if tools else "[orx.muted]—[/orx.muted]"
+    sub_agents = a.get("sub_agents") or a.get("agents") or []
+    if isinstance(sub_agents, dict):
+        sub_agents = list(sub_agents.keys())
+    sub_disp = ", ".join(sub_agents) if sub_agents else "[orx.muted]—[/orx.muted]"
+    type_disp = a.get("type") or "[orx.muted]—[/orx.muted]"
+
+    from rich.table import Table
+
+    writer.print_rich(f"[orx.accent]❯ {name}[/orx.accent]")
+    writer.print_rich(
+        "[orx.muted]─────────────────────────────────────────────[/orx.muted]"
+    )
+    detail = Table(
+        show_header=False,
+        box=None,
+        pad_edge=False,
+        padding=(0, 2),
+    )
+    detail.add_column(style="orx.help.cmd")
+    detail.add_column(overflow="fold")
+    detail.add_row("type", type_disp)
+    detail.add_row("model", model_disp)
+    detail.add_row("effort", effort_disp)
+    detail.add_row("description", description)
+    detail.add_row("tools", tools_disp)
+    detail.add_row("sub-agents", sub_disp)
+    writer.print_rich(detail)
+
+
 async def _cmd_help(
     _state: ReplState,
     _cmd_arg: str | None,
@@ -556,6 +696,7 @@ _DISPATCH: dict[str, Callable[..., object]] = {
     "/clear": _cmd_clear,
     "/compact": _cmd_compact,
     "/model": _cmd_model,
+    "/agent": _cmd_agent,
     "/todos": _cmd_todos,
     "/session": _cmd_session,
     "/undo": _cmd_undo,

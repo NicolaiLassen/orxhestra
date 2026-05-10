@@ -81,6 +81,8 @@ async def build_from_orx(
     orx_path: Path,
     model_name: str,
     workspace: str,
+    *,
+    effort: str | None = None,
 ) -> ReplState:
     """Build a Runner from an orx YAML and return populated ReplState.
 
@@ -113,7 +115,7 @@ async def build_from_orx(
         sys.exit(1)
 
     os.environ["AGENT_WORKSPACE"] = workspace
-    model = create_llm(model_name)
+    model = create_llm(model_name, effort=effort)
     register_cli_builtins(workspace, model)
 
     with open(orx_path) as f:
@@ -124,10 +126,16 @@ async def build_from_orx(
     if "model" not in defaults:
         if "defaults" not in raw:
             raw["defaults"] = {}
-        raw["defaults"]["model"] = {
-            "provider": detect_provider(model_name),
+        from orxhestra.cli.config import effort_model_kwargs
+
+        provider = detect_provider(model_name)
+        model_spec: dict = {
+            "provider": provider,
             "name": model_name,
         }
+        if effort:
+            model_spec.update(effort_model_kwargs(provider, effort))
+        raw["defaults"]["model"] = model_spec
     else:
         # Use the YAML model name for the banner display.
         yaml_model = defaults["model"]
@@ -180,6 +188,8 @@ async def build_from_orx(
         runner=runner,
         session_id=str(uuid4()),
         model_name=model_name,
+        effort=effort,
+        spec_raw=raw,
         todo_list=get_todo_list(),
         model=model,
     )

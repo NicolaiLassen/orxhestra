@@ -647,16 +647,27 @@ async def _cmd_agent(
     sub_disp = ", ".join(sub_agents) if sub_agents else "[orx.muted]—[/orx.muted]"
     type_disp = a.get("type") or "[orx.muted]—[/orx.muted]"
 
+    from rich.table import Table
+
     writer.print_rich(f"[orx.accent]❯ {name}[/orx.accent]")
     writer.print_rich(
-        "[orx.muted]  ─────────────────────────────────────────────[/orx.muted]"
+        "[orx.muted]─────────────────────────────────────────────[/orx.muted]"
     )
-    writer.print_rich(f"  [orx.help.cmd]type[/orx.help.cmd]         {type_disp}")
-    writer.print_rich(f"  [orx.help.cmd]model[/orx.help.cmd]        {model_disp}")
-    writer.print_rich(f"  [orx.help.cmd]effort[/orx.help.cmd]       {effort_disp}")
-    writer.print_rich(f"  [orx.help.cmd]description[/orx.help.cmd]  {description}")
-    writer.print_rich(f"  [orx.help.cmd]tools[/orx.help.cmd]        {tools_disp}")
-    writer.print_rich(f"  [orx.help.cmd]sub-agents[/orx.help.cmd]   {sub_disp}")
+    detail = Table(
+        show_header=False,
+        box=None,
+        pad_edge=False,
+        padding=(0, 2),
+    )
+    detail.add_column(style="orx.help.cmd")
+    detail.add_column(overflow="fold")
+    detail.add_row("type", type_disp)
+    detail.add_row("model", model_disp)
+    detail.add_row("effort", effort_disp)
+    detail.add_row("description", description)
+    detail.add_row("tools", tools_disp)
+    detail.add_row("sub-agents", sub_disp)
+    writer.print_rich(detail)
 
 
 async def _cmd_help(
